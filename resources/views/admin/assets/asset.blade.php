@@ -77,66 +77,7 @@
 </head>
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-gray-900 text-white flex flex-col overflow-y-auto">
-            <div class="p-6 border-b border-gray-800">
-                <h1 class="text-2xl font-bold flex items-center">
-                    <i class="ri-dashboard-line mr-2"></i>
-                    Dashboard
-                </h1>
-            </div>
-
-            <div class="p-4 border-b border-gray-800">
-                <div class="relative">
-                    <i class="ri-search-line absolute left-3 top-2.5 text-gray-400 text-sm"></i>
-                    <input type="text" id="searchDepartments" placeholder="Search departments..." 
-                           class="w-full pl-9 pr-3 py-2 bg-gray-800 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-            </div>
-
-            <nav class="flex-1 py-4">
-                <div class="px-4 mb-4">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">MAIN</p>
-                    <a href="#" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-dashboard-line mr-3 text-lg"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="#" class="sidebar-item active flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-database-line mr-3 text-lg"></i>
-                        <span>Assets</span>
-                    </a>
-                    <a href="#" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-mail-line mr-3 text-lg"></i>
-                        <span>Requests</span>
-                    </a>
-                    <a href="#" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-delete-bin-line mr-3 text-lg"></i>
-                        <span>Disposal</span>
-                    </a>
-                    <a href="#" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-logout-box-r-line mr-3 text-lg"></i>
-                        <span>Pullout</span>
-                    </a>
-                </div>
-            </nav>
-
-            <div class="border-t border-gray-800 p-4 mt-auto">
-                <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">
-                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span class="text-white font-semibold text-sm">AO</span>
-                    </div>
-                    <div class="ml-3 flex-1 min-w-0">
-                        <p class="text-sm font-medium text-white truncate">Asset Officer</p>
-                        <p class="text-xs text-gray-400 truncate">admin@university.edu</p>
-                    </div>
-                    <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-white text-sm"></i>
-                </div>
-                <a href="#" class="flex items-center px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-gray-800 transition">
-                    <i class="ri-logout-box-line mr-3 text-lg"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </div>
+        @include('admin.partials.sidebar')
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
@@ -209,11 +150,34 @@
                                         }
                                     }
                                 @endphp
+
+                                <div class="mb-4">
+                                    <p class="text-sm font-medium text-gray-700 mb-2">Asset Lifecycle Distribution</p>
+                                    <div class="h-3 w-full rounded-full bg-gray-100 overflow-hidden flex">
+                                        @if($dept->total_assets > 0)
+                                            @if($acquired > 0)
+                                                <div style="width: {{ round(($acquired / $dept->total_assets) * 100, 1) }}%; background-color: #3b82f6;"></div>
+                                            @endif
+                                            @if($active > 0)
+                                                <div style="width: {{ round(($active / $dept->total_assets) * 100, 1) }}%; background-color: #22c55e;"></div>
+                                            @endif
+                                            @if($forRepair > 0)
+                                                <div style="width: {{ round(($forRepair / $dept->total_assets) * 100, 1) }}%; background-color: #f59e0b;"></div>
+                                            @endif
+                                            @if($pulledOut > 0)
+                                                <div style="width: {{ round(($pulledOut / $dept->total_assets) * 100, 1) }}%; background-color: #94a3b8;"></div>
+                                            @endif
+                                            @if($disposed > 0)
+                                                <div style="width: {{ round(($disposed / $dept->total_assets) * 100, 1) }}%; background-color: #ef4444;"></div>
+                                            @endif
+                                        @endif
+                                    </div>
+                                </div>
                                 
                                 <div class="grid grid-cols-5 gap-3 mb-6">
                                     <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
                                         <p class="text-xs text-gray-500">Acquired</p>
-                                        <p class="text-xl font-bold text-yellow-600">{{ $acquired }}</p>
+                                        <p class="text-xl font-bold text-blue-600">{{ $acquired }}</p>
                                         <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($acquired / $dept->total_assets) * 100) : 0 }}%)</p>
                                     </div>
                                     <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
@@ -223,93 +187,27 @@
                                     </div>
                                     <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
                                         <p class="text-xs text-gray-500">For Repair</p>
-                                        <p class="text-xl font-bold text-red-600">{{ $forRepair }}</p>
+                                        <p class="text-xl font-bold text-amber-500">{{ $forRepair }}</p>
                                         <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($forRepair / $dept->total_assets) * 100) : 0 }}%)</p>
                                     </div>
                                     <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
                                         <p class="text-xs text-gray-500">Pulled Out</p>
-                                        <p class="text-xl font-bold text-orange-600">{{ $pulledOut }}</p>
+                                        <p class="text-xl font-bold text-slate-500">{{ $pulledOut }}</p>
                                         <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($pulledOut / $dept->total_assets) * 100) : 0 }}%)</p>
                                     </div>
                                     <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
                                         <p class="text-xs text-gray-500">Disposed</p>
-                                        <p class="text-xl font-bold text-gray-600">{{ $disposed }}</p>
+                                        <p class="text-xl font-bold text-red-500">{{ $disposed }}</p>
                                         <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($disposed / $dept->total_assets) * 100) : 0 }}%)</p>
                                     </div>
                                 </div>
                                 
-                                <!-- View All Assets Button -->
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-semibold text-gray-900">Assets List</h4>
-                                    <button class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center">
+                                <div class="flex justify-end">
+                                    <a href="{{ route('admin.assets.department', ['department' => $dept->name]) }}" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center">
                                         View All Assets
                                         <i class="ri-arrow-right-line ml-1"></i>
-                                    </button>
+                                    </a>
                                 </div>
-                                
-                                @if(count($dept->assets) > 0)
-                                    <!-- Assets Table -->
-                                    <div class="overflow-x-auto">
-                                        <table class="w-full">
-                                            <thead>
-                                                <tr class="border-b border-gray-200">
-                                                    <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Asset Name</th>
-                                                    <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Asset Code</th>
-                                                    <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                                    <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Assigned To</th>
-                                                    <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Date Acquired</th>
-                                                    <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($dept->assets as $asset)
-                                                <tr class="asset-row border-b border-gray-100">
-                                                    <td class="py-3 px-3 text-sm text-gray-900">{{ $asset->name }}</td>
-                                                    <td class="py-3 px-3 text-sm text-gray-600 font-mono">
-                                                        <a href="/admin/assets/{{ $asset->id }}" class="text-blue-600 hover:underline">{{ $asset->asset_code }}</a>
-                                                    </td>
-                                                    <td class="py-3 px-3">
-                                                        <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                                                            @if($asset->status == 'acquired') bg-yellow-100 text-yellow-700
-                                                            @elseif($asset->status == 'active') bg-green-100 text-green-700
-                                                            @elseif($asset->status == 'for_repair') bg-red-100 text-red-700
-                                                            @elseif($asset->status == 'pulled_out') bg-orange-100 text-orange-700
-                                                            @else bg-gray-100 text-gray-700
-                                                            @endif">
-                                                            <i class="ri-circle-fill mr-1 text-xs"></i>
-                                                            {{ ucfirst(str_replace('_', ' ', $asset->status)) }}
-                                                        </span>
-                                                    </td>
-                                                    <td class="py-3 px-3 text-sm text-gray-600">{{ $asset->assigned_to }}</td>
-                                                    <td class="py-3 px-3 text-sm text-gray-600">{{ $asset->acquisition_date }}</td>
-                                                    <td class="py-3 px-3">
-                                                        <div class="flex items-center space-x-2">
-                                                            <button class="text-blue-600 hover:text-blue-700" title="Edit">
-                                                                <i class="ri-edit-line"></i>
-                                                            </button>
-                                                            <button class="text-red-600 hover:text-red-700" title="Delete">
-                                                                <i class="ri-delete-bin-line"></i>
-                                                            </button>
-                                                            <button class="text-gray-600 hover:text-gray-700" title="View QR">
-                                                                <i class="ri-qr-code-line"></i>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                @else
-                                    <!-- Empty State -->
-                                    <div class="text-center py-8 bg-white rounded-lg border border-gray-200">
-                                        <i class="ri-inbox-line text-4xl text-gray-300 mb-2 block"></i>
-                                        <p class="text-gray-500">No assets found in this department</p>
-                                        <button class="mt-3 text-blue-600 hover:text-blue-700 text-sm">
-                                            + Add New Asset
-                                        </button>
-                                    </div>
-                                @endif
                             </div>
                         </div>
                     </div>

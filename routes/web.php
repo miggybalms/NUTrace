@@ -9,6 +9,8 @@ use App\Models\Asset;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\UserRequestController;
 
 // Handle login form submission
 Route::post('/login', function (Request $request) {
@@ -267,6 +269,107 @@ Route::get('/admin/assets/{id}', function ($id) {
     return view('admin.assets.show', compact('asset'));
 })->where('id', '[0-9]+');
 
+// Admin department assets page
+Route::get('/admin/assets/department/{department}', function ($department) {
+    $departmentName = urldecode($department);
+
+    $categoryEnumValues = [
+        'Furnitures and Fixtures',
+        'General and Office Equipment',
+        'Info and Equipment',
+        'laboratory Apparatus and equipment',
+        'library books',
+        'Motor vehicles',
+        'P.E Equipment',
+        'Low value Asset',
+    ];
+
+    $categoryCodeMap = [
+        'furnitures and fixtures' => 'furnitures_and_fixtures',
+        'general and office equipment' => 'general_and_office_equipment',
+        'info and equipment' => 'info_and_equipment',
+        'laboratory apparatus and equipment' => 'laboratory_apparatus_and_equipment',
+        'library books' => 'library_books',
+        'motor vehicles' => 'motor_vehicles',
+        'p.e equipment' => 'pe_equipment',
+        'low value asset' => 'low_value_asset',
+    ];
+
+    $toCategoryCode = function (string $category): string {
+        $normalized = strtolower(trim($category));
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+
+        $map = [
+            'furnitures and fixtures' => 'furnitures_and_fixtures',
+            'general and office equipment' => 'general_and_office_equipment',
+            'info and equipment' => 'info_and_equipment',
+            'laboratory apparatus and equipment' => 'laboratory_apparatus_and_equipment',
+            'library books' => 'library_books',
+            'motor vehicles' => 'motor_vehicles',
+            'p.e equipment' => 'pe_equipment',
+            'low value asset' => 'low_value_asset',
+        ];
+
+        return $map[$normalized] ?? 'other';
+    };
+
+    $assetsRaw = Asset::with('user')
+        ->whereHas('user', function ($query) use ($departmentName) {
+            $query->where('department', $departmentName);
+        })
+        ->orderBy('Asset_name')
+        ->get();
+
+    $assets = $assetsRaw
+        ->map(function ($asset) use ($toCategoryCode) {
+            $statusRaw = (string) ($asset->Lifecycle_Status ?? '');
+            $status = match ($statusRaw) {
+                'Acquired' => 'acquired',
+                'Active' => 'active',
+                'For Repair' => 'for_repair',
+                'Pullout' => 'pulled_out',
+                'Disposal' => 'disposed',
+                default => 'active',
+            };
+
+            $category = (string) ($asset->Category ?? 'Other');
+            $categoryCode = $toCategoryCode($category);
+
+            return (object) [
+                'db_id' => $asset->id,
+                'id' => $asset->Asset_code ?? ('AST-' . $asset->id),
+                'name' => $asset->Asset_name ?? 'Unnamed Asset',
+                'category' => $category,
+                'accountable' => $asset->user?->full_name ?? 'Unassigned',
+                'date_acquired' => $asset->accusion_date ? (string) \Illuminate\Support\Carbon::parse($asset->accusion_date)->format('M d, Y') : '-',
+                'location' => $asset->asset_location ?? '-',
+                'status' => $status,
+                'category_code' => $categoryCode,
+            ];
+        });
+
+    $categoryOptions = collect($categoryEnumValues)
+        ->map(function ($label) use ($toCategoryCode) {
+            return [
+                'value' => $toCategoryCode($label),
+                'label' => $label,
+            ];
+        })
+        ->concat(
+            $assetsRaw->map(function ($asset) use ($toCategoryCode) {
+                $label = trim((string) ($asset->Category ?? ''));
+                return [
+                    'value' => $toCategoryCode($label !== '' ? $label : 'Other'),
+                    'label' => $label !== '' ? $label : 'Other',
+                ];
+            })
+        )
+        ->unique('value')
+        ->values();
+
+    return view('admin.assets.department_asset', compact('departmentName', 'assets', 'categoryOptions'));
+})->name('admin.assets.department');
+
 // Admin asset registry page
 Route::get('/admin/assets/registry', function () {
     return view('admin.assets.asset_registry');
@@ -277,6 +380,11 @@ Route::get('/admin/disposal', function () {
     $totalDisposed = 0;
     $disposalRecords = collect([]);
     return view('admin.disposal.disposal', compact('totalDisposed', 'disposalRecords'));
+});
+
+// Admin repair page
+Route::get('/admin/repair', function () {
+    return view('admin.repair.repair');
 });
 
 // Admin pullout page
@@ -400,41 +508,36 @@ Route::post('/admin/assets', function (Request $request) {
 
 // Admin requests page
 Route::get('/admin/requests', function () {
-    // Sample requests data (safe defaults for the view)
-    $requests = [
-        (object) [
-            'id' => 1,
-            'asset_name' => 'Dell XPS 15 Laptop',
-            'type' => 'repair',
-            'submitted_by' => 'John Doe',
-            'email' => 'john.doe@university.edu',
-            'created_at' => now()->subDays(3),
-            'status' => 'pending',
-            'description' => 'Screen flickering intermittently.'
-        ],
-        (object) [
-            'id' => 2,
-            'asset_name' => 'HP Monitor 24"',
-            'type' => 'new_asset',
-            'submitted_by' => 'Jane Smith',
-            'email' => 'jane.smith@university.edu',
-            'created_at' => now()->subDays(10),
-            'status' => 'approved',
-            'description' => 'Requesting an additional monitor for workstation.'
-        ],
-        (object) [
-            'id' => 3,
-            'asset_name' => 'Logitech Keyboard',
-            'type' => 'pullout',
-            'submitted_by' => 'Mike Johnson',
-            'email' => 'mike.johnson@university.edu',
-            'created_at' => now()->subDays(20),
-            'status' => 'rejected',
-            'description' => 'Pullout request for replacement.'
-        ],
-    ];
+    $requests = DB::table('requests')
+        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->select([
+            'requests.id',
+            'requests.request_type',
+            'requests.status',
+            'requests.Note',
+            'requests.created_at',
+            'users.full_name as submitted_by',
+            'users.email',
+            'assets.Asset_name as asset_name',
+            'assets.Asset_code as asset_code',
+        ])
+        ->orderByDesc('requests.created_at')
+        ->get()
+        ->map(function ($request) {
+            return (object) [
+                'id' => $request->id,
+                'asset_name' => $request->asset_name ?: ($request->asset_code ?: 'Unknown Asset'),
+                'type' => strtolower((string) $request->request_type),
+                'submitted_by' => $request->submitted_by ?: 'Unknown User',
+                'email' => $request->email ?: '',
+                'created_at' => $request->created_at ? \Illuminate\Support\Carbon::parse($request->created_at) : now(),
+                'status' => strtolower((string) $request->status),
+                'description' => $request->Note ?: '',
+            ];
+        });
 
-    $totalRequests = count($requests);
+    $totalRequests = $requests->count();
     $pendingRequests = collect($requests)->where('status', 'pending')->count();
     $approvedRequests = collect($requests)->where('status', 'approved')->count();
     $rejectedRequests = collect($requests)->where('status', 'rejected')->count();
@@ -444,10 +547,146 @@ Route::get('/admin/requests', function () {
     ));
 });
 
+Route::post('/admin/requests/{id}/approve', function ($id) {
+    $requestRecord = DB::table('requests')->where('id', $id)->first();
+
+    if (!$requestRecord) {
+        return response()->json(['message' => 'Request not found.'], 404);
+    }
+
+    if (strtolower((string) $requestRecord->status) !== 'pending') {
+        return response()->json(['message' => 'Only pending requests can be approved.'], 422);
+    }
+
+    $approvedBy = Auth::user()?->full_name ?? 'Admin';
+    $requestType = strtolower((string) $requestRecord->request_type);
+
+    DB::transaction(function () use ($requestRecord, $approvedBy, $requestType) {
+        DB::table('requests')
+            ->where('id', $requestRecord->id)
+            ->update([
+                'status' => 'Approved',
+                'updated_at' => now(),
+            ]);
+
+        if ($requestType === 'repair') {
+            $exists = DB::table('repairs')->where('request_id', $requestRecord->id)->exists();
+            if (!$exists) {
+                DB::table('repairs')->insert([
+                    'request_id' => $requestRecord->id,
+                    'asset_id' => $requestRecord->asset_id,
+                    'Approve_by' => $approvedBy,
+                    'Repair_Description' => $requestRecord->Note,
+                    'Repair_Cost' => null,
+                    'status' => 'Pending',
+                    'notes' => $requestRecord->Note,
+                    'Repair_Date' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::table('assets')->where('id', $requestRecord->asset_id)->update([
+                'Lifecycle_Status' => 'For Repair',
+                'updated_at' => now(),
+            ]);
+        }
+
+        if ($requestType === 'disposal') {
+            $exists = DB::table('disposals')->where('request_id', $requestRecord->id)->exists();
+            if (!$exists) {
+                DB::table('disposals')->insert([
+                    'request_id' => $requestRecord->id,
+                    'asset_id' => $requestRecord->asset_id,
+                    'Approve_by' => $approvedBy,
+                    'Description' => 'Approved disposal request',
+                    'notes' => $requestRecord->Note,
+                    'disposal_date' => now()->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::table('assets')->where('id', $requestRecord->asset_id)->update([
+                'Lifecycle_Status' => 'Disposal',
+                'updated_at' => now(),
+            ]);
+        }
+
+        if ($requestType === 'pullout') {
+            $exists = DB::table('pullouts')->where('request_id', $requestRecord->id)->exists();
+            if (!$exists) {
+                DB::table('pullouts')->insert([
+                    'request_id' => $requestRecord->id,
+                    'asset_id' => $requestRecord->asset_id,
+                    'Approve_by' => $approvedBy,
+                    'Description' => 'Approved pullout request',
+                    'notes' => $requestRecord->Note,
+                    'pullout_date' => now()->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::table('assets')->where('id', $requestRecord->asset_id)->update([
+                'Lifecycle_Status' => 'Pullout',
+                'updated_at' => now(),
+            ]);
+        }
+
+        if ($requestType === 'replacement') {
+            $exists = DB::table('replacements')->where('request_id', $requestRecord->id)->exists();
+            if (!$exists) {
+                DB::table('replacements')->insert([
+                    'request_id' => $requestRecord->id,
+                    'old_asset_id' => $requestRecord->asset_id,
+                    'new_asset_id' => null,
+                    'Approve_by' => $approvedBy,
+                    'reason' => 'Approved replacement request',
+                    'notes' => $requestRecord->Note,
+                    'status' => 'Approved',
+                    'replacement_date' => now()->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    });
+
+    return response()->json(['message' => 'Request approved successfully.']);
+})->name('admin.requests.approve');
+
+Route::post('/admin/requests/{id}/reject', function ($id) {
+    $requestRecord = DB::table('requests')->where('id', $id)->first();
+
+    if (!$requestRecord) {
+        return response()->json(['message' => 'Request not found.'], 404);
+    }
+
+    if (strtolower((string) $requestRecord->status) !== 'pending') {
+        return response()->json(['message' => 'Only pending requests can be rejected.'], 422);
+    }
+
+    DB::table('requests')
+        ->where('id', $requestRecord->id)
+        ->update([
+            'status' => 'Rejected',
+            'updated_at' => now(),
+        ]);
+
+    return response()->json(['message' => 'Request rejected successfully.']);
+})->name('admin.requests.reject');
+
 // Logout route - logs out user and redirects to welcome page
 Route::get('/logout', function (Request $request) {
     Auth::logout();
     $request->session()->invalidate();
     $request->session()->regenerateToken();
     return redirect('/');
+});
+
+// User Request Routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/user/request-asset', [UserRequestController::class, 'create'])->name('user.request-asset');
+    Route::post('/user/requests/store', [UserRequestController::class, 'store'])->name('user.requests.store');
 });

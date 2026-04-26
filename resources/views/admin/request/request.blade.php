@@ -104,7 +104,7 @@
             <!-- Content -->
             <div class="p-8">
                 <!-- Statistics Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div class="flex items-center justify-between">
                             <div>
@@ -126,30 +126,6 @@
                             </div>
                             <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                                 <i class="ri-time-line text-orange-600 text-xl"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-500 mb-1">Approved</p>
-                                <p class="text-3xl font-bold text-green-600">{{ $approvedRequests ?? 0 }}</p>
-                                <p class="text-xs text-green-600 mt-2">Approved requests</p>
-                            </div>
-                            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-checkbox-circle-line text-green-600 text-xl"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-500 mb-1">Rejected</p>
-                                <p class="text-3xl font-bold text-red-600">{{ $rejectedRequests ?? 0 }}</p>
-                                <p class="text-xs text-red-600 mt-2">Rejected requests</p>
-                            </div>
-                            <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-close-circle-line text-red-600 text-xl"></i>
                             </div>
                         </div>
                     </div>
@@ -392,12 +368,19 @@
         
         function getTypeBadge(type) {
             const badges = {
-                'new_asset': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><i class="ri-add-line mr-1 text-xs"></i>New Asset</span>',
                 'repair': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700"><i class="ri-tools-line mr-1 text-xs"></i>Repair</span>',
+                'disposal': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"><i class="ri-delete-bin-line mr-1 text-xs"></i>Disposal</span>',
+                'transfer': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><i class="ri-arrow-left-right-line mr-1 text-xs"></i>Transfer</span>',
+                'replacement': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700"><i class="ri-refresh-line mr-1 text-xs"></i>Replacement</span>',
                 'pullout': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700"><i class="ri-logout-box-line mr-1 text-xs"></i>Pullout</span>',
-                'disposal': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"><i class="ri-delete-bin-line mr-1 text-xs"></i>Disposal</span>'
+                'other': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700"><i class="ri-file-list-3-line mr-1 text-xs"></i>Other</span>'
             };
-            return badges[type] || badges['new_asset'];
+            if (badges[type]) {
+                return badges[type];
+            }
+
+            const label = String(type || 'Other');
+            return `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">${label.charAt(0).toUpperCase()}${label.slice(1)}</span>`;
         }
         
         function getStatusBadge(status) {
@@ -409,20 +392,48 @@
                 return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700"><i class="ri-close-circle-line mr-1 text-xs"></i>Rejected</span>';
             }
         }
+
+        async function sendRequestAction(requestId, action) {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const response = await fetch(`/admin/requests/${requestId}/${action}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf || '',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to process request.');
+            }
+
+            return data;
+        }
         
-        function approveRequest(requestId) {
+        async function approveRequest(requestId) {
             if (confirm('Are you sure you want to approve this request?')) {
-                // Add your approval logic here
-                alert(`Request #REQ-${String(requestId).padStart(4, '0')} approved!`);
-                location.reload();
+                try {
+                    const result = await sendRequestAction(requestId, 'approve');
+                    alert(result.message || `Request #REQ-${String(requestId).padStart(4, '0')} approved!`);
+                    location.reload();
+                } catch (error) {
+                    alert(error.message || 'Unable to approve request.');
+                }
             }
         }
         
-        function rejectRequest(requestId) {
+        async function rejectRequest(requestId) {
             if (confirm('Are you sure you want to reject this request?')) {
-                // Add your rejection logic here
-                alert(`Request #REQ-${String(requestId).padStart(4, '0')} rejected!`);
-                location.reload();
+                try {
+                    const result = await sendRequestAction(requestId, 'reject');
+                    alert(result.message || `Request #REQ-${String(requestId).padStart(4, '0')} rejected!`);
+                    location.reload();
+                } catch (error) {
+                    alert(error.message || 'Unable to reject request.');
+                }
             }
         }
         

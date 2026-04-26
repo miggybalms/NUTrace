@@ -7,7 +7,6 @@
     <title>Admin Dashboard - Asset Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             margin: 0;
@@ -52,6 +51,9 @@
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
+        <!-- Main Content -->
+        <div class="flex-1 overflow-y-auto bg-gray-50">
+            <!-- Header -->
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
@@ -153,44 +155,6 @@
                     </div>
                 </div>
 
-                <!-- Chart and Overview Row -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                    <!-- Chart -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Asset Distribution</h3>
-                        <div class="relative" style="height: 300px;">
-                            <canvas id="assetChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Overview Metrics -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Overview</h3>
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                                <span class="text-gray-600">Total Assets</span>
-                                <span class="font-bold text-xl text-gray-900">{{ number_format($totalAssets ?? 4729) }}</span>
-                            </div>
-                            <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                                <span class="text-gray-600">Active Assets</span>
-                                <span class="font-semibold text-green-600 text-lg">{{ number_format($activeAssets ?? 2854) }}</span>
-                            </div>
-                            <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                                <span class="text-gray-600">Pending Requests</span>
-                                <span class="font-semibold text-orange-600 text-lg">{{ number_format($pendingRequests ?? 15) }}</span>
-                            </div>
-                            <div class="flex justify-between items-center pb-3 border-b border-gray-100">
-                                <span class="text-gray-600">Assets For Repair</span>
-                                <span class="font-semibold text-red-600 text-lg">{{ number_format($forRepairAssets ?? 28) }}</span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-600">Departments</span>
-                                <span class="font-semibold text-blue-600 text-lg">12</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Quick Links -->
                 <div class="mb-8">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Links</h3>
@@ -286,63 +250,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Initialize Chart when the page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            const ctx = document.getElementById('assetChart').getContext('2d');
-            
-            const chartData = {
-                labels: ['Acquired', 'Active', 'For Repair', 'Pulled Out', 'Disposed'],
-                datasets: [{
-                    data: [
-                        {{ $acquiredThisMonth ?? 1847 }},
-                        {{ $activeAssets ?? 2854 }},
-                        {{ $forRepairAssets ?? 28 }},
-                        {{ $pulledOutAssets ?? 0 }},
-                        {{ $disposedAssets ?? 0 }}
-                    ],
-                    backgroundColor: ['#f59e0b', '#10b981', '#ef4444', '#f97316', '#6b7280'],
-                    borderWidth: 0,
-                    hoverOffset: 8
-                }]
-            };
-            
-            new Chart(ctx, {
-                type: 'doughnut',
-                data: chartData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: '65%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 15,
-                                font: {
-                                    size: 12,
-                                    family: "'Segoe UI', system-ui"
-                                },
-                                boxWidth: 10
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.raw || 0;
-                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                    return `${label}: ${value.toLocaleString()} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        });
-    </script>
 </body>
 </html>

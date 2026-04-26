@@ -63,55 +63,7 @@
 </head>
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-gray-900 text-white flex flex-col overflow-y-auto">
-            <div class="p-6 border-b border-gray-800">
-                <h1 class="text-2xl font-bold flex items-center">
-                    <i class="ri-dashboard-line mr-2"></i>
-                    Dashboard
-                </h1>
-            </div>
-
-            <nav class="flex-1 py-4">
-                <div class="px-4 mb-4">
-                    <a href="/users/assets" class="sidebar-item active flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-computer-line mr-3 text-lg"></i>
-                        <span>My Assets</span>
-                    </a>
-                    @if(auth()->check() && (auth()->user()->role ?? '') === 'Admin')
-                    <a href="/admin/assets/registry" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-add-line mr-3 text-lg"></i>
-                        <span>Add Asset</span>
-                    </a>
-                    @endif
-                    <a href="#" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-qr-code-line mr-3 text-lg"></i>
-                        <span>QR Scanner</span>
-                    </a>
-                    <a href="#" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                        <i class="ri-mail-line mr-3 text-lg"></i>
-                        <span>Requests</span>
-                    </a>
-                </div>
-            </nav>
-
-            <div class="border-t border-gray-800 p-4 mt-auto">
-                <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">
-                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span class="text-white font-semibold text-sm">U</span>
-                    </div>
-                    <div class="ml-3 flex-1 min-w-0">
-                        <p class="text-sm font-medium text-white truncate">{{ Auth::user()->name ?? 'User' }}</p>
-                        <p class="text-xs text-gray-400 truncate">{{ Auth::user()->email ?? 'user@university.edu' }}</p>
-                    </div>
-                    <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-white text-sm"></i>
-                </div>
-                <a href="/logout" class="flex items-center px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-gray-800 transition">
-                    <i class="ri-logout-box-line mr-3 text-lg"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </div>
+        @include('users.partials.sidebar')
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
@@ -228,10 +180,10 @@
 
                 <!-- Quick Actions -->
                 <div class="mb-8">
-                    <button class="submit-btn bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all flex items-center shadow-md">
+                    <a href="{{ route('user.request-asset') }}" class="submit-btn bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all inline-flex items-center shadow-md">
                         <i class="ri-add-line mr-2 text-lg"></i>
                         + Submit Request
-                    </button>
+                    </a>
                 </div>
 
                 <!-- My Assigned Assets -->
@@ -340,65 +292,5 @@
             </div>
         </div>
     </div>
-
-    <!-- Submit Request Modal -->
-    <div id="requestModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
-            <div class="p-6 border-b border-gray-200">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-bold text-gray-900">Submit New Request</h3>
-                    <button onclick="closeRequestModal()" class="text-gray-400 hover:text-gray-600">
-                        <i class="ri-close-line text-2xl"></i>
-                    </button>
-                </div>
-            </div>
-            <form id="requestForm" class="p-6">
-                @csrf
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Request Type *</label>
-                        <select name="type" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring focus:ring-blue-200">
-                            <option value="">Select request type</option>
-                            <option value="new_asset">New Asset Request</option>
-                            <option value="repair">Repair Request</option>
-                            <option value="pullout">Pullout Request</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-                        <textarea name="description" rows="4" required placeholder="Please provide details about your request..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring focus:ring-blue-200"></textarea>
-                    </div>
-                </div>
-                <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeRequestModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Submit Request</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        // Submit Request Modal
-        function openRequestModal() {
-            document.getElementById('requestModal').classList.remove('hidden');
-            document.getElementById('requestModal').classList.add('flex');
-        }
-        
-        function closeRequestModal() {
-            document.getElementById('requestModal').classList.add('hidden');
-            document.getElementById('requestModal').classList.remove('flex');
-        }
-        
-        // Form submission
-        document.getElementById('requestForm')?.addEventListener('submit', function(e) {
-            e.preventDefault();
-            // Implement form submission logic
-            alert('Request submitted successfully!');
-            closeRequestModal();
-        });
-        
-        // Attach click handler to submit button
-        document.querySelector('.submit-btn')?.addEventListener('click', openRequestModal);
-    </script>
 </body>
 </html>

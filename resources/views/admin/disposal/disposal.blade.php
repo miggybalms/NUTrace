@@ -75,7 +75,7 @@
                 <div class="px-8 py-5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center">
-                            <a href="#" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
+                            <a href="#" onclick="window.history.back(); return false;" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
                                 <i class="ri-arrow-left-line text-xl"></i>
                             </a>
                             <div>
