@@ -109,13 +109,19 @@
                     Recently Added
                 </button>
             </div>
-            <p class="text-sm text-gray-500">Showing {{ $assignedAssets->count() ?? 0 }} assets</p>
+            @php
+                $visibleStatuses = ['Acquired', 'Active', 'For Repair'];
+                $visibleAssets = isset($assignedAssets) ? $assignedAssets->filter(function($a) use ($visibleStatuses) {
+                    return in_array(($a->Lifecycle_Status ?? 'Acquired'), $visibleStatuses, true);
+                }) : collect();
+            @endphp
+            <p class="text-sm text-gray-500">Showing {{ $visibleAssets->count() ?? 0 }} assets</p>
         </div>
 
         <!-- Assets Grid -->
-        @if(isset($assignedAssets) && $assignedAssets->count() > 0)
+        @if(isset($visibleAssets) && $visibleAssets->count() > 0)
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="assetsGrid">
-            @foreach($assignedAssets as $asset)
+            @foreach($visibleAssets as $asset)
             <div class="asset-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
                  data-status="{{ $asset->Lifecycle_Status ?? '' }}">
 

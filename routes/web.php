@@ -169,6 +169,19 @@ Route::get('/users', function () {
     ]);
 });
 
+// Compatibility redirects: some links use singular '/user' paths — redirect to plural routes
+Route::get('/user', function () {
+    return redirect('/users');
+});
+
+Route::get('/user/dashboard', function () {
+    return redirect('/users');
+});
+
+Route::get('/user/assets', function () {
+    return redirect('/users/assets');
+});
+
 // Admin area -> render admin.dashboard with safe defaults
 Route::get('/admin', function () {
     $acquiredThisMonth = 0;
@@ -379,7 +392,44 @@ Route::get('/admin/assets/registry', function () {
 Route::get('/admin/disposal', function () {
     $totalDisposed = 0;
     $disposalRecords = collect([]);
-    return view('admin.disposal.disposal', compact('totalDisposed', 'disposalRecords'));
+    $availableAssets = collect([]);
+
+    // If the disposals table exists, load recent disposals and join asset info
+    if (\Illuminate\Support\Facades\Schema::hasTable('disposals')) {
+        try {
+            $query = DB::table('disposals')
+                ->leftJoin('assets', 'disposals.asset_id', '=', 'assets.id')
+                ->select('disposals.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'assets.accusion_cost as original_value')
+                ->orderByDesc('disposals.disposal_date');
+
+            $disposalRecords = $query->get();
+            $totalDisposed = $disposalRecords->count();
+        } catch (\Exception $e) {
+            // keep defaults if something goes wrong
+            $disposalRecords = collect();
+            $totalDisposed = 0;
+        }
+    }
+
+    // Provide assets to the modal for recording new disposals (exclude already disposed)
+    if (\Illuminate\Support\Facades\Schema::hasTable('assets')) {
+        try {
+            $availableAssets = Asset::where('Lifecycle_Status', '!=', 'Disposal')
+                ->orderBy('Asset_name')
+                ->get()
+                ->map(function ($a) {
+                    return (object) [
+                        'id' => $a->id,
+                        'name' => $a->Asset_name ?? '',
+                        'asset_code' => $a->Asset_code ?? '',
+                    ];
+                });
+        } catch (\Exception $e) {
+            $availableAssets = collect();
+        }
+    }
+
+    return view('admin.disposal.disposal', compact('totalDisposed', 'disposalRecords', 'availableAssets'));
 });
 
 // Admin repair page
@@ -687,6 +737,70 @@ Route::get('/logout', function (Request $request) {
 
 // User Request Routes
 Route::middleware(['auth'])->group(function () {
+    // AJAX: validate asset code belongs to authenticated user
+    Route::get('/user/assets/check-code', function (Request $request) {
+        $code = trim((string) $request->query('code', ''));
+        $user = Auth::user();
+
+        if (!$user || $code === '') {
+            return response()->json(['exists' => false]);
+        }
+
+        $asset = DB::table('assets')
+            ->where('Asset_code', $code)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($asset) {
+            return response()->json([
+                'exists' => true,
+                'asset' => [
+                    'id' => $asset->id,
+                    'name' => $asset->Asset_name ?? null,
+                ],
+            ]);
+        }
+
+        return response()->json(['exists' => false]);
+    })->name('user.assets.check');
+    Route::get('/user/requests', function () {
+        $user = Auth::user();
+
+        // Use a paginator so the view's pagination helpers work correctly
+        $requests = DB::table('requests')
+            ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
+            ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code')
+            ->where('requests.user_id', $user->id)
+            ->orderByDesc('requests.created_at')
+            ->paginate(10);
+
+        // Transform paginator items to match view expectations (attach asset object, parse dates)
+        $requests->getCollection()->transform(function ($r) {
+            return (object) [
+                'id' => $r->id,
+                'request_type' => $r->request_type,
+                'status' => $r->status,
+                'Note' => $r->Note,
+                    'file_path' => $r->file_path ?? null,
+                    'file_name' => $r->file_name ?? null,
+                'created_at' => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
+                'updated_at' => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),
+                'asset' => (object) [
+                    'Asset_name' => $r->asset_name,
+                    'Asset_code' => $r->asset_code,
+                ],
+            ];
+        });
+
+        // Totals (global counts) for the user's requests
+        $totalRequests = DB::table('requests')->where('user_id', $user->id)->count();
+        $pendingRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Pending')->count();
+        $approvedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Approved')->count();
+        $rejectedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Rejected')->count();
+
+        return view('users.request.request', compact('requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'));
+    })->name('user.requests.index');
     Route::get('/user/request-asset', [UserRequestController::class, 'create'])->name('user.request-asset');
     Route::post('/user/requests/store', [UserRequestController::class, 'store'])->name('user.requests.store');
 });
+

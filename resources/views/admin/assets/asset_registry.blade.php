@@ -181,16 +181,17 @@
                                 <div class="flex items-center space-x-4">
                                     <div class="flex-1">
                                         <div class="asset-id-display bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg px-4 py-3 transition-all duration-300">
-                                            <code class="text-lg font-mono font-semibold text-gray-900" id="asset-id-display">AST-92537377-ADC8</code>
+                                            <code class="text-lg font-mono font-semibold text-gray-900" id="asset-id-display">Not generated</code>
                                         </div>
                                     </div>
-                                    <button type="button" onclick="regenerateAssetId()" 
-                                            class="regenerate-btn px-5 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-300 flex items-center font-medium group">
+                                    <button type="button" id="regenerate-btn" onclick="regenerateAssetId()" 
+                                            class="regenerate-btn px-5 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-300 flex items-center font-medium group"
+                                            disabled>
                                         <i class="ri-refresh-line mr-2 text-lg transition-transform duration-300 group-hover:rotate-180"></i>
                                         <span>Regenerate ID</span>
                                     </button>
                                 </div>
-                                <input type="hidden" name="asset_code" id="asset-code-input" value="AST-92537377-ADC8">
+                                <input type="hidden" name="asset_code" id="asset-code-input" value="">
                             </div>
                             
                             <!-- Right side - QR Code -->
@@ -415,13 +416,15 @@
                     </div>
 
                     <!-- Form Actions -->
+                    <!-- Form Actions -->
                     <div class="flex items-center justify-end space-x-4">
                         <button type="button" onclick="window.history.back()" 
                                 class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-all hover:scale-105">
                             Cancel
                         </button>
-                        <button type="submit" 
-                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all hover:scale-105 flex items-center shadow-md hover:shadow-lg">
+                        <button type="submit" id="register-btn"
+                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all hover:scale-105 flex items-center shadow-md hover:shadow-lg"
+                                disabled>
                             <i class="ri-add-line mr-2"></i>
                             Register Asset
                         </button>
@@ -470,9 +473,25 @@
         let qrcodeInstance = null;
         let modalQRCodeInstance = null;
         
-        // Initialize QR Code on page load
+        // Initialize QR Code on page load and wire form inputs to regenerate
         document.addEventListener('DOMContentLoaded', function() {
             generateQRCode();
+
+            // regenerate when important fields change (including asset code)
+            ['asset-code-input', 'asset-name', 'asset-category', 'asset-location', 'acquisition_date'].forEach(id => {
+                const el = document.getElementById(id) || document.querySelector(`[name="${id}"]`);
+                if (el) el.addEventListener('input', generateQRCode);
+            });
+
+            // Also update when condition/radio or other selects change
+            document.querySelectorAll('select, input[type=text], input[type=date], input[type=radio]').forEach(el => el.addEventListener('change', () => { generateQRCode(); checkFormReadiness(); }));
+
+            // Setup button references
+            window._regenerateBtn = document.getElementById('regenerate-btn');
+            window._registerBtn = document.getElementById('register-btn');
+
+            // Initial readiness check
+            checkFormReadiness();
         });
         
         function generateQRCode() {
@@ -481,28 +500,37 @@
             const category = document.getElementById('asset-category')?.value || 'Uncategorized';
             const location = document.getElementById('asset-location')?.value || 'Not specified';
             
-            // Create QR code data
-            const qrData = JSON.stringify({
-                asset_id: assetId,
-                asset_name: assetName,
-                category: category,
-                location: location,
-                url: window.location.origin + '/asset/' + assetId
-            });
-            
+            // Use only the asset code as QR payload
+            const qrData = assetId || '';
+
             // Clear previous QR code
             const qrcodeDiv = document.getElementById('qrcode');
             qrcodeDiv.innerHTML = '';
-            
-            // Generate new QR code
+
+            if (!qrData) {
+                qrcodeInstance = null;
+                // ensure register button is disabled when no QR
+                if (window._registerBtn) window._registerBtn.disabled = true;
+                return;
+            }
+
+            // Generate new QR code (payload = asset code string)
             qrcodeInstance = new QRCode(qrcodeDiv, {
                 text: qrData,
-                width: 100,
-                height: 100,
+                width: 120,
+                height: 120,
                 colorDark: "#1f2937",
                 colorLight: "#ffffff",
                 correctLevel: QRCode.CorrectLevel.H
             });
+
+            // after generating QR, enable register button
+            setTimeout(() => {
+                const qrCanvas = document.querySelector('#qrcode canvas');
+                if (qrCanvas && window._registerBtn) {
+                    window._registerBtn.disabled = false;
+                }
+            }, 100);
         }
         
         function updateQRCode() {
@@ -525,6 +553,11 @@
                 inputElement.value = newId;
                 displayElement.style.opacity = '1';
                 generateQRCode(); // Regenerate QR code with new ID
+                // enable register button now that qr exists
+                const qrCanvas = document.querySelector('#qrcode canvas');
+                if (qrCanvas && window._registerBtn) {
+                    window._registerBtn.disabled = false;
+                }
             }, 150);
             
             // Remove the highlight after animation
@@ -539,33 +572,44 @@
             const random2 = Math.random().toString(36).substring(2, 6).toUpperCase();
             return `${prefix}-${random1}-${random2}`;
         }
+
+        // Check if required fields are filled to enable regenerate button
+        function checkFormReadiness() {
+            const name = document.getElementById('asset-name')?.value?.trim();
+            const category = document.getElementById('asset-category')?.value?.trim();
+            const acquisition = document.querySelector('input[name="acquisition_date"]')?.value?.trim();
+            const condition = document.querySelector('input[name="condition"]:checked');
+
+            const ready = name && category && acquisition && condition;
+            if (window._regenerateBtn) {
+                window._regenerateBtn.disabled = !ready;
+                window._regenerateBtn.classList.toggle('opacity-50', !ready);
+            }
+            return !!ready;
+        }
         
         function viewQRCode() {
-            const assetId = document.getElementById('asset-code-input').value;
-            const assetName = document.getElementById('asset-name')?.value || 'New Asset';
-            const category = document.getElementById('asset-category')?.value || 'Uncategorized';
-            const location = document.getElementById('asset-location')?.value || 'Not specified';
-            
-            const qrData = JSON.stringify({
-                asset_id: assetId,
-                asset_name: assetName,
-                category: category,
-                location: location,
-                url: window.location.origin + '/asset/' + assetId
-            });
-            
+            const assetId = document.getElementById('asset-code-input').value || '';
+
+            // If no asset id, do not open modal
+            if (!assetId) {
+                alert('Please generate or set an Asset ID before viewing the QR code.');
+                return;
+            }
+
             const modalQRDiv = document.getElementById('modal-qrcode');
             modalQRDiv.innerHTML = '';
-            
+
+            // Modal QR encodes only the asset code string
             modalQRCodeInstance = new QRCode(modalQRDiv, {
-                text: qrData,
+                text: assetId,
                 width: 200,
                 height: 200,
                 colorDark: "#1f2937",
                 colorLight: "#ffffff",
                 correctLevel: QRCode.CorrectLevel.H
             });
-            
+
             document.getElementById('modal-asset-id').textContent = assetId;
             document.getElementById('qrModal').classList.remove('hidden');
             document.getElementById('qrModal').classList.add('flex');
@@ -787,10 +831,19 @@
             const category = document.querySelector('select[name="category"]').value;
             const condition = document.querySelector('input[name="condition"]:checked');
             const acquisitionDate = document.querySelector('input[name="acquisition_date"]').value;
-            
             if (!assetName || !category || !condition || !acquisitionDate) {
                 e.preventDefault();
                 alert('Please fill in all required fields (*)');
+                return;
+            }
+
+            // Ensure a QR code has been generated for this asset code
+            const assetCode = document.getElementById('asset-code-input')?.value || '';
+            const qrCanvas = document.querySelector('#qrcode canvas');
+            if (!assetCode || !qrCanvas) {
+                e.preventDefault();
+                alert('Please generate a QR code for the asset before registering.');
+                return;
             }
         });
         

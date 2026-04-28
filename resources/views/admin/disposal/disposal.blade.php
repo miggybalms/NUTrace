@@ -65,7 +65,14 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
+    @php
+    // Expect controller to supply: $disposalRecords, $totalDisposed, $availableAssets
+    $disposalRecords = $disposalRecords ?? collect();
+    $availableAssets = $availableAssets ?? collect();
+    if (!isset($totalDisposed)) {
+        $totalDisposed = is_countable($disposalRecords) ? count($disposalRecords) : 0;
+    }
+    @endphp<div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
@@ -105,9 +112,7 @@
                             <i class="ri-delete-bin-line text-4xl"></i>
                         </div>
                     </div>
-                </div>
-
-                <!-- Disposal Records List -->
+                </div><!-- Disposal Records List -->
                 @if(isset($disposalRecords) && count($disposalRecords) > 0)
                     <div class="grid grid-cols-1 gap-4">
                         @foreach($disposalRecords as $record)
@@ -130,15 +135,15 @@
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-500">Reason</p>
-                                            <p class="text-sm font-medium text-gray-900">{{ $record->reason }}</p>
+                                            <p class="text-sm font-medium text-gray-900">{{ $record->reason ?? $record->Description ?? $record->notes ?? '-' }}</p>
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-500">Disposed By</p>
-                                            <p class="text-sm font-medium text-gray-900">{{ $record->disposed_by }}</p>
+                                            <p class="text-sm font-medium text-gray-900">{{ $record->disposed_by ?? $record->Approve_by ?? $record->Approve_by ?? '-' }}</p>
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-500">Original Value</p>
-                                            <p class="text-sm font-medium text-gray-900">${{ number_format($record->original_value, 2) }}</p>
+                                            <p class="text-sm font-medium text-gray-900">${{ number_format($record->original_value ?? 0, 2) }}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -276,3 +281,14 @@
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+

@@ -51,48 +51,45 @@
 
             <!-- Nav -->
             <nav class="flex-1 px-4">
-                <a href="/user/dashboard"
-                   class="sidebar-item {{ Request::is('user/dashboard*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+                     <a href="/users"
+                         class="sidebar-item {{ Request::is('users') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
                     <i class="ri-computer-line mr-3 text-lg"></i>
                     <span>My Assets</span>
                 </a>
 
-                <a href="/user/assets"
-                   class="sidebar-item {{ Request::is('user/assets*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                    <i class="ri-archive-line mr-3 text-lg"></i>
-                    <span>Assets</span>
-                </a>
+                    <a href="/users/assets"
+                       class="sidebar-item {{ Request::is('users/assets*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+                        <i class="ri-archive-line mr-3 text-lg"></i>
+                        <span>Assets</span>
+                    </a>
 
-                <a href="/user/qr-scanner"
-                   class="sidebar-item {{ Request::is('user/qr-scanner*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                    <i class="ri-qr-code-line mr-3 text-lg"></i>
-                    <span>QR Scanner</span>
-                </a>
-
-                <a href="/user/requests"
-                   class="sidebar-item {{ Request::is('user/requests*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
-                    <i class="ri-mail-line mr-3 text-lg"></i>
-                    <span>Requests</span>
-                </a>
+                    <a href="/user/requests"
+                       class="sidebar-item {{ Request::is('user/requests*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+                        <i class="ri-mail-line mr-3 text-lg"></i>
+                        <span>Requests</span>
+                    </a>
             </nav>
 
             <!-- User Info + Logout -->
+            @php
+                $user = $currentUser ?? null;
+                $initial = $user ? strtoupper(substr($user->full_name ?? 'U', 0, 1)) : 'U';
+            @endphp
+
             <div class="border-t border-gray-800 p-4 mt-auto">
                 <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">
                     <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        @if(Auth::user()->profile_photo)
-                            <img src="{{ asset('storage/' . Auth::user()->profile_photo) }}"
+                        @if($user && ($user->profile_photo ?? false))
+                            <img src="{{ asset('storage/' . $user->profile_photo) }}"
                                  class="w-10 h-10 rounded-full object-cover"
                                  alt="Profile"/>
                         @else
-                            <span class="text-white font-semibold text-sm">
-                                {{ strtoupper(substr(Auth::user()->full_name ?? 'U', 0, 1)) }}
-                            </span>
+                            <span class="text-white font-semibold text-sm">{{ $initial }}</span>
                         @endif
                     </div>
                     <div class="ml-3 flex-1 min-w-0">
-                        <p class="text-sm font-medium text-white truncate">{{ Auth::user()->full_name ?? 'User' }}</p>
-                        <p class="text-xs text-gray-400 truncate">{{ Auth::user()->email ?? 'user@user.com' }}</p>
+                        <p class="text-sm font-medium text-white truncate">{{ $user?->full_name ?? 'User' }}</p>
+                        <p class="text-xs text-gray-400 truncate">{{ $user?->email ?? 'user@user.com' }}</p>
                     </div>
                     <a href="/user/settings">
                         <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-white text-sm"></i>

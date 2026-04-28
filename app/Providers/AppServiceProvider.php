@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Auth;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +21,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Share the currently authenticated user with all views, but guard against DB errors
+        try {
+            $user = Auth::user();
+        } catch (\Throwable $e) {
+            $user = null;
+        }
+
+        View::share('currentUser', $user);
     }
 }

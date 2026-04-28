@@ -277,69 +277,8 @@
     </div>
 
     <script>
-        // Sample repair data
-        let repairs = [
-            {
-                id: 1,
-                asset_name: "Dell XPS 15 Laptop",
-                asset_code: "AST-001",
-                issue: "Screen flickering and random shutdowns",
-                status: "pending",
-                priority: "high",
-                requested_by: "John Doe",
-                department: "IT Department",
-                date_requested: "2026-04-20",
-                estimated_cost: null,
-                technician: null,
-                completion_date: null,
-                notes: "Laptop shuts down unexpectedly during work"
-            },
-            {
-                id: 2,
-                asset_name: "HP LaserJet Printer",
-                asset_code: "AST-005",
-                issue: "Paper jam constant error and poor print quality",
-                status: "in_progress",
-                priority: "medium",
-                requested_by: "Jane Smith",
-                department: "LRC",
-                date_requested: "2026-04-18",
-                estimated_cost: 150.00,
-                technician: "Mike Johnson",
-                completion_date: null,
-                notes: "Printer shows error code E4"
-            },
-            {
-                id: 3,
-                asset_name: "Projector Epson EB-695Wi",
-                asset_code: "AST-008",
-                issue: "Projector not turning on",
-                status: "completed",
-                priority: "high",
-                requested_by: "Sarah Williams",
-                department: "Admission Office",
-                date_requested: "2026-04-15",
-                estimated_cost: 200.00,
-                technician: "David Chen",
-                completion_date: "2026-04-22",
-                notes: "Power supply unit replaced"
-            },
-            {
-                id: 4,
-                asset_name: "Wireless Mouse",
-                asset_code: "AST-004",
-                issue: "Buttons not responding",
-                status: "pending",
-                priority: "low",
-                requested_by: "user user",
-                department: "IT Department",
-                date_requested: "2026-04-21",
-                estimated_cost: null,
-                technician: null,
-                completion_date: null,
-                notes: "Left click not working properly"
-            }
-        ];
+        // Use server-provided repairs collection (passed from controller)
+        let repairs = @json($repairs ?? []);
 
         let currentFilter = "all";
 

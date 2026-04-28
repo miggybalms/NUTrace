@@ -117,15 +117,26 @@
                         <h3 class="text-lg font-semibold text-gray-900 mb-4">Asset QR Code (Optional)</h3>
                         
                         <div class="mb-4">
-                            <div class="upload-area border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer" onclick="document.getElementById('qr-upload').click()">
-                                <i class="ri-qr-code-line text-3xl text-gray-400 mb-2 block"></i>
-                                <p class="text-sm text-gray-600">+ Upload Asset QR Code</p>
-                                <p class="text-xs text-gray-400 mt-1">Click to upload or drag and drop</p>
-                                <input type="file" id="qr-upload" name="qr_code" class="hidden" accept="image/*" onchange="previewQRCode(this)">
+                            <div class="flex items-center space-x-3">
+                                <button type="button" id="toggle-scanner" class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                                    <i class="ri-camera-line mr-2"></i>Scan with camera
+                                </button>
+                                <label class="upload-area relative border-2 border-dashed border-gray-300 rounded-lg p-3 text-center cursor-pointer flex-1" for="qr-upload">
+                                    <button type="button" id="clear-qr-top-btn" title="Clear" class="absolute right-2 top-2 bg-white border border-gray-200 rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-50">Clear</button>
+                                    <div>
+                                        <i class="ri-qr-code-line text-3xl text-gray-400 mb-2 block"></i>
+                                        <p class="text-sm text-gray-600">+ Upload Asset QR Code</p>
+                                        <p class="text-xs text-gray-400 mt-1">Click to upload or drag and drop</p>
+                                    </div>
+                                </label>
+                                <input type="file" id="qr-upload" name="qr_code" class="hidden" accept="image/*">
                             </div>
+
                             <div id="qr-preview" class="mt-3 hidden">
                                 <img id="qr-preview-img" class="h-24 w-auto rounded-lg border border-gray-200" alt="QR Preview">
                             </div>
+
+                            <div id="qr-reader" class="mt-4 hidden"></div>
                         </div>
 
                         <div class="relative my-4">
@@ -141,9 +152,12 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Enter Asset Code manually
                             </label>
-                            <input type="text" name="asset_code" 
-                                   placeholder="Enter asset code (e.g., AST-12345)"
-                                   class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                            <div class="relative">
+                                <input id="asset_code_input" type="text" name="asset_code" 
+                                    placeholder="Enter asset code (e.g., AST-12345)"
+                                    class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                            </div>
+                            <p id="asset-code-feedback" class="text-xs mt-1"></p>
                             <p class="text-xs text-gray-400 mt-1">Enter the asset code if you know it, or leave blank for new asset requests</p>
                         </div>
                     </div>
@@ -180,7 +194,7 @@
                                 class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
                             Cancel
                         </button>
-                        <button type="submit" 
+                        <button id="request-submit" type="submit" 
                                 class="submit-btn px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center shadow-md">
                             <i class="ri-send-plane-line mr-2"></i>
                             Submit Request
@@ -196,7 +210,192 @@
         </div>
     </div>
 
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
+        // Debounce helper
+        function debounce(fn, wait) {
+            let t;
+            return function (...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        // Asset code validation
+        const assetCodeInput = document.querySelector('input[name="asset_code"]') || document.getElementById('asset_code_input');
+        const assetFeedback = document.getElementById('asset-code-feedback');
+        const submitBtn = document.getElementById('request-submit');
+        let assetValid = null; // null=unknown, true=valid, false=invalid
+
+        async function validateAssetCode(code) {
+            if (!code) {
+                assetFeedback.textContent = '';
+                assetFeedback.className = 'text-xs mt-1';
+                assetValid = null;
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50');
+                return;
+            }
+
+            try {
+                const url = '{{ url('/user/assets/check-code') }}?code=' + encodeURIComponent(code);
+                const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!resp.ok) throw new Error('Network');
+                const data = await resp.json();
+                if (data.exists) {
+                    assetFeedback.textContent = 'Asset found: ' + (data.asset.name || 'Unnamed');
+                    assetFeedback.className = 'text-xs mt-1 text-green-600';
+                    assetValid = true;
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50');
+                } else {
+                    assetFeedback.textContent = "This asset doesn't exist or isn't assigned to you.";
+                    assetFeedback.className = 'text-xs mt-1 text-red-600';
+                    assetValid = false;
+                    // disable submit to prevent invalid code submission
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-50');
+                }
+            } catch (e) {
+                assetFeedback.textContent = '';
+                assetFeedback.className = 'text-xs mt-1';
+                assetValid = null;
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50');
+            }
+        }
+
+        const debouncedValidate = debounce((e) => validateAssetCode(e.target.value.trim()), 400);
+        assetCodeInput?.addEventListener('input', debouncedValidate);
+
+        // QR Scanner integration using html5-qrcode
+        let html5QrCode = null;
+        let scannerActive = false;
+        const toggleScannerBtn = document.getElementById('toggle-scanner');
+        const qrReader = document.getElementById('qr-reader');
+
+        async function onDetected(decodedText) {
+            // set value and validate
+            if (!decodedText) return;
+            assetCodeInput.value = decodedText;
+            validateAssetCode(decodedText);
+            // stop scanner if active
+            if (scannerActive && html5QrCode) {
+                try { await html5QrCode.stop(); } catch (e) { /* ignore */ }
+                scannerActive = false;
+                qrReader.classList.add('hidden');
+                toggleScannerBtn.textContent = 'Scan with camera';
+            }
+        }
+
+        toggleScannerBtn?.addEventListener('click', async function () {
+            if (!scannerActive) {
+                // start scanner
+                qrReader.classList.remove('hidden');
+                html5QrCode = new Html5Qrcode("qr-reader");
+                try {
+                    await html5QrCode.start(
+                        { facingMode: { exact: "environment" } },
+                        { fps: 10, qrbox: 250 },
+                        (decodedText) => onDetected(decodedText),
+                        (errorMessage) => { /* ignore scan errors */ }
+                    );
+                    scannerActive = true;
+                    toggleScannerBtn.textContent = 'Stop scanner';
+                } catch (e) {
+                    // fallback to less strict facingMode
+                    try {
+                        await html5QrCode.start(
+                            { facingMode: "environment" },
+                            { fps: 10, qrbox: 250 },
+                            (decodedText) => onDetected(decodedText)
+                        );
+                        scannerActive = true;
+                        toggleScannerBtn.textContent = 'Stop scanner';
+                    } catch (err) {
+                        alert('Unable to access camera for scanning.');
+                        qrReader.classList.add('hidden');
+                    }
+                }
+            } else {
+                // stop scanner
+                if (html5QrCode) {
+                    try { await html5QrCode.stop(); } catch (e) { /* ignore */ }
+                }
+                scannerActive = false;
+                qrReader.classList.add('hidden');
+                toggleScannerBtn.textContent = 'Scan with camera';
+            }
+        });
+
+        // scan uploaded image file for QR
+        document.getElementById('qr-upload')?.addEventListener('change', async function (e) {
+            const file = e.target.files && e.target.files[0];
+            const preview = document.getElementById('qr-preview');
+            const previewImg = document.getElementById('qr-preview-img');
+            if (!file) return;
+
+            // preview
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                previewImg.src = ev.target.result;
+                preview.classList.remove('hidden');
+            }
+            reader.readAsDataURL(file);
+
+            // try to scan using html5-qrcode
+            // create a temporary instance if needed
+            let scanner = html5QrCode || new Html5Qrcode("qr-reader-temp");
+            try {
+                const result = await scanner.scanFile(file, true);
+                if (result) {
+                    onDetected(result?.decodedText || result);
+                }
+            } catch (err) {
+                // couldn't decode
+            } finally {
+                // if we created a temp scanner, clear it
+                if (!html5QrCode) {
+                    try { await scanner.clear(); } catch (e) {}
+                }
+            }
+        });
+
+        // Consolidated clear: clears uploaded QR image, preview, stops scanner, and clears manual code
+        document.getElementById('clear-qr-top-btn')?.addEventListener('click', async function () {
+            const upload = document.getElementById('qr-upload');
+            const preview = document.getElementById('qr-preview');
+            const previewImg = document.getElementById('qr-preview-img');
+            if (upload) {
+                try { upload.value = ''; } catch (e) { upload.value = null; }
+            }
+            if (previewImg) previewImg.src = '';
+            if (preview) preview.classList.add('hidden');
+
+            // clear manual code and feedback
+            if (assetCodeInput) {
+                assetCodeInput.value = '';
+                validateAssetCode('');
+            }
+
+            // stop active camera scanner
+            if (scannerActive && html5QrCode) {
+                try { await html5QrCode.stop(); } catch (e) { /* ignore */ }
+                scannerActive = false;
+                qrReader.classList.add('hidden');
+                toggleScannerBtn.textContent = 'Scan with camera';
+            }
+        });
+
+        // Prevent submit if asset code invalid
+        document.querySelector('form')?.addEventListener('submit', function (e) {
+            const code = assetCodeInput?.value?.trim();
+            if (code && assetValid === false) {
+                e.preventDefault();
+                alert("The entered asset code doesn't exist or is not assigned to you.");
+                assetCodeInput.focus();
+            }
+        });
         // Preview QR Code
         function previewQRCode(input) {
             const preview = document.getElementById('qr-preview');

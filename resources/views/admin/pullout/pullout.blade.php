@@ -134,7 +134,7 @@
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-500">Reason</p>
-                                            <p class="text-sm font-medium text-gray-900">{{ $record->reason }}</p>
+                                            <p class="text-sm font-medium text-gray-900">{{ $record->reason ?? $record->Description ?? $record->notes ?? '-' }}</p>
                                         </div>
                                         <div>
                                             <p class="text-xs text-gray-500">Pulled By</p>
