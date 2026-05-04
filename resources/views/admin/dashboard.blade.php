@@ -88,9 +88,17 @@
             <!-- Dashboard Content -->
             <div class="p-8">
                 <!-- Quick Summary -->
-                <div class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-900">Quick summary of key metrics</h3>
-                    <p class="text-sm text-gray-500 mt-1">Real-time overview of your asset inventory</p>
+                <div class="mb-8 flex items-start justify-between">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">Quick summary of key metrics</h3>
+                        <p class="text-sm text-gray-500 mt-1">Real-time overview of your asset inventory</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button id="openScannerBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-2">
+                            <i class="ri-scan-line"></i>
+                            <span>Scanner</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Metrics Cards -->
@@ -101,9 +109,21 @@
                             <div>
                                 <p class="text-sm text-gray-500 mb-1">Acquired this month</p>
                                 <p class="text-3xl font-bold text-gray-900">{{ number_format($acquiredThisMonth ?? 1847) }}</p>
-                                <p class="text-xs text-green-600 mt-2 flex items-center">
-                                    <i class="ri-arrow-up-line mr-0.5"></i>
-                                    12% from last month
+                                @php
+                                    $pct = $acquiredChangePercent ?? 0;
+                                @endphp
+                                <p class="text-xs mt-2 flex items-center"
+                                   style="color: {{ $pct > 0 ? '#16a34a' : ($pct < 0 ? '#dc2626' : '#6b7280') }};">
+                                    @if($pct > 0)
+                                        <i class="ri-arrow-up-line mr-0.5"></i>
+                                        {{ $pct }}% from last month
+                                    @elseif($pct < 0)
+                                        <i class="ri-arrow-down-line mr-0.5"></i>
+                                        {{ abs($pct) }}% from last month
+                                    @else
+                                        <i class="ri-arrow-right-line mr-0.5"></i>
+                                        0% from last month
+                                    @endif
                                 </p>
                             </div>
                             <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -198,10 +218,10 @@
                                 <h3 class="text-lg font-semibold text-gray-900">Recent Activity</h3>
                                 <p class="text-sm text-gray-500 mt-1">Latest actions and updates</p>
                             </div>
-                            <button class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center">
+                            <a href="/admin/audit-logs" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center">
                                 View All
                                 <i class="ri-arrow-right-line ml-1"></i>
-                            </button>
+                            </a>
                         </div>
                     </div>
                     <div class="p-6">
@@ -250,5 +270,274 @@
             </div>
         </div>
     </div>
+
+    <!-- Scanner Modal -->
+    <div id="scannerModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Asset Scanner</h3>
+                <button onclick="closeScannerModal()" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-2xl"></i></button>
+            </div>
+                <div class="space-y-4">
+                <p class="text-sm text-gray-500">Scan or enter an asset code to view details.</p>
+                <div class="flex space-x-2">
+                    <button id="startCameraBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">Start Camera</button>
+                    <button id="stopCameraBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg" style="display:none">Turn Off Camera</button>
+                </div>
+
+                <div id="qrScannerWrap" class="hidden">
+                    <div id="qrScanner" style="width:100%;max-width:420px;margin-top:8px">
+                        <!-- html5-qrcode will render here or fallback will use video -->
+                        <video id="qrVideo" autoplay muted playsinline style="width:100%;height:auto;display:none;border-radius:6px;border:1px solid #e5e7eb;"></video>
+                        <canvas id="qrCanvas" style="display:none;"></canvas>
+                    </div>
+                    <div class="mt-2 flex items-center space-x-2">
+                        <button id="stopCameraBtn" class="px-3 py-1 bg-red-600 text-white rounded">Stop</button>
+                        <span class="text-sm text-gray-500">Camera will auto-detect QR codes.</span>
+                    </div>
+                </div>
+
+                <div id="scannerResult" class="hidden bg-gray-50 p-4 rounded border border-gray-100">
+                    <div id="assetImageWrapper" class="mb-4 flex justify-center">
+                        <img id="assetImage" src="" alt="Asset" class="h-32 w-32 object-cover rounded border border-gray-200 hidden">
+                    </div>
+                    <h4 class="font-semibold text-gray-900" id="resName">-</h4>
+                    <p class="text-xs text-gray-500 font-mono" id="resCode">-</p>
+                    <div class="grid grid-cols-2 gap-2 mt-3 text-sm">
+                        <div>
+                            <p class="text-xs text-gray-500">Status</p>
+                            <p id="resStatus" class="text-sm font-medium">-</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Department</p>
+                            <p id="resDept" class="text-sm font-medium">-</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Owner</p>
+                            <p id="resOwner" class="text-sm font-medium">-</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Location</p>
+                            <p id="resLocation" class="text-sm font-medium">-</p>
+                        </div>
+                    </div>
+                </div>
+                <p id="scannerMsg" class="text-sm text-red-600 hidden"></p>
+            </div>
+            <div class="flex justify-end mt-6">
+                <button onclick="closeScannerModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script>
+        function openScannerModal() {
+            document.getElementById('scannerModal').classList.remove('hidden');
+            document.getElementById('scannerModal').classList.add('flex');
+            // auto-start camera scanner like user request page
+            try {
+                document.getElementById('scannerMsg').classList.add('hidden');
+                startCamera();
+            } catch (e) {
+                // ignore if scanner not available
+            }
+        }
+        function closeScannerModal() {
+            // Ensure camera is stopped when closing
+            try { stopCamera(); } catch (e) { /* ignore */ }
+            document.getElementById('scannerModal').classList.add('hidden');
+            document.getElementById('scannerModal').classList.remove('flex');
+            document.getElementById('scannerResult').classList.add('hidden');
+            document.getElementById('scannerMsg').classList.add('hidden');
+            // reset start/stop button visibility
+            try {
+                startCameraBtn.style.display = 'inline-block';
+                stopCameraBtn.style.display = 'none';
+            } catch (e) {}
+        }
+
+        document.getElementById('openScannerBtn').addEventListener('click', openScannerModal);
+        // lookup helper used by scanner on successful decode
+        function lookupAsset(code) {
+            if (!code) {
+                document.getElementById('scannerMsg').textContent = 'Invalid code scanned.';
+                document.getElementById('scannerMsg').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('scannerMsg').classList.add('hidden');
+            fetch(`/admin/assets/scan?code=${encodeURIComponent(code)}`)
+                .then(res => res.json())
+                .then(json => {
+                    if (!json.success) {
+                        document.getElementById('scannerMsg').textContent = json.message || 'Asset not found';
+                        document.getElementById('scannerMsg').classList.remove('hidden');
+                        document.getElementById('scannerResult').classList.add('hidden');
+                        return;
+                    }
+                    const d = json.data;
+                    document.getElementById('resName').textContent = d.name || '-';
+                    document.getElementById('resCode').textContent = d.asset_code || '-';
+                    document.getElementById('resStatus').textContent = d.status || '-';
+                    document.getElementById('resDept').textContent = d.department || '-';
+                    document.getElementById('resOwner').textContent = d.owner || '-';
+                    document.getElementById('resLocation').textContent = d.location || '-';
+                    
+                    // Display image if available
+                    const assetImage = document.getElementById('assetImage');
+                    if (d.image_url) {
+                        assetImage.src = d.image_url;
+                        assetImage.classList.remove('hidden');
+                    } else {
+                        assetImage.classList.add('hidden');
+                    }
+                    
+                    document.getElementById('scannerResult').classList.remove('hidden');
+                })
+                .catch(err => {
+                    document.getElementById('scannerMsg').textContent = 'Lookup failed';
+                    document.getElementById('scannerMsg').classList.remove('hidden');
+                });
+        }
+
+        // --- html5-qrcode integration ---
+        let html5QrCode = null;
+        const qrScannerWrap = document.getElementById('qrScannerWrap');
+        const qrScannerEl = document.getElementById('qrScanner');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const stopCameraBtn = document.getElementById('stopCameraBtn');
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // stop camera immediately and perform lookup
+            stopCamera();
+            lookupAsset(decodedText);
+        }
+
+        function onScanFailure(error) {
+            // ignore occasional scan failures
+            // console.debug('scan failure', error);
+        }
+
+        let fallbackStream = null;
+        let fallbackScanTimer = null;
+
+        function startCamera() {
+            qrScannerWrap.classList.remove('hidden');
+
+            // Preferred: use Html5Qrcode if available
+            if (window.Html5Qrcode) {
+                try {
+                    html5QrCode = new Html5Qrcode('qrScanner');
+                    Html5Qrcode.getCameras().then(cameras => {
+                        const cameraId = (cameras && cameras.length) ? cameras[0].id : null;
+                        html5QrCode.start(
+                            { deviceId: cameraId },
+                            { fps: 10, qrbox: 250 },
+                            onScanSuccess,
+                            onScanFailure
+                        ).catch(err => {
+                            // fallback to getUserMedia approach
+                            startCameraFallback();
+                        });
+                    }).catch(err => {
+                        startCameraFallback();
+                    });
+                    return;
+                } catch (e) {
+                    // fallthrough to fallback
+                }
+            }
+
+            // Fallback: use navigator.mediaDevices + jsQR
+            startCameraFallback();
+        }
+
+        function startCameraFallback() {
+            const video = document.getElementById('qrVideo');
+            const canvas = document.getElementById('qrCanvas');
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                document.getElementById('scannerMsg').textContent = 'Camera not available in this browser.';
+                document.getElementById('scannerMsg').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('scannerMsg').classList.add('hidden');
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(stream => {
+                fallbackStream = stream;
+                video.srcObject = stream;
+                video.style.display = 'block';
+                canvas.style.display = 'none';
+                video.play();
+
+                const ctx = canvas.getContext('2d');
+                fallbackScanTimer = setInterval(() => {
+                    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    try {
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+                        if (code && code.data) {
+                            onScanSuccess(code.data, null);
+                        }
+                    } catch (e) {
+                        // ignore cross-origin or read errors
+                    }
+                }, 300);
+            }).catch(err => {
+                document.getElementById('scannerMsg').textContent = 'Camera permission denied or no camera found.';
+                document.getElementById('scannerMsg').classList.remove('hidden');
+            });
+        }
+
+        function stopCamera() {
+            // stop html5QrCode if present
+            if (html5QrCode && html5QrCode.stop) {
+                try {
+                    html5QrCode.stop().then(() => {
+                        try { html5QrCode.clear(); } catch(e) {}
+                        html5QrCode = null;
+                        qrScannerWrap.classList.add('hidden');
+                    }).catch(()=>{
+                        html5QrCode = null;
+                        qrScannerWrap.classList.add('hidden');
+                    });
+                } catch (e) {
+                    html5QrCode = null;
+                }
+            }
+
+            // stop fallback stream if present
+            if (fallbackScanTimer) {
+                clearInterval(fallbackScanTimer);
+                fallbackScanTimer = null;
+            }
+            if (fallbackStream) {
+                try { fallbackStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+                fallbackStream = null;
+            }
+            const video = document.getElementById('qrVideo');
+            if (video) {
+                try { video.pause(); } catch(e) {}
+                try { video.srcObject = null; } catch(e) {}
+                video.style.display = 'none';
+            }
+            qrScannerWrap.classList.add('hidden');
+        }
+
+        startCameraBtn.addEventListener('click', function () {
+            document.getElementById('scannerMsg').classList.add('hidden');
+            // start camera and toggle buttons
+            startCamera();
+            startCameraBtn.style.display = 'none';
+            stopCameraBtn.style.display = 'inline-block';
+        });
+        stopCameraBtn.addEventListener('click', function () {
+            stopCamera();
+            stopCameraBtn.style.display = 'none';
+            startCameraBtn.style.display = 'inline-block';
+        });
+    </script>
 </body>
 </html>

@@ -61,7 +61,7 @@
 </head>
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
-        @include('users.partials.sidebar')
+        @include('department_head.partial.sidebar')
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
@@ -82,7 +82,7 @@
 
             <!-- Form Content -->
             <div class="p-8">
-                <form action="{{ route('user.requests.store') }}" method="POST" enctype="multipart/form-data" class="max-w-2xl mx-auto">
+                <form action="{{ route('department_head.requests.store') }}" method="POST" enctype="multipart/form-data" class="max-w-2xl mx-auto">
                     @csrf
 
                     @if(session('success'))
@@ -109,16 +109,6 @@
                                 <option value="Pullout" {{ old('request_type') == 'Pullout' ? 'selected' : '' }}>Pullout Request</option>
                                 <option value="Other" {{ old('request_type') == 'Other' ? 'selected' : '' }}>Other Request</option>
                             </select>
-                        </div>
-                        <div id="transferAssignBlock" class="mb-4 hidden">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Assign To (new owner)</label>
-                            <select name="assign_to_user_id" id="assign_to_user_id" class="form-select w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
-                                <option value="">Select user to assign</option>
-                                @foreach($users ?? [] as $u)
-                                    <option value="{{ $u->id }}">{{ $u->full_name }} @if(!empty($u->department)) — {{ $u->department }} @endif</option>
-                                @endforeach
-                            </select>
-                            <p class="text-xs text-gray-400 mt-1">Choose who should become the new owner if this is a transfer.</p>
                         </div>
                     </div>
 
@@ -337,23 +327,6 @@
                 toggleScannerBtn.textContent = 'Scan with camera';
             }
         });
-
-        // Show/hide assign-to select when Request Type is Transfer
-        const requestTypeSelect = document.querySelector('select[name="request_type"]');
-        const transferBlock = document.getElementById('transferAssignBlock');
-        function updateTransferBlock() {
-            const val = requestTypeSelect?.value || '';
-            if (val === 'Transfer') {
-                transferBlock?.classList.remove('hidden');
-            } else {
-                transferBlock?.classList.add('hidden');
-                const sel = document.getElementById('assign_to_user_id');
-                if (sel) sel.value = '';
-            }
-        }
-        requestTypeSelect?.addEventListener('change', updateTransferBlock);
-        // initialize state
-        updateTransferBlock();
 
         // scan uploaded image file for QR
         document.getElementById('qr-upload')?.addEventListener('change', async function (e) {

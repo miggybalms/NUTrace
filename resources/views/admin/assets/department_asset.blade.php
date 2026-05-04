@@ -98,12 +98,17 @@
             <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                 <div class="px-8 py-5">
                     <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-2xl font-bold text-gray-900">Assets</h2>
-                            <div class="flex items-center mt-1">
-                                <span class="text-sm text-blue-600 font-medium">Asset Officer</span>
-                                <span class="mx-2 text-gray-300">•</span>
-                                <p class="text-sm text-gray-500">Manage and track all university assets</p>
+                        <div class="flex items-center">
+                            <a href="/admin/assets" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
+                                <i class="ri-arrow-left-line text-xl"></i>
+                            </a>
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">Assets</h2>
+                                <div class="flex items-center mt-1">
+                                    <span class="text-sm text-blue-600 font-medium">Asset Officer</span>
+                                    <span class="mx-2 text-gray-300">•</span>
+                                    <p class="text-sm text-gray-500">Manage and track all university assets</p>
+                                </div>
                             </div>
                         </div>
                         <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center transition-all hover:scale-105">
@@ -190,7 +195,7 @@
                             </thead>
                             <tbody id="assetsTableBody">
                                 @forelse($assets ?? [] as $asset)
-                                <tr class="asset-row border-b border-gray-100 hover:bg-gray-50 transition" data-asset-id="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}">
+                                <tr class="asset-row border-b border-gray-100 hover:bg-gray-50 transition" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ $asset->qr_code_url ?? '' }}" data-qr-path="{{ $asset->qr_code_path ? Storage::url($asset->qr_code_path) : '' }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
                                     <td class="py-3 px-4 text-sm font-mono text-gray-900">{{ $asset->id }}</td>
                                     <td class="py-3 px-4">
                                         <div class="flex items-center">
@@ -234,7 +239,7 @@
                                             <button class="action-btn text-green-600 hover:text-green-700" title="Edit Asset">
                                                 <i class="ri-edit-line text-lg"></i>
                                             </button>
-                                            <button class="action-btn text-purple-600 hover:text-purple-700" title="View QR Code">
+                                            <button class="action-btn text-purple-600 hover:text-purple-700 view-qr-btn" title="View QR Code">
                                                 <i class="ri-qr-code-line text-lg"></i>
                                             </button>
                                         </div>
@@ -321,29 +326,56 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-500">Serial Number</p>
-                        <p class="text-sm font-medium text-gray-900">SN123456789</p>
+                        <p class="text-sm font-medium text-gray-900" id="modalSerial">-</p>
                     </div>
                     <div>
                         <p class="text-xs text-gray-500">Purchase Price</p>
-                        <p class="text-sm font-medium text-gray-900">$1,500.00</p>
+                        <p class="text-sm font-medium text-gray-900" id="modalPurchasePrice">-</p>
                     </div>
                     <div>
                         <p class="text-xs text-gray-500">Warranty</p>
-                        <p class="text-sm font-medium text-gray-900">12 months remaining</p>
+                        <p class="text-sm font-medium text-gray-900" id="modalWarranty">-</p>
                     </div>
                     <div>
                         <p class="text-xs text-gray-500">Condition</p>
-                        <p class="text-sm font-medium text-green-600">Good</p>
+                        <p class="text-sm font-medium text-green-600" id="modalCondition">-</p>
                     </div>
                 </div>
-                <div class="border-t border-gray-200 pt-4">
-                    <p class="text-xs text-gray-500 mb-2">Notes</p>
-                    <p class="text-sm text-gray-700">Development laptop with 32GB RAM, 1TB SSD.</p>
-                </div>
+                <!-- Notes removed as requested -->
                 <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
                     <button onclick="closeAssetModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Close</button>
                     <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Edit Asset</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Modal -->
+    <div id="qrModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Asset QR Code</h3>
+                <button onclick="closeQRModal()" class="text-gray-400 hover:text-gray-600"><i class="ri-close-line text-2xl"></i></button>
+            </div>
+            <div class="flex justify-center mb-4">
+                <div id="qrModalImgWrap" class="p-4 bg-white rounded-lg">
+                    <img id="qrModalImg" src="" alt="QR Code" class="hidden max-w-full h-auto rounded" />
+                    <div id="qrModalCanvas" class="flex items-center justify-center"></div>
+                </div>
+            </div>
+            <div class="text-center mb-4">
+                <p id="qrModalAssetId" class="text-sm font-mono text-gray-600"></p>
+                <p class="text-xs text-gray-500 mt-1">Scan this QR code to view asset details</p>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="downloadQRFromModal()" class="flex-1 download-btn bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all flex items-center justify-center">
+                    <i class="ri-download-line mr-2"></i>
+                    Download QR Code
+                </button>
+                <button onclick="printQRFromModal()" class="flex-1 download-btn bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-all flex items-center justify-center">
+                    <i class="ri-printer-line mr-2"></i>
+                    Print
+                </button>
             </div>
         </div>
     </div>
@@ -446,6 +478,10 @@
                 const location = row.querySelector('td:nth-child(6)')?.textContent || '';
                 const statusSpan = row.querySelector('td:nth-child(7) span');
                 const status = statusSpan?.textContent?.trim() || 'Active';
+                const serial = row.getAttribute('data-serial') || '-';
+                const purchasePrice = row.getAttribute('data-purchase-price') || '';
+                const warrantyMonths = row.getAttribute('data-warranty-months') || '';
+                const condition = row.getAttribute('data-condition') || '';
                 
                 document.getElementById('modalAssetName').textContent = name;
                 document.getElementById('modalAssetId').textContent = assetIdValue;
@@ -453,6 +489,19 @@
                 document.getElementById('modalAccountable').textContent = accountable;
                 document.getElementById('modalDate').textContent = date;
                 document.getElementById('modalLocation').textContent = location;
+                // populate additional fields
+                document.getElementById('modalSerial').textContent = serial || '-';
+                document.getElementById('modalPurchasePrice').textContent = purchasePrice ? ('₱' + purchasePrice) : '-';
+                document.getElementById('modalWarranty').textContent = warrantyMonths ? (warrantyMonths + ' months remaining') : '-';
+                const condEl = document.getElementById('modalCondition');
+                condEl.textContent = condition || '-';
+                if (condition && condition.toLowerCase() === 'good') {
+                    condEl.className = 'text-sm font-medium text-green-600';
+                } else if (condition && ['fair','poor'].includes(condition.toLowerCase())) {
+                    condEl.className = 'text-sm font-medium text-red-600';
+                } else {
+                    condEl.className = 'text-sm font-medium text-gray-900';
+                }
                 
                 // Update status badge
                 const statusBadge = document.getElementById('modalStatus');
@@ -501,6 +550,115 @@
                 openAssetModal(assetId);
             });
         });
+
+        // Handle QR view buttons (show saved image if present, otherwise generate QR canvas)
+        let modalQRCodeInstance = null;
+        document.querySelectorAll('.view-qr-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const row = btn.closest('tr');
+                const qrUrl = row?.getAttribute('data-qr-url') || row?.getAttribute('data-qr-path') || '';
+                const assetId = row?.getAttribute('data-asset-code') || row?.getAttribute('data-id') || row?.getAttribute('data-asset-id') || '';
+                const img = document.getElementById('qrModalImg');
+                const canvasWrap = document.getElementById('qrModalCanvas');
+                const idEl = document.getElementById('qrModalAssetId');
+
+                // Clean up any previous QR instance
+                if (modalQRCodeInstance && modalQRCodeInstance.clear) {
+                    try { modalQRCodeInstance.clear(); } catch(e) {}
+                }
+                modalQRCodeInstance = null;
+
+                // Reset both completely
+                img.classList.add('hidden');
+                img.src = '';
+                canvasWrap.innerHTML = '';
+                canvasWrap.style.display = 'none';
+
+                if (qrUrl && qrUrl.trim() !== '') {
+                    // Show saved QR image from database
+                    img.src = qrUrl;
+                    img.classList.remove('hidden');
+                    canvasWrap.style.display = 'none';
+                } else if (assetId && assetId.trim() !== '') {
+                    // Generate QR on-the-fly for the asset code
+                    canvasWrap.style.display = 'flex';
+                    canvasWrap.innerHTML = '';
+                    modalQRCodeInstance = new QRCode(canvasWrap, {
+                        text: assetId,
+                        width: 220,
+                        height: 220,
+                        colorDark: "#1f2937",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                    img.classList.add('hidden');
+                }
+
+                idEl.textContent = assetId || '';
+                document.getElementById('qrModal').classList.remove('hidden');
+                document.getElementById('qrModal').classList.add('flex');
+            });
+        });
+
+        function closeQRModal() {
+            document.getElementById('qrModal')?.classList.add('hidden');
+            document.getElementById('qrModal')?.classList.remove('flex');
+            const img = document.getElementById('qrModalImg');
+            const canvasWrap = document.getElementById('qrModalCanvas');
+            if (img) img.src = '';
+            if (img) img.classList.add('hidden');
+            if (canvasWrap) canvasWrap.innerHTML = '';
+            if (canvasWrap) canvasWrap.style.display = 'none';
+            if (modalQRCodeInstance && modalQRCodeInstance.clear) {
+                try { modalQRCodeInstance.clear(); } catch(e) {}
+            }
+            modalQRCodeInstance = null;
+        }
+
+        function downloadQRFromModal() {
+            const img = document.getElementById('qrModalImg');
+            const canvasWrap = document.getElementById('qrModalCanvas');
+            const assetId = document.getElementById('qrModalAssetId')?.textContent || 'asset-qr';
+            // If saved image is shown
+            if (img && img.src) {
+                const link = document.createElement('a');
+                link.href = img.src;
+                link.download = `qr-${assetId}.png`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                return;
+            }
+            // otherwise try canvas
+            const canvas = canvasWrap.querySelector('canvas');
+            if (canvas) {
+                const link = document.createElement('a');
+                link.download = `qr-${assetId}.png`;
+                link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            }
+        }
+
+        function printQRFromModal() {
+            const img = document.getElementById('qrModalImg');
+            const canvasWrap = document.getElementById('qrModalCanvas');
+            const assetId = document.getElementById('qrModalAssetId')?.textContent || 'asset-qr';
+            let src = '';
+            if (img && img.src) src = img.src;
+            else {
+                const canvas = canvasWrap.querySelector('canvas');
+                if (canvas) src = canvas.toDataURL('image/png');
+            }
+            if (!src) return;
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><title>Print QR - ${assetId}</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><img src="${src}" style="max-width:90%;height:auto;"/></body></html>`);
+            win.document.close();
+            win.focus();
+            win.print();
+        }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </body>
 </html>

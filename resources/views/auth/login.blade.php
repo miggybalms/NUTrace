@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - University Asset Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -95,6 +96,35 @@
             border-color: var(--gold);
         }
 
+        .password-input-wrapper {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 4px 8px;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: var(--blue);
+        }
+
+        .password-input-wrapper input {
+            padding-right: 40px;
+        }
+
         .forgot {
             display: block;
             text-align: right;
@@ -174,6 +204,21 @@
             font-size: 0.88rem;
         }
     </style>
+    <script>
+        function togglePasswordVisibility(fieldId) {
+            const input = document.getElementById(fieldId);
+            const button = event.currentTarget;
+            const icon = button.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'ri-eye-off-line';
+            } else {
+                input.type = 'password';
+                icon.className = 'ri-eye-line';
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -209,12 +254,17 @@
 
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        autocomplete="current-password"
-                    />
+                    <div class="password-input-wrapper">
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            autocomplete="current-password"
+                        />
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('password')">
+                            <i class="ri-eye-line"></i>
+                        </button>
+                    </div>
                     <a href="#" class="forgot">Forgot Password?</a>
                 </div>
 

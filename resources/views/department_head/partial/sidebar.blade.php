@@ -12,24 +12,38 @@
     </div>
 
     <nav class="flex-1 px-4">
-        <a href="/users"
-           class="sidebar-item {{ request()->is('users') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+        <a href="/department-head"
+           class="sidebar-item {{ request()->is('department-head') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
             <i class="ri-computer-line mr-3 text-lg"></i>
             <span>My Assets</span>
         </a>
 
-        <a href="/users/assets"
-           class="sidebar-item {{ request()->is('users/assets*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+        <a href="/department-head/assets"
+           class="sidebar-item {{ request()->is('department-head/assets*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
             <i class="ri-archive-line mr-3 text-lg"></i>
             <span>Assets</span>
         </a>
 
-        <a href="/user/requests"
-           class="sidebar-item {{ request()->is('user/request-asset*') || request()->is('user/requests*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+        <a href="/department-head/requests"
+           class="sidebar-item {{ request()->is('department-head/request-asset*') || request()->is('department-head/requests*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
             <i class="ri-mail-line mr-3 text-lg"></i>
             <span>Requests</span>
         </a>
     </nav>
+
+    @if(isset($departmentUsers) && count($departmentUsers) > 0)
+    <div class="px-3 py-3 border-t border-gray-800 text-sm text-gray-300">
+        <p class="text-xs text-gray-400 uppercase mb-2">Department Members</p>
+        <div class="space-y-2">
+            @foreach($departmentUsers as $du)
+            <div class="flex items-center justify-between">
+                <div class="truncate">{{ $du->full_name }}</div>
+                <div class="text-xs text-gray-400">{{ $du->role }}</div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
 
     <div class="border-t border-gray-800 p-4 mt-auto">
         <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">

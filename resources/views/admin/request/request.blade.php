@@ -71,6 +71,9 @@
                 transform: translateY(0);
             }
         }
+        /* hide horizontal scrollbar while preserving scroll capability */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -153,7 +156,7 @@
                 <div class="flex gap-6">
                     <!-- Request List Section -->
                     <div class="flex-1 bg-white rounded-b-xl shadow-sm border border-t-0 border-gray-200 overflow-hidden">
-                        <div class="overflow-x-auto">
+                        <div class="overflow-x-auto scrollbar-hide">
                             <table class="w-full">
                                 <thead class="bg-gray-50 border-b border-gray-200">
                                     <tr>
@@ -162,6 +165,7 @@
                                         <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Type</th>
                                         <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Submitted By</th>
                                         <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Assigned To</th>
                                         <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Status</th>
                                         <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                                     </tr>
@@ -182,7 +186,8 @@
                                             </span>
                                         </td>
                                         <td class="py-3 px-6 text-sm text-gray-600">{{ $request->submitted_by }}</td>
-                                        <td class="py-3 px-6 text-sm text-gray-600">{{ $request->created_at->format('M d, Y') }}</td>
+                                        <td class="py-3 px-6 text-sm text-gray-600">{{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y') : '—' }}</td>
+                                        <td class="py-3 px-6 text-sm text-gray-600">{{ $request->assigned_to ?? '—' }}</td>
                                         <td class="py-3 px-6">
                                             <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                                                 @if($request->status == 'pending') bg-orange-100 text-orange-700
@@ -209,9 +214,6 @@
                                                     <i class="ri-close-circle-line text-lg"></i>
                                                 </button>
                                                 @endif
-                                                <button class="text-blue-600 hover:text-blue-700" title="View Details">
-                                                    <i class="ri-eye-line text-lg"></i>
-                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -282,6 +284,11 @@
                                     <div class="pb-3 border-b border-gray-100">
                                         <p class="text-xs text-gray-500 mb-1">Status</p>
                                         <span id="detail-status-badge" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium">-</span>
+                                    </div>
+
+                                    <div class="pb-3 border-b border-gray-100" id="detail-assigned-block" style="display:none;">
+                                        <p class="text-xs text-gray-500 mb-1">Transferring To</p>
+                                        <p class="text-sm font-semibold text-gray-900" id="detail-assigned-to">-</p>
                                     </div>
                                     
                                     <div class="pb-3">
@@ -363,6 +370,16 @@
                 actionButtons.style.display = 'flex';
             } else {
                 actionButtons.style.display = 'none';
+            }
+
+            // Show assigned to block if transfer and assigned_to present
+            const assignedBlock = document.getElementById('detail-assigned-block');
+            const assignedToEl = document.getElementById('detail-assigned-to');
+            if (request.type === 'transfer' && request.assigned_to) {
+                assignedToEl.textContent = request.assigned_to;
+                assignedBlock.style.display = 'block';
+            } else {
+                assignedBlock.style.display = 'none';
             }
         }
         
@@ -471,7 +488,8 @@
             const rows = document.querySelectorAll('#requests-table-body tr');
             rows.forEach(row => {
                 if (row.querySelector('td')) { // Skip empty state row
-                    const statusCell = row.querySelector('td:nth-child(6) .status-badge');
+                    // Status is in the 7th column (Request ID=1, Asset=2, Type=3, Submitted By=4, Date=5, Assigned To=6, Status=7)
+                    const statusCell = row.querySelector('td:nth-child(7) .status-badge');
                     if (statusCell) {
                         const rowStatus = statusCell.textContent.trim().toLowerCase();
                         if (status === 'all' || rowStatus === status) {

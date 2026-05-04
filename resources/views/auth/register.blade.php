@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - University Asset Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -119,6 +120,35 @@
             background: var(--white);
         }
 
+        .password-input-wrapper {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 4px 8px;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: var(--blue);
+        }
+
+        .password-input-wrapper input {
+            padding-right: 40px;
+        }
+
         .btn-row {
             display: flex;
             gap: 0.75rem;
@@ -192,6 +222,21 @@
             margin-top: 0.3rem;
         }
     </style>
+    <script>
+        function togglePasswordVisibility(fieldId) {
+            const input = document.getElementById(fieldId);
+            const button = event.currentTarget;
+            const icon = button.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'ri-eye-off-line';
+            } else {
+                input.type = 'password';
+                icon.className = 'ri-eye-line';
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -245,15 +290,27 @@
                 {{-- Department --}}
                 <div class="form-group">
                     <label for="department">Department <span class="required">*</span></label>
-                    <select id="department" name="department" required>
-                        <option value="" disabled selected>Select department</option>
-                        <option value="Facilities" {{ old('department') == 'Facilities' ? 'selected' : '' }}>Facilities</option>
-                        <option value="IT" {{ old('department') == 'IT' ? 'selected' : '' }}>IT</option>
-                        <option value="LRC" {{ old('department') == 'LRC' ? 'selected' : '' }}>LRC</option>
-                        <option value="Admission" {{ old('department') == 'Admission' ? 'selected' : '' }}>Admission</option>
-                        <option value="SDAO" {{ old('department') == 'SDAO' ? 'selected' : '' }}>SDAO</option>
-                        <option value="Marketing" {{ old('department') == 'Marketing' ? 'selected' : '' }}>Marketing</option>
-                    </select>
+                    
+                    {{-- First user types their own department --}}
+                    @if($isFirstUser ?? false)
+                        <input
+                            type="text"
+                            id="department"
+                            name="department"
+                            value="{{ old('department') }}"
+                            placeholder="Enter your department name"
+                            required
+                        />
+                    @else
+                        {{-- Subsequent users select from existing departments --}}
+                        <select id="department" name="department" required>
+                            <option value="" disabled selected>Select department</option>
+                            @foreach($departments as $dept)
+                                <option value="{{ $dept }}" {{ old('department') == $dept ? 'selected' : '' }}>{{ $dept }}</option>
+                            @endforeach
+                        </select>
+                    @endif
+                    
                     @error('department')
                         <div class="field-error">{{ $message }}</div>
                     @enderror
@@ -291,12 +348,17 @@
                 {{-- Password --}}
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        autocomplete="new-password"
-                    />
+                    <div class="password-input-wrapper">
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            autocomplete="new-password"
+                        />
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('password')">
+                            <i class="ri-eye-line"></i>
+                        </button>
+                    </div>
                     @error('password')
                         <div class="field-error">{{ $message }}</div>
                     @enderror
@@ -305,12 +367,17 @@
                 {{-- Confirm Password --}}
                 <div class="form-group">
                     <label for="password_confirmation">Confirm Password</label>
-                    <input
-                        type="password"
-                        id="password_confirmation"
-                        name="password_confirmation"
-                        autocomplete="new-password"
-                    />
+                    <div class="password-input-wrapper">
+                        <input
+                            type="password"
+                            id="password_confirmation"
+                            name="password_confirmation"
+                            autocomplete="new-password"
+                        />
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('password_confirmation')">
+                            <i class="ri-eye-line"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="btn-row">

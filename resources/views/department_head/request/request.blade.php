@@ -1,4 +1,4 @@
-@extends('layouts.user_sidebar')
+@extends('layouts.department_head_sidebar')
 
 @section('title', 'My Requests')
 

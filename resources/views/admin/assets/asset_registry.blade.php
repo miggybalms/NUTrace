@@ -138,7 +138,7 @@
                 <div class="px-8 py-5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center">
-                            <a href="#" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
+                            <a href="javascript:void(0)" onclick="window.history.back()" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
                                 <i class="ri-arrow-left-line text-xl"></i>
                             </a>
                             <div>
@@ -160,57 +160,14 @@
             <div class="p-8">
                 <form action="{{ route('admin.assets.store') }}" method="POST" enctype="multipart/form-data" class="max-w-4xl mx-auto" id="assetForm">
                     @csrf
+                    <input type="hidden" name="qr_image" id="qr_image_input" value="">
                     @if(session('success'))
                         <div class="mb-4 p-4 rounded-lg bg-green-50 border border-green-100 text-green-700">
                             {{ session('success') }}
                         </div>
                     @endif
                     
-                    <!-- Auto-Generated Asset ID with QR Code -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-900">Auto-Generated Asset ID</h3>
-                                <p class="text-sm text-gray-500 mt-1">Unique identifier for this asset</p>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Left side - Asset ID -->
-                            <div>
-                                <div class="flex items-center space-x-4">
-                                    <div class="flex-1">
-                                        <div class="asset-id-display bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg px-4 py-3 transition-all duration-300">
-                                            <code class="text-lg font-mono font-semibold text-gray-900" id="asset-id-display">Not generated</code>
-                                        </div>
-                                    </div>
-                                    <button type="button" id="regenerate-btn" onclick="regenerateAssetId()" 
-                                            class="regenerate-btn px-5 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-300 flex items-center font-medium group"
-                                            disabled>
-                                        <i class="ri-refresh-line mr-2 text-lg transition-transform duration-300 group-hover:rotate-180"></i>
-                                        <span>Regenerate ID</span>
-                                    </button>
-                                </div>
-                                <input type="hidden" name="asset_code" id="asset-code-input" value="">
-                            </div>
-                            
-                            <!-- Right side - QR Code -->
-                            <div class="border-l border-gray-200 pl-6">
-                                <div class="flex items-center justify-between mb-3">
-                                    <label class="text-sm font-medium text-gray-700">Asset QR Code</label>
-                                    <button type="button" onclick="viewQRCode()" 
-                                            class="text-blue-600 hover:text-blue-700 text-sm flex items-center">
-                                        <i class="ri-eye-line mr-1"></i>
-                                        View Full Size
-                                    </button>
-                                </div>
-                                <div class="qr-container bg-white border border-gray-200 rounded-lg p-3 inline-block">
-                                    <div id="qrcode" class="flex justify-center"></div>
-                                </div>
-                                <p class="text-xs text-gray-500 mt-2">Scan to view asset details</p>
-                            </div>
-                        </div>
-                    </div>
+
 
                     <!-- Basic Information -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -286,7 +243,7 @@
                             <!-- Assignment & Location -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Assign to (Name — Department)
+                                    Assign to (Name/Department)
                                 </label>
                                 <div class="relative">
                                     <input type="text" id="user-search" 
@@ -345,7 +302,7 @@
                                     Purchase Price
                                 </label>
                                 <div class="relative">
-                                    <span class="absolute left-3 top-2 text-gray-500">$</span>
+                                    <span class="absolute left-3 top-2 text-gray-500">₱</span>
                                     <input type="number" name="purchase_price" step="0.01"
                                            placeholder="0.00"
                                            class="form-input w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
@@ -411,6 +368,52 @@
                                 <textarea name="notes" rows="4"
                                           placeholder="Additional notes or remarks..."
                                           class="form-textarea w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                                        <!-- Auto-Generated Asset ID with QR Code -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">Auto-Generated Asset ID</h3>
+                                <p class="text-sm text-gray-500 mt-1">Unique identifier for this asset</p>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Left side - Asset ID -->
+                            <div>
+                                <div class="flex items-center space-x-4">
+                                    <div class="flex-1">
+                                        <div class="asset-id-display bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg px-4 py-3 transition-all duration-300">
+                                            <code class="text-lg font-mono font-semibold text-gray-900" id="asset-id-display">Not generated</code>
+                                        </div>
+                                    </div>
+                                    <button type="button" id="regenerate-btn" onclick="regenerateAssetId()" 
+                                            class="regenerate-btn px-5 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-300 flex items-center font-medium group"
+                                            disabled>
+                                        <i class="ri-refresh-line mr-2 text-lg transition-transform duration-300 group-hover:rotate-180"></i>
+                                        <span>Regenerate ID</span>
+                                    </button>
+                                </div>
+                                <input type="hidden" name="asset_code" id="asset-code-input" value="">
+                            </div>
+                            
+                            <!-- Right side - QR Code -->
+                            <div class="border-l border-gray-200 pl-6">
+                                <div class="flex items-center justify-between mb-3">
+                                    <label class="text-sm font-medium text-gray-700">Asset QR Code</label>
+                                    <button type="button" onclick="viewQRCode()" 
+                                            class="text-blue-600 hover:text-blue-700 text-sm flex items-center">
+                                        <i class="ri-eye-line mr-1"></i>
+                                        View Full Size
+                                    </button>
+                                </div>
+                                <div class="qr-container bg-white border border-gray-200 rounded-lg p-3 inline-block">
+                                    <div id="qrcode" class="flex justify-center"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">Scan to view asset details</p>
                             </div>
                         </div>
                     </div>
@@ -529,6 +532,14 @@
                 const qrCanvas = document.querySelector('#qrcode canvas');
                 if (qrCanvas && window._registerBtn) {
                     window._registerBtn.disabled = false;
+                    // also store the QR image into the hidden input so server receives it
+                    try {
+                        const dataUrl = qrCanvas.toDataURL('image/png');
+                        const qrInput = document.getElementById('qr_image_input');
+                        if (qrInput) qrInput.value = dataUrl;
+                    } catch (err) {
+                        // ignore canvas errors
+                    }
                 }
             }, 100);
         }
@@ -844,6 +855,21 @@
                 e.preventDefault();
                 alert('Please generate a QR code for the asset before registering.');
                 return;
+            }
+            // capture QR image data URL into hidden input so server can save it
+            try {
+                const qrInput = document.getElementById('qr_image_input');
+                let dataUrl = '';
+                const canvas = document.querySelector('#qrcode canvas');
+                if (canvas && canvas.toDataURL) {
+                    dataUrl = canvas.toDataURL('image/png');
+                } else {
+                    const img = document.querySelector('#qrcode img');
+                    if (img) dataUrl = img.src || '';
+                }
+                if (qrInput) qrInput.value = dataUrl;
+            } catch (err) {
+                // ignore
             }
         });
         

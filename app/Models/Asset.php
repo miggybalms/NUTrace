@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 #[Fillable([
     'user_id', 'Asset_code', 'Asset_name', 'Category', 'Condition', 'Lifecycle_Status',
     'accusion_date', 'accusion_cost', 'purchase_Price', 'warranty_months', 'supplier', 'model', 'manufacture',
-    'serial_Number', 'asset_location', 'qr_code_path', 'file_name', 'file_path', 'file_size', 'mime_type', 'url'
+    'serial_Number', 'asset_location', 'qr_code_path', 'qr_code_url', 'file_name', 'file_path', 'file_size', 'mime_type', 'url'
 ])]
 class Asset extends Model
 {

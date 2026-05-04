@@ -13,11 +13,9 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('department_id')->nullable();
             $table->string('unit_heads_number', 20);
             $table->string('full_name', 50);
-            $table->enum('department', [
-                'Facilities', 'IT', 'LRC', 'Admission', 'SDAO', 'Marketing'
-            ]);
             $table->string('email', 100)->unique();
             $table->string('password');
             $table->enum('role', [

@@ -1,4 +1,4 @@
-@extends('layouts.user_sidebar')
+@extends('layouts.department_head_sidebar')
 
 @section('title', 'My Assets')
 
@@ -44,8 +44,6 @@
 
     <!-- Content -->
     <div class="p-8">
-
-        <!-- Summary Stats -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
                 <div class="flex items-center justify-between">
@@ -98,22 +96,15 @@
                 <button class="filter-btn px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-filter="recent">
                     Recently Added
                 </button>
+                <button class="filter-btn px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-filter="department">
+                    Department Assets
+                </button>
             </div>
             @php
-                $currentUser = Auth::user();
                 $visibleStatuses = ['Acquired', 'Active', 'For Repair'];
-                $visibleAssets = collect();
-
-                if (isset($assignedAssets) && $currentUser) {
-                    $visibleAssets = $assignedAssets->filter(function($a) use ($visibleStatuses, $currentUser) {
-                        // Admins may view all assigned assets; regular users only their own
-                        $statusOk = in_array(($a->Lifecycle_Status ?? 'Acquired'), $visibleStatuses, true);
-                        if (($currentUser->role ?? '') === 'Admin') {
-                            return $statusOk;
-                        }
-                        return ($a->user_id === $currentUser->id) && $statusOk;
-                    });
-                }
+                $visibleAssets = isset($assignedAssets) ? $assignedAssets->filter(function($a) use ($visibleStatuses) {
+                    return in_array(($a->Lifecycle_Status ?? 'Acquired'), $visibleStatuses, true);
+                }) : collect();
             @endphp
             <p class="text-sm text-gray-500">Showing {{ $visibleAssets->count() ?? 0 }} assets</p>
         </div>
@@ -123,7 +114,8 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="assetsGrid">
             @foreach($visibleAssets as $asset)
             <div class="asset-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
-                 data-status="{{ $asset->Lifecycle_Status ?? '' }}">
+                 data-status="{{ $asset->Lifecycle_Status ?? '' }}"
+                 data-owner-id="{{ $asset->user_id ?? '' }}">
 
                 {{-- Asset Image --}}
                 <div class="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
@@ -192,7 +184,7 @@
 
                     {{-- Actions --}}
                     <div class="pt-3 border-t border-gray-100">
-                        <a href="/users/assets/{{ $asset->id }}"
+                        <a href="/department-head/assets/{{ $asset->id }}"
                            class="w-full px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition text-sm font-medium flex items-center justify-center">
                             <i class="ri-eye-line mr-1.5"></i>
                             View
@@ -238,6 +230,9 @@
     </div>
 
     <script>
+        // Get current logged-in user's ID (department head)
+        const currentUserId = "{{ Auth::user()->id ?? '' }}";
+
         // Filter functionality
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function () {
@@ -254,6 +249,10 @@
                 document.querySelectorAll('.asset-card').forEach(card => {
                     if (filter === 'all' || filter === 'recent') {
                         card.style.display = '';
+                    } else if (filter === 'department') {
+                        // Show only assets assigned to the department head
+                        const cardOwnerId = card.dataset.ownerId;
+                        card.style.display = cardOwnerId === currentUserId ? '' : 'none';
                     } else {
                         card.style.display = card.dataset.status === filter ? '' : 'none';
                     }

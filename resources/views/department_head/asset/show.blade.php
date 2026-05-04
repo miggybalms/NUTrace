@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Asset Details - {{ $asset->Asset_code ?? 'Asset' }}</title>
+    <title>{{ $asset->Asset_name ?? 'Asset' }} — My Assets</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
 </head>
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
-        @include('admin.partials.sidebar')
+        @include('department_head.partial.sidebar')
 
         <div class="flex-1 overflow-y-auto bg-gray-50">
             <div class="max-w-4xl mx-auto p-8">
@@ -27,12 +27,6 @@
                                 <img src="{{ $asset->url }}" alt="Asset photo" class="h-28 w-auto rounded-lg border" />
                             @else
                                 <div class="h-28 w-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">No Photo</div>
-                            @endif
-                            @if(!empty($asset->qr_code_url) || !empty($asset->qr_code_path))
-                                <div class="mt-3">
-                                    <p class="text-xs text-gray-500">Asset QR</p>
-                                    <img src="{{ $asset->qr_code_url ?? (\Illuminate\Support\Facades\Storage::url($asset->qr_code_path)) }}" alt="Asset QR" class="h-28 w-28 rounded-lg border mt-1" />
-                                </div>
                             @endif
                         </div>
                     </div>
@@ -57,7 +51,7 @@
                     </div>
 
                     <div class="mt-6">
-                        <a href="/admin/assets" class="inline-flex items-center px-4 py-2 bg-gray-100 border rounded-lg">&larr; Back to assets</a>
+                        <a href="/department-head/assets" class="inline-flex items-center px-4 py-2 bg-gray-100 border rounded-lg">&larr; Back to my assets</a>
                     </div>
                 </div>
             </div>

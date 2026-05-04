@@ -63,7 +63,7 @@
 </head>
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
-        @include('users.partials.sidebar', ['currentUser' => $user])
+        @include('department_head.partial.sidebar', ['currentUser' => $user])
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
@@ -260,18 +260,18 @@
         </div>
     </div>
 
-    <!-- Notifications Polling + Toast -->
+    <!-- Department Notifications Polling + Toast -->
     <script>
         (function () {
-            const endpoint = '/api/notifications/user';
-            const storageKey = 'repairStatuses_user';
+            const endpoint = '/api/notifications/department';
+            const storageKey = 'repairStatuses_dept';
 
             function showToast(message, type = 'info') {
                 const toast = document.createElement('div');
                 toast.className = `toast fixed bottom-6 right-6 px-5 py-3 rounded-lg text-white shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`;
                 toast.textContent = message;
                 document.body.appendChild(toast);
-                setTimeout(() => { toast.remove(); }, 6000);
+                setTimeout(() => { toast.remove(); }, 7000);
             }
 
             async function fetchNotifications() {
@@ -285,19 +285,17 @@
                     repairs.forEach(r => {
                         const prev = stored[r.id];
                         if (prev && prev !== r.status) {
-                            showToast(`Request #REQ-${String(r.id).padStart(4,'0')} for ${r.Asset_name || 'asset'} status changed: ${r.status}`);
+                            showToast(`Request #REQ-${String(r.id).padStart(4,'0')} (${r.Asset_name || 'asset'}) by ${r.submitted_by || 'user'}: status changed to ${r.status}`);
                         }
-                        // update stored status
                         stored[r.id] = r.status;
                     });
 
                     localStorage.setItem(storageKey, JSON.stringify(stored));
                 } catch (e) {
-                    // ignore network errors
+                    // ignore
                 }
             }
 
-            // initial fetch and polling
             fetchNotifications();
             setInterval(fetchNotifications, 30000);
         })();

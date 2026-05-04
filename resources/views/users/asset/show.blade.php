@@ -38,7 +38,7 @@
                         </div>
                         <div>
                             <p class="text-xs text-gray-500">Purchase Price</p>
-                            <p class="text-sm text-gray-900">{{ $asset->purchase_Price ? '$' . number_format($asset->purchase_Price, 2) : '—' }}</p>
+                            <p class="text-sm text-gray-900">{{ $asset->purchase_Price ? '₱' . number_format($asset->purchase_Price, 2) : '—' }}</p>
                         </div>
                         <div>
                             <p class="text-xs text-gray-500">Serial Number</p>

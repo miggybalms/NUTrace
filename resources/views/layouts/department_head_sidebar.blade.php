@@ -51,20 +51,20 @@
 
             <!-- Nav -->
             <nav class="flex-1 px-4">
-                     <a href="/users"
-                         class="sidebar-item {{ Request::is('users') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+                     <a href="/department-head"
+                         class="sidebar-item {{ Request::is('department-head') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
                     <i class="ri-computer-line mr-3 text-lg"></i>
                     <span>My Assets</span>
                 </a>
 
-                    <a href="/users/assets"
-                       class="sidebar-item {{ Request::is('users/assets*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+                    <a href="/department-head/assets"
+                       class="sidebar-item {{ Request::is('department-head/assets*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
                         <i class="ri-archive-line mr-3 text-lg"></i>
                         <span>Assets</span>
                     </a>
 
-                    <a href="/user/requests"
-                       class="sidebar-item {{ Request::is('user/requests*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
+                    <a href="/department-head/requests"
+                       class="sidebar-item {{ Request::is('department-head/requests*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1">
                         <i class="ri-mail-line mr-3 text-lg"></i>
                         <span>Requests</span>
                     </a>

@@ -338,19 +338,16 @@
                                     </div>
                                 </div>
                                 
-                                <div class="flex items-center space-x-3">
-                                    <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                                        ${repair.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : ''}
-                                        ${repair.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : ''}
-                                        ${repair.status === 'completed' ? 'bg-green-100 text-green-700' : ''}
-                                        ${repair.status === 'cancelled' ? 'bg-gray-100 text-gray-700' : ''}">
-                                        <i class="ri-circle-fill mr-1 text-xs"></i>
-                                        ${repair.status === 'in_progress' ? 'In Progress' : repair.status.charAt(0).toUpperCase() + repair.status.slice(1)}
-                                    </span>
-                                    ${repair.status === 'completed' && repair.completion_date ? `
-                                        <span class="text-xs text-gray-400">Completed: ${new Date(repair.completion_date).toLocaleDateString()}</span>
-                                    ` : ''}
-                                </div>
+                                                <div class="flex items-center space-x-3">
+                                                    <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                                        id="status-badge-${repair.id}">
+                                                        <i class="ri-circle-fill mr-1 text-xs"></i>
+                                                        ${displayStatusLabel(repair.status)}
+                                                    </span>
+                                                    ${repair.status === 'completed' && repair.completion_date ? `
+                                                        <span class="text-xs text-gray-400">Completed: ${new Date(repair.completion_date).toLocaleDateString()}</span>
+                                                    ` : ''}
+                                                </div>
                             </div>
                             
                             <div class="flex space-x-2 ml-4">
@@ -358,7 +355,7 @@
                                     <i class="ri-eye-line text-lg"></i>
                                 </button>
                                 ${repair.status !== 'completed' && repair.status !== 'cancelled' ? `
-                                    <button onclick="updateRepairStatus(${repair.id})" class="px-3 py-2 text-green-600 hover:bg-green-50 rounded-lg transition">
+                                    <button onclick="viewRepairDetails(${repair.id})" class="px-3 py-2 text-green-600 hover:bg-green-50 rounded-lg transition">
                                         <i class="ri-edit-line text-lg"></i>
                                     </button>
                                 ` : ''}
@@ -429,7 +426,7 @@
                             ${repair.estimated_cost ? `
                             <div>
                                 <p class="text-xs text-gray-500">Estimated Cost</p>
-                                <p class="text-sm font-medium text-gray-900">$${repair.estimated_cost.toFixed(2)}</p>
+                                <p class="text-sm font-medium text-gray-900">₱${repair.estimated_cost.toFixed(2)}</p>
                             </div>
                             ` : ''}
                             ${repair.completion_date ? `
@@ -446,11 +443,28 @@
                             <p class="text-sm text-gray-700 mt-1">${repair.notes}</p>
                         </div>
                         ` : ''}
-                        
+
+                        <div class="pt-4 border-t border-gray-200">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-2">Asset Details</h4>
+                            <div class="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                                <div><span class="text-xs text-gray-500">Serial</span><div>${repair.serial_number ?? '-'}</div></div>
+                                <div><span class="text-xs text-gray-500">Condition</span><div>${repair.condition ?? '-'}</div></div>
+                                <div><span class=\"text-xs text-gray-500\">Purchase Price</span><div>${repair.purchase_price ? ('₱' + repair.purchase_price.toFixed(2)) : '-'}</div></div>
+                                <div><span class="text-xs text-gray-500">Warranty (months)</span><div>${repair.warranty_months ?? '-'}</div></div>
+                                <div><span class="text-xs text-gray-500">Location</span><div>${repair.asset_location ?? '-'}</div></div>
+                                <div><span class="text-xs text-gray-500">Supplier / Model</span><div>${repair.supplier ?? '-'} ${repair.model ? (' / ' + repair.model) : ''}</div></div>
+                            </div>
+                        </div>
+
                         <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                             <button onclick="closeViewRepairModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Close</button>
                             ${repair.status !== 'completed' ? `
-                                <button onclick="updateRepairStatus(${repair.id})" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Update Status</button>
+                                <div class="inline-flex items-center space-x-2">
+                                    <button onclick="changeRepairStatus(${repair.id}, 'pending')" class="px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm">Pending</button>
+                                    <button onclick="changeRepairStatus(${repair.id}, 'in_progress')" class="px-3 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm">In Progress</button>
+                                    <button onclick="changeRepairStatus(${repair.id}, 'completed')" class="px-3 py-2 bg-green-100 text-green-800 rounded-lg text-sm">Completed</button>
+                                    <button onclick="changeRepairStatus(${repair.id}, 'cancelled')" class="px-3 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm">Cancelled</button>
+                                </div>
                             ` : ''}
                         </div>
                     </div>
@@ -461,20 +475,42 @@
             }
         }
         
-        function updateRepairStatus(id) {
-            const newStatus = prompt('Update status (pending, in_progress, completed, cancelled):');
-            if (newStatus && ['pending', 'in_progress', 'completed', 'cancelled'].includes(newStatus)) {
-                const repair = repairs.find(r => r.id === id);
-                if (repair) {
+        function changeRepairStatus(id, newStatus) {
+            const valid = ['pending', 'in_progress', 'completed', 'cancelled'];
+            if (!valid.includes(newStatus)) return;
+            const repair = repairs.find(r => r.id === id);
+            if (!repair) return;
+            
+            // Send update to server
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            fetch(`/admin/repairs/${id}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf || '',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
                     repair.status = newStatus;
                     if (newStatus === 'completed') {
                         repair.completion_date = new Date().toISOString().split('T')[0];
+                    } else {
+                        repair.completion_date = null;
                     }
                     renderRepairs();
-                    closeViewRepairModal();
-                    alert(`Repair status updated to ${newStatus}`);
+                    viewRepairDetails(id);
+                    alert('Repair status updated to ' + displayStatusLabel(newStatus));
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update repair status'));
                 }
-            }
+            })
+            .catch(err => {
+                alert('Error updating repair status: ' + err.message);
+            });
         }
         
         function deleteRepair(id) {
@@ -524,6 +560,17 @@
         });
         
         // Modal functions
+        function displayStatusLabel(status) {
+            if (!status) return '';
+            switch(status) {
+                case 'in_progress': return 'In Progress';
+                case 'pending': return 'Pending';
+                case 'completed': return 'Completed';
+                case 'cancelled': return 'Cancelled';
+                default: return status.charAt(0).toUpperCase() + status.slice(1);
+            }
+        }
+
         function openNewRepairModal() {
             document.getElementById('newRepairModal').classList.remove('hidden');
             document.getElementById('newRepairModal').classList.add('flex');

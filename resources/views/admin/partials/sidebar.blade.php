@@ -34,6 +34,10 @@
                 <i class="ri-mail-line mr-3 text-lg"></i>
                 <span>Requests</span>
             </a>
+            <a href="/admin/replacement" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1 {{ request()->is('admin/replacement*') ? 'active' : '' }}">
+                <i class="ri-refresh-line mr-3 text-lg"></i>
+                <span>Replacement</span>
+            </a>
             <a href="/admin/repair" class="sidebar-item flex items-center px-3 py-2.5 text-sm text-gray-300 rounded-lg mb-1 {{ request()->is('admin/repair*') ? 'active' : '' }}">
                 <i class="ri-tools-line mr-3 text-lg"></i>
                 <span>Repair</span>
