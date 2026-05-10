@@ -224,7 +224,7 @@
 
     <div class="wrapper">
         <span class="logo-caption">Logo of System</span>
-        <h1 class="site-name">WEBSITE NAME</h1>
+        <h1 class="site-name">NU Trace</h1>
 
         <div class="card">
 

@@ -158,25 +158,24 @@
                     <div class="flex-1 bg-white rounded-b-xl shadow-sm border border-t-0 border-gray-200 overflow-hidden">
                         <div class="overflow-x-auto scrollbar-hide">
                             <table class="w-full">
-                                <thead class="bg-gray-50 border-b border-gray-200">
+                                <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
                                     <tr>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Request ID</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Asset Name</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Submitted By</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Assigned To</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                        <th class="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Request ID</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Asset Name</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Type</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Submitted By</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Date</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Status</th>
+                                        <th class="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="requests-table-body">
                                     @forelse($requests as $request)
                                     <tr class="request-row border-b border-gray-100 hover:bg-gray-50 transition" data-request-id="{{ $request->id }}" onclick="selectRequest({{ $request->id }})">
-                                        <td class="py-3 px-6 text-sm font-mono text-gray-900">#REQ-{{ str_pad($request->id, 4, '0', STR_PAD_LEFT) }}</td>
-                                        <td class="py-3 px-6 text-sm text-gray-900">{{ $request->asset_name }}</td>
-                                        <td class="py-3 px-6">
-                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                        <td class="py-3 px-3 text-sm font-mono text-gray-900 whitespace-nowrap">#REQ-{{ str_pad($request->id, 4, '0', STR_PAD_LEFT) }}</td>
+                                        <td class="py-3 px-3 text-sm text-gray-900">{{ $request->asset_name }}</td>
+                                        <td class="py-3 px-3">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap
                                                 @if($request->type == 'new_asset') bg-blue-100 text-blue-700
                                                 @elseif($request->type == 'repair') bg-red-100 text-red-700
                                                 @elseif($request->type == 'pullout') bg-orange-100 text-orange-700
@@ -185,10 +184,9 @@
                                                 {{ ucfirst(str_replace('_', ' ', $request->type)) }}
                                             </span>
                                         </td>
-                                        <td class="py-3 px-6 text-sm text-gray-600">{{ $request->submitted_by }}</td>
-                                        <td class="py-3 px-6 text-sm text-gray-600">{{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y') : '—' }}</td>
-                                        <td class="py-3 px-6 text-sm text-gray-600">{{ $request->assigned_to ?? '—' }}</td>
-                                        <td class="py-3 px-6">
+                                        <td class="py-3 px-3 text-sm text-gray-600">{{ $request->submitted_by }}</td>
+                                        <td class="py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y') : '—' }}</td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
                                             <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                                                 @if($request->status == 'pending') bg-orange-100 text-orange-700
                                                 @elseif($request->status == 'approved') bg-green-100 text-green-700
@@ -204,15 +202,17 @@
                                                 {{ ucfirst($request->status) }}
                                             </span>
                                         </td>
-                                        <td class="py-3 px-6">
+                                        <td class="py-3 px-3 whitespace-nowrap">
                                             <div class="flex items-center space-x-2" onclick="event.stopPropagation()">
                                                 @if($request->status == 'pending')
-                                                <button onclick="approveRequest({{ $request->id }})" class="text-green-600 hover:text-green-700" title="Approve">
+                                                <button onclick="approveRequest({{ $request->id }})" class="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition" title="Approve">
                                                     <i class="ri-checkbox-circle-line text-lg"></i>
                                                 </button>
-                                                <button onclick="rejectRequest({{ $request->id }})" class="text-red-600 hover:text-red-700" title="Reject">
+                                                <button onclick="rejectRequest({{ $request->id }})" class="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition" title="Reject">
                                                     <i class="ri-close-circle-line text-lg"></i>
                                                 </button>
+                                                @else
+                                                <span class="text-gray-400 text-xs">No actions</span>
                                                 @endif
                                             </div>
                                         </td>
@@ -247,10 +247,11 @@
                             <div id="request-detail-content" style="display: none;">
                                 <!-- Asset Photo -->
                                 <div class="mb-6">
-                                    <div class="bg-gray-100 rounded-lg h-48 flex items-center justify-center mb-3">
-                                        <i class="ri-image-line text-4xl text-gray-400"></i>
+                                    <div class="bg-gray-100 rounded-lg h-48 flex items-center justify-center mb-3 overflow-hidden">
+                                        <img id="detail-photo" src="" alt="Request Photo" class="w-full h-full object-cover hidden">
+                                        <i id="detail-photo-placeholder" class="ri-image-line text-4xl text-gray-400"></i>
                                     </div>
-                                    <p class="text-xs text-gray-500 text-center">Asset Photo</p>
+                                    <p class="text-xs text-gray-500 text-center">Request Photo</p>
                                 </div>
                                 
                                 <!-- Request Information -->
@@ -350,6 +351,18 @@
             // Hide no selection message and show details
             document.getElementById('no-selection-message').style.display = 'none';
             document.getElementById('request-detail-content').style.display = 'block';
+            
+            // Populate photo
+            const photoImg = document.getElementById('detail-photo');
+            const photoPlaceholder = document.getElementById('detail-photo-placeholder');
+            if (request.image) {
+                photoImg.src = request.image;
+                photoImg.classList.remove('hidden');
+                photoPlaceholder.classList.add('hidden');
+            } else {
+                photoImg.classList.add('hidden');
+                photoPlaceholder.classList.remove('hidden');
+            }
             
             // Populate details
             document.getElementById('detail-id').textContent = `#REQ-${String(request.id).padStart(4, '0')}`;

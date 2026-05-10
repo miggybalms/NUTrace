@@ -1197,8 +1197,7 @@ Route::get('/admin/replacement', function () {
                     'nw.Asset_name as new_asset_name',
                     'nw.Asset_code as new_asset_code',
                     'nw.qr_code_path as new_asset_qr',
-                    'users.full_name as requested_by',
-                    'users.department as department'
+                    'users.full_name as requested_by'
                 );
 
             $replacements = $base->orderByDesc('replacements.created_at')->paginate(10);
@@ -1239,53 +1238,62 @@ Route::match(['post','patch'], '/admin/replacements/{id}/link', function (Reques
 
     try {
         Log::info('Linking new asset for replacement', ['replacement_id' => $id, 'code' => $code]);
-        // Create minimal new asset record
-        $asset = Asset::create([
-            'user_id' => $old->user_id ?? null,
-            'Asset_code' => $code,
-            'Asset_name' => 'Replacement ' . $code,
-            'Lifecycle_Status' => 'Active',
-            'asset_location' => $old->asset_location ?? null,
-        ]);
-        Log::info('Created asset for replacement', ['asset_id' => $asset->id ?? null]);
-
-        // Generate QR via public API and save to storage (public disk)
+        
+        // Update the old asset with the new code and regenerated QR
+        // This replaces the old asset's code/QR with the new one
+        $oldAssetId = $replacement->old_asset_id;
+        
+        // Generate new QR code for the replacement
+        $qrPath = null;
+        $qrUrl = null;
         try {
-            $qrSource = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' . urlencode($asset->Asset_code);
+            $qrSource = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' . urlencode($code);
             $contents = @file_get_contents($qrSource);
             if ($contents) {
-                $path = 'assets/qr/' . $asset->Asset_code . '.png';
-                Storage::disk('public')->put($path, $contents);
-                $asset->qr_code_path = $path;
-                $asset->qr_code_url = Storage::url($path);
-                $asset->save();
+                $qrPath = 'assets/qr/' . $code . '.png';
+                Storage::disk('public')->put($qrPath, $contents);
+                $qrUrl = Storage::url($qrPath);
             }
         } catch (\Throwable $e) {
-            // ignore QR generation errors; asset was created
+            Log::warning('QR generation failed', ['code' => $code, 'error' => $e->getMessage()]);
         }
 
-        // Link replacement to new asset and update timestamp
-        DB::table('replacements')->where('id', $id)->update(['new_asset_id' => $asset->id, 'updated_at' => now()]);
+        // Update the old asset with the new code and QR path
+        $updateData = ['Asset_code' => $code, 'updated_at' => now()];
+        if ($qrPath) $updateData['qr_code_path'] = $qrPath;
+        
+        DB::table('assets')->where('id', $oldAssetId)->update($updateData);
+        
+        // Link replacement to old asset (since we updated it with new code)
+        DB::table('replacements')->where('id', $id)->update(['new_asset_id' => $oldAssetId, 'updated_at' => now()]);
 
-        // If the request expects JSON (AJAX), return the new asset info
+        Log::info('Updated old asset with new code for replacement', ['old_asset_id' => $oldAssetId, 'new_code' => $code]);
+
+        // If the request expects JSON (AJAX), return the updated asset info
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
                 'asset' => [
-                    'id' => $asset->id,
-                    'code' => $asset->Asset_code,
-                    'name' => $asset->Asset_name,
-                    'qr_url' => $asset->qr_code_url ?? Storage::url($asset->qr_code_path ?? ''),
+                    'id' => $oldAssetId,
+                    'code' => $code,
+                    'name' => $old->Asset_name ?? 'Asset',
+                    'qr_url' => $qrUrl ?? '',
                 ],
                 'replacement_id' => $id,
             ]);
         }
 
         $redirectTo = url()->previous() ?: '/admin/replacement';
-        return redirect($redirectTo)->with('success', 'New asset created and linked.');
+        return redirect($redirectTo)->with('success', 'Asset code and QR updated for replacement.');
     } catch (\Exception $e) {
-        Log::error('Failed to create/link asset for replacement', ['error' => $e->getMessage()]);
-        return back()->with('error', 'Failed to create new asset: ' . $e->getMessage());
+        Log::error('Failed to update asset for replacement', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update asset: ' . $e->getMessage()
+            ], 400);
+        }
+        return back()->with('error', 'Failed to update asset: ' . $e->getMessage());
     }
 });
 
@@ -1547,6 +1555,7 @@ Route::get('/admin/requests', function () {
             'requests.status',
             'requests.Note',
             'requests.created_at',
+            'requests.url',
             'users.full_name as submitted_by',
             'users.email',
             'assets.Asset_name as asset_name',
@@ -1566,6 +1575,7 @@ Route::get('/admin/requests', function () {
                 'status' => strtolower((string) $request->status),
                 'description' => $request->Note ?: '',
                 'assigned_to' => $request->assigned_to ?? null,
+                'image' => $request->url ?? null,
             ];
         });
 

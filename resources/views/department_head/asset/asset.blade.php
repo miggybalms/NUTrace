@@ -261,12 +261,9 @@
         });
 
         function openQrModal(el) {
-            var qr = el.getAttribute('data-qr-url') || '';
             var code = el.getAttribute('data-asset-code') || '';
             var img = document.getElementById('qrModalImg');
-            if (qr && qr.length > 0) {
-                img.src = qr;
-            } else if (code && code.length > 0) {
+            if (code && code.length > 0) {
                 img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(code);
             } else {
                 img.src = '';
