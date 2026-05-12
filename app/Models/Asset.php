@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 #[Fillable([
     'user_id', 'Asset_code', 'Asset_name', 'Category', 'Condition', 'Lifecycle_Status',
     'accusion_date', 'accusion_cost', 'purchase_Price', 'warranty_months', 'supplier', 'model', 'manufacture',
-    'serial_Number', 'asset_location', 'qr_code_path', 'qr_code_url', 'file_name', 'file_path', 'file_size', 'mime_type', 'url'
+    'serial_Number', 'asset_location', 'qr_code_path', 'qr_code_url',
+    'lifespan_months', 'expiration_date', 'repair_counts', 'last_maintenance_date', 'next_maintenance_date'
 ])]
 class Asset extends Model
 {
@@ -25,6 +26,9 @@ class Asset extends Model
     {
         return [
             'accusion_date' => 'date',
+            'expiration_date' => 'date',
+            'last_maintenance_date' => 'date',
+            'next_maintenance_date' => 'date',
             'purchase_Price' => 'decimal:2',
             'accusion_cost' => 'decimal:2',
         ];

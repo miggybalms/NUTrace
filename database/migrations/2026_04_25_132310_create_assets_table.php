@@ -26,9 +26,9 @@ return new class extends Migration
                 'P.E Equipment',
                 'Low value Asset'
             ]);
-            $table->enum('Condition', ['New', 'Excellent', 'Good', 'Fair', 'Poor']);
+            $table->enum('Condition', ['New', 'Excellent', 'Good', 'Fair', 'Existing']);
             $table->enum('Lifecycle_Status', [
-                'Acquired', 'Active', 'For Repair', 'Pullout', 'Disposal'
+                'Acquired', 'Active', 'For Repair','For Replacement', 'Pullout', 'Disposal'
             ])->default('Acquired');
             $table->date('accusion_date')->nullable();
             $table->decimal('accusion_cost', 12, 2)->nullable();
@@ -40,11 +40,23 @@ return new class extends Migration
             $table->string('serial_Number')->nullable();
             $table->string('asset_location')->nullable();
             $table->string('qr_code_path')->nullable();
-            $table->string('file_name')->nullable();
-            $table->string('file_path')->nullable();
-            $table->integer('file_size')->nullable();
-            $table->string('mime_type')->nullable();
-            $table->text('url')->nullable();
+
+            // lifespan_months: INT
+            $table->integer('lifespan_months')->nullable();
+
+            // expiration_date: Date
+            $table->date('expiration_date')->nullable();
+
+            // repair_counts: INT
+            $table->integer('repair_counts')->default(0);
+
+            // last_maintence_date: Date
+            // Note: Keeping your spelling "maintence" to match the ERD
+            $table->date('last_maintenance_date')->nullable();
+
+            // next_maintenance_date: Date
+            $table->date('next_maintenance_date')->nullable();            
+
             $table->timestamps();
         });
     }

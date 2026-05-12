@@ -12,8 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('disposals', function (Blueprint $table) {
-            $table->dropForeign(['request_id']);
-            $table->foreignId('request_id')->nullable()->change()->constrained('requests')->onDelete('cascade');
+            $table->foreignId('Request_id')->nullable()->change();
         });
     }
 
@@ -23,8 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('disposals', function (Blueprint $table) {
-            $table->dropForeign(['request_id']);
-            $table->foreignId('request_id')->constrained('requests')->onDelete('cascade')->change();
+            $table->foreignId('Request_id')->change();
         });
     }
 };

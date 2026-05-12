@@ -11,7 +11,7 @@
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900">My Assets</h2>
                     <div class="flex items-center mt-1">
-                        <span class="text-sm text-blue-600 font-medium">{{ Auth::user()->full_name ?? 'User' }}</span>
+                        <span class="text-sm text-blue-600 font-medium">{{ Auth::user()->employee_numbers->Full_Name ?? 'User' }}</span>
                         <span class="mx-2 text-gray-300">•</span>
                         <p class="text-sm text-gray-500">View and manage your assigned assets</p>
                     </div>
@@ -32,7 +32,7 @@
                     <div class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
                         <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
                             <span class="text-white text-xs font-semibold">
-                                {{ strtoupper(substr(Auth::user()->full_name ?? 'U', 0, 1)) }}
+                                {{ strtoupper(substr(Auth::user()->employee_numbers->Full_Name ?? 'U', 0, 1)) }}
                             </span>
                         </div>
                         <i class="ri-arrow-down-s-line text-gray-500"></i>
@@ -97,7 +97,7 @@
                     Recently Added
                 </button>
                 <button class="filter-btn px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700" data-filter="department">
-                    Department Assets
+                    My Personal Assets
                 </button>
             </div>
             @php
@@ -119,8 +119,8 @@
 
                 {{-- Asset Image --}}
                 <div class="relative h-44 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                    @if($asset->url)
-                        <img src="{{ $asset->url }}" alt="{{ $asset->Asset_name }}"
+                    @if($asset->image_url)
+                        <img src="{{ $asset->image_url }}" alt="{{ $asset->Asset_name }}"
                              class="w-full h-full object-cover"
                              onerror="this.classList.add('hidden'); this.parentElement.querySelector('.asset-image-fallback')?.classList.remove('hidden');"/>
                         <div class="asset-image-fallback hidden flex-col items-center text-gray-400 absolute inset-0 flex justify-center">
@@ -175,6 +175,10 @@
                         <div class="flex items-center text-sm text-gray-600">
                             <i class="ri-calendar-line text-gray-400 mr-2 text-xs"></i>
                             <span>Assigned: {{ $asset->accusion_date ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y') : '—' }}</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="ri-tools-line text-gray-400 mr-2 text-xs"></i>
+                            <span>Next Maintenance: {{ $asset->next_maintenance_date ? \Carbon\Carbon::parse($asset->next_maintenance_date)->format('M d, Y') : '—' }}</span>
                         </div>
                         <div class="flex items-center text-sm text-gray-600">
                             <i class="ri-map-pin-line text-gray-400 mr-2 text-xs"></i>

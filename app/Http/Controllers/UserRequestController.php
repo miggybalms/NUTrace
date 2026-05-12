@@ -17,11 +17,12 @@ class UserRequestController extends Controller
         // Exclude users with Admin role from the assign-to list
         $users = DB::table('users')
             ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
-            ->select('users.id', 'users.full_name', 'departments.Name as department', 'users.role')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+            ->select('users.id', 'employee_numbers.Full_Name', 'departments.Name as department', 'users.role')
             ->where(function($q) {
                 $q->whereNull('users.role')->orWhere('users.role', '!=', 'Admin');
             })
-            ->orderBy('users.full_name')
+            ->orderBy('employee_numbers.Full_Name')
             ->get();
         return view('users.request.request_asset', compact('users'));
     }

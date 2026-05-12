@@ -12,21 +12,38 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('replacements', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('request_id')->constrained('requests')->onDelete('cascade');
-            $table->unsignedBigInteger('old_asset_id');
-            $table->unsignedBigInteger('new_asset_id')->nullable();
-            $table->string('Approve_by')->nullable();
-            $table->string('reason')->nullable();
-            $table->text('notes')->nullable();
-            $table->enum('status', [
-                'Pending', 'Approved', 'Received'
-            ])->default('Pending');
-            $table->date('replacement_date')->nullable();
-            $table->timestamps();
+            // PK: Replacement_id
+            $table->id('Replacement_id');
 
-            $table->foreign('old_asset_id')->references('id')->on('assets')->onDelete('cascade');
-            $table->foreign('new_asset_id')->references('id')->on('assets')->onDelete('set null');
+            // FK: Request_id
+            $table->foreignId('Request_id')->constrained('requests');
+
+            // FK: old_assets_id
+            $table->foreignId('old_assets_id')->constrained('assets');
+
+            // FK: new_assets_id
+            $table->foreignId('new_assets_id')->constrained('assets');
+
+            // reason: Varchar(255)
+            $table->string('reason', 255);
+
+            // notes: text
+            $table->text('notes')->nullable();
+
+            // Replacement_Date: DateTime
+            $table->dateTime('Replacement_Date');
+
+            // Approve_by: Varchar(255)
+            $table->string('Approve_by', 255);
+
+            // status: ENUM('Pending', 'Approved', 'Ordered', 'Received', 'Complete', 'Cancelled')
+            $table->enum('status', ['Pending', 'Approved', 'Ordered', 'Received', 'Complete', 'Cancelled'])->default('Pending');
+
+            // replacement_reason: ENUM('Beyond Repair', 'Obsolete', 'End of Lifespan', 'Lost', 'Damage')
+            $table->enum('replacement_reason', ['Beyond Repair', 'Obsolete', 'End of Lifespan', 'Lost', 'Damage']);
+
+            // create_at & update_at (Laravel standard timestamps)
+            $table->timestamps();
         });
     }
 

@@ -372,6 +372,70 @@
                         </div>
                     </div>
 
+                    <!-- Lifespan & Maintenance -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Lifespan & Maintenance</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Lifespan Months -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Lifespan (months)
+                                </label>
+                                <input type="number" name="lifespan_months" id="lifespan-months"
+                                       placeholder="e.g., 60"
+                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       onchange="calculateExpirationDate()">
+                                <p class="text-xs text-gray-500 mt-1">Asset will expire after this many months</p>
+                            </div>
+
+                            <!-- Expiration Date (Auto-Calculated) -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Expiration Date (Auto-Calculated)
+                                </label>
+                                <input type="date" name="expiration_date" id="expiration-date"
+                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                                       readonly>
+                                <p class="text-xs text-gray-500 mt-1">Auto-calculated: Acquisition Date + Lifespan</p>
+                            </div>
+
+                            <!-- Last Maintenance Date -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Last Maintenance Date (Optional)
+                                </label>
+                                <input type="date" name="last_maintenance_date" id="last-maintenance-date"
+                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       onchange="calculateNextMaintenanceDate()">
+                                <p class="text-xs text-gray-500 mt-1">If left empty, next maintenance will be calculated from registration date</p>
+                            </div>
+
+                            <!-- Maintenance Interval (months) -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Maintenance Interval (months)
+                                </label>
+                                <input type="number" name="maintenance_interval" id="maintenance-interval"
+                                       placeholder="e.g., 6"
+                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       onchange="calculateNextMaintenanceDate()">
+                                <p class="text-xs text-gray-500 mt-1">How often should maintenance be done?</p>
+                            </div>
+
+                            <!-- Next Maintenance Date (Auto-Calculated) -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Next Maintenance Date (Auto-Calculated)
+                                </label>
+                                <input type="date" name="next_maintenance_date" id="next-maintenance-date"
+                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                                       readonly>
+                                <p class="text-xs text-gray-500 mt-1">Auto-calculated: Last Maintenance (or Registration Date) + Interval</p>
+                            </div>
+                        </div>
+                    </div>
+
                                         <!-- Auto-Generated Asset ID with QR Code -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                         <div class="flex items-center justify-between mb-4">
@@ -908,6 +972,78 @@
         document.getElementById('toast-close')?.addEventListener('click', function() {
             document.getElementById('toast')?.classList.add('hidden');
             clearTimeout(window._assetToastTimer);
+        });
+
+        // Calculate expiration date based on lifespan months
+        function calculateExpirationDate() {
+            const acquisitionDateInput = document.querySelector('input[name="acquisition_date"]');
+            const lifespanInput = document.getElementById('lifespan-months');
+            const expirationDateInput = document.getElementById('expiration-date');
+            
+            const acquisitionDate = acquisitionDateInput?.value;
+            const lifespanMonths = parseInt(lifespanInput?.value) || 0;
+            
+            if (!acquisitionDate || lifespanMonths === 0) {
+                expirationDateInput.value = '';
+                return;
+            }
+            
+            // Calculate expiration date: acquisition date + lifespan months
+            const acqDate = new Date(acquisitionDate);
+            const expirationDate = new Date(acqDate.getFullYear(), acqDate.getMonth() + lifespanMonths, acqDate.getDate());
+            
+            // Format as YYYY-MM-DD
+            const year = expirationDate.getFullYear();
+            const month = String(expirationDate.getMonth() + 1).padStart(2, '0');
+            const day = String(expirationDate.getDate()).padStart(2, '0');
+            expirationDateInput.value = `${year}-${month}-${day}`;
+        }
+
+        // Calculate next maintenance date based on last maintenance + interval
+        function calculateNextMaintenanceDate() {
+            const lastMaintenanceDateInput = document.getElementById('last-maintenance-date');
+            const maintenanceIntervalInput = document.getElementById('maintenance-interval');
+            const nextMaintenanceDateInput = document.getElementById('next-maintenance-date');
+            
+            const lastMaintenanceDate = lastMaintenanceDateInput?.value;
+            const maintenanceMonths = parseInt(maintenanceIntervalInput?.value) || 0;
+            
+            if (!maintenanceMonths) {
+                nextMaintenanceDateInput.value = '';
+                return;
+            }
+            
+            // If no last maintenance date, show that it will use registration date
+            if (!lastMaintenanceDate) {
+                nextMaintenanceDateInput.value = '';
+                nextMaintenanceDateInput.placeholder = 'Will be set to registration date + interval';
+                return;
+            }
+            
+            // Calculate next maintenance date: last maintenance + interval months
+            const lastDate = new Date(lastMaintenanceDate);
+            const nextDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + maintenanceMonths, lastDate.getDate());
+            
+            // Format as YYYY-MM-DD
+            const year = nextDate.getFullYear();
+            const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+            const day = String(nextDate.getDate()).padStart(2, '0');
+            nextMaintenanceDateInput.value = `${year}-${month}-${day}`;
+        }
+
+        // Wire up calculation events on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // When acquisition date changes, recalculate expiration date
+            document.querySelector('input[name="acquisition_date"]')?.addEventListener('change', calculateExpirationDate);
+            
+            // When lifespan or last maintenance changes, trigger calculations
+            document.getElementById('lifespan-months')?.addEventListener('input', calculateExpirationDate);
+            document.getElementById('last-maintenance-date')?.addEventListener('change', calculateNextMaintenanceDate);
+            document.getElementById('maintenance-interval')?.addEventListener('input', calculateNextMaintenanceDate);
+
+            // Trigger calculations if data already exists
+            calculateExpirationDate();
+            calculateNextMaintenanceDate();
         });
 
         // Trigger toast if server provided a message

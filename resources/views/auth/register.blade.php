@@ -258,17 +258,18 @@
             <form method="POST" action="/register" enctype="multipart/form-data">
                 @csrf
 
-                {{-- Full Name --}}
+                {{-- Employee Number (used to lookup employee details) --}}
                 <div class="form-group">
-                    <label for="name">Full name <span class="required">*</span></label>
+                    <label for="unit_heads_number">Employee Number <span class="required">*</span></label>
                     <input
                         type="text"
-                        id="name"
-                        name="name"
-                        value="{{ old('name') }}"
+                        id="unit_heads_number"
+                        name="unit_heads_number"
+                        value="{{ old('unit_heads_number') }}"
+                        placeholder="Enter your employee number"
                         required
                     />
-                    @error('name')
+                    @error('unit_heads_number')
                         <div class="field-error">{{ $message }}</div>
                     @enderror
                 </div>
@@ -283,50 +284,6 @@
                         value="{{ old('email') }}"
                     />
                     @error('email')
-                        <div class="field-error">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                {{-- Department --}}
-                <div class="form-group">
-                    <label for="department">Department <span class="required">*</span></label>
-                    
-                    {{-- First user types their own department --}}
-                    @if($isFirstUser ?? false)
-                        <input
-                            type="text"
-                            id="department"
-                            name="department"
-                            value="{{ old('department') }}"
-                            placeholder="Enter your department name"
-                            required
-                        />
-                    @else
-                        {{-- Subsequent users select from existing departments --}}
-                        <select id="department" name="department" required>
-                            <option value="" disabled selected>Select department</option>
-                            @foreach($departments as $dept)
-                                <option value="{{ $dept }}" {{ old('department') == $dept ? 'selected' : '' }}>{{ $dept }}</option>
-                            @endforeach
-                        </select>
-                    @endif
-                    
-                    @error('department')
-                        <div class="field-error">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                {{-- Employee Number --}}
-                <div class="form-group">
-                    <label for="unit_heads_number">Employee Number <span class="required">*</span></label>
-                    <input
-                        type="text"
-                        id="unit_heads_number"
-                        name="unit_heads_number"
-                        value="{{ old('unit_heads_number') }}"
-                        required
-                    />
-                    @error('unit_heads_number')
                         <div class="field-error">{{ $message }}</div>
                     @enderror
                 </div>

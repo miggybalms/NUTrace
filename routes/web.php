@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\UserRequestController;
+use Carbon\Carbon;
 
 // Handle login form submission
 Route::post('/login', function (Request $request) {
@@ -59,121 +60,70 @@ Route::get('/register', function () {
 
 // Handle registration form submission
 Route::post('/register', function (Request $request) {
-    // Check if this is the first user
-    $isFirst = User::count() === 0;
-    
-    $rules = [
-        'name' => 'required|string|max:50',
+    // Validate form inputs
+    $validated = $request->validate([
         'unit_heads_number' => 'required|string|max:20',
         'email' => 'required|email|max:100|unique:users,email',
         'password' => 'required|confirmed|min:6',
         'profile_photo' => 'nullable|image|max:2048',
-    ];
-    
-    // First user types their own department, others select from existing
-    if ($isFirst) {
-        $rules['department'] = 'required|string|max:100';
-    } else {
-        // Get departments from database
-        $existingDepts = DB::table('departments')->pluck('Name')->toArray();
-        $deptList = implode(',', $existingDepts);
-        $rules['department'] = 'required|in:' . $deptList;
-    }
-    
-    $validated = $request->validate($rules);
+    ]);
 
-    $departmentName = $validated['department'];
+    // Look up employee in employee_numbers table
+    $employee = DB::table('employee_numbers')
+        ->where('Employee_number', $validated['unit_heads_number'])
+        ->first();
     
-    // Look up or create department
-    $department = DB::table('departments')->where('Name', $departmentName)->first();
-    if (!$department) {
-        // Create new department if it doesn't exist
-        $departmentId = DB::table('departments')->insertGetId([
-            'Name' => $departmentName,
-            'status' => 'Active',
-            'Create_at' => now(),
-            'Update_at' => now(),
-        ]);
-    } else {
-        $departmentId = $department->id;
+    if (!$employee) {
+        return back()->withErrors(['unit_heads_number' => 'Employee number not found in the system. Please contact the administrator.'])->withInput();
     }
 
+    // Check if this employee number is already registered
+    $existingUser = User::where('employee_numbers_id', $employee->id)->first();
+    if ($existingUser) {
+        return back()->withErrors(['unit_heads_number' => 'This employee number is already registered. Please use a different employee number or contact the administrator.'])->withInput();
+    }
+
+    // Get or verify department
+    $departmentId = $employee->Department_id;
+    $fullName = $employee->Full_Name;
+
+    // Check if profile photo exists
     $photoPath = null;
     if ($request->hasFile('profile_photo')) {
         $photoPath = $request->file('profile_photo')->store('profile_photos', 'public');
     }
 
-    $isFacilities = strtolower($departmentName) === strtolower('Facilities');
-
-    // First user is always Admin, subsequent Facilities users are Admin
-    if ($isFirst) {
-        $role = 'Admin';
-    } elseif ($isFacilities) {
+    // Determine user role
+    $isFirstUser = User::count() === 0;
+    
+    if ($isFirstUser) {
         $role = 'Admin';
     } else {
-        // If department has no Department Head yet, make this user Department Head
+        // Check if department already has a Department Head
         $hasDeptHead = User::where('department_id', $departmentId)->where('role', 'Department Head')->exists();
         $role = $hasDeptHead ? 'Employee' : 'Department Head';
     }
 
     try {
         $user = User::create([
-            'unit_heads_number' => $validated['unit_heads_number'],
-            'full_name' => $validated['name'],
+            'employee_numbers_id' => $employee->id,
             'department_id' => $departmentId,
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'profile_photo' => $photoPath,
             'role' => $role,
+            'status' => 'Active',
         ]);
+
         // Record audit log for new user registration
-        try {
-            DB::table('audit_logs')->insert([
-                'user_id' => $user->id,
-                'notes' => 'User registered: ' . ($user->full_name ?? $user->email),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        } catch (\Exception $e) {
-            // ignore logging errors
-        }
-    } catch (QueryException $e) {
-        // Fallback in case creation fails
-        $fallbackRole = 'Employee';
-        if ($isFirst) {
-            $fallbackRole = 'Admin';
-        } elseif ($isFacilities) {
-            $fallbackRole = 'Admin';
-        } else {
-            $hasDeptHead = User::where('department_id', $departmentId)->where('role', 'Department Head')->exists();
-            $fallbackRole = $hasDeptHead ? 'Employee' : 'Department Head';
-        }
-
-        try {
-            $user = User::create([
-                'unit_heads_number' => $validated['unit_heads_number'],
-                'full_name' => $validated['name'],
-                'department_id' => $departmentId,
-                'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
-                'profile_photo' => $photoPath,
-                'role' => $fallbackRole,
-            ]);
-
-            try {
-                DB::table('audit_logs')->insert([
-                    'user_id' => $user->id,
-                    'notes' => 'User registered (fallback): ' . ($user->full_name ?? $user->email),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            } catch (\Exception $e2) {
-                // ignore audit log errors
-            }
-        } catch (\Exception $e2) {
-            // If fallback creation fails, rethrow original exception
-            throw $e;
-        }
+        DB::table('audit_logs')->insert([
+            'user_id' => $user->id,
+            'notes' => 'User registered: ' . ($fullName ?? $user->email),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    } catch (\Exception $e) {
+        return back()->withErrors(['error' => 'Registration failed: ' . $e->getMessage()])->withInput();
     }
 
     return redirect('/login')->with('success', 'Registration successful. Please login.');
@@ -185,14 +135,57 @@ Route::get('/users/assets', function () {
     $user = Auth::user();
     $assignedAssets = collect([]);
     if ($user) {
-        $assignedAssets = Asset::where('user_id', $user->id)->get();
+        // Fetch assets with their first attached image from asset_files table
+        $assignedAssets = DB::table('assets')
+            ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+            ->where('assets.user_id', $user->id)
+            ->select(
+                'assets.id',
+                'assets.user_id',
+                'assets.Asset_code',
+                'assets.Asset_name',
+                'assets.Category',
+                'assets.Condition',
+                'assets.Lifecycle_Status',
+                'assets.accusion_date',
+                'assets.asset_location',
+                'assets.next_maintenance_date',
+                'assets.qr_code_path',
+                DB::raw('MAX(asset_files.url) as image_url')
+            )
+            ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path')
+            ->orderBy('assets.Asset_name')
+            ->get();
     }
     return view('users.asset.asset', compact('assignedAssets'));
 });
 
 // User-facing asset detail (only accessible to assigned user or admins)
 Route::get('/users/assets/{id}', function ($id) {
-    $asset = Asset::with('user')->find($id);
+    // Fetch asset with its image from asset_files and user with employee_numbers
+    $asset = DB::table('assets')
+        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->where('assets.id', $id)
+        ->select(
+            'assets.id',
+            'assets.user_id',
+            'assets.Asset_code',
+            'assets.Asset_name',
+            'assets.Category',
+            'assets.Condition',
+            'assets.Lifecycle_Status',
+            'assets.accusion_date',
+            'assets.purchase_Price',
+            'assets.serial_Number',
+            'assets.asset_location',
+            'assets.next_maintenance_date',
+            'asset_files.url as image_url',
+            'employee_numbers.Full_Name as full_name'
+        )
+        ->first();
+    
     if (!$asset) {
         abort(404);
     }
@@ -328,8 +321,9 @@ Route::get('/department-head', function () {
     try {
         $raw = DB::table('requests')
             ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
             ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-            ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'users.full_name as request_user_name', 'users.id as request_user_id')
+            ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'employee_numbers.Full_Name as request_user_name', 'users.id as request_user_id')
             ->where('users.department_id', $user->department_id)
             ->orderByDesc('requests.created_at')
             ->limit(5)
@@ -382,11 +376,28 @@ Route::get('/department-head/assets', function (Request $request) {
     }
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    $assets = Asset::with('user')
-        ->whereHas('user', function ($q) use ($user) {
-            $q->where('department_id', $user->department_id);
-        })
-        ->orderBy('Asset_name')
+    // Fetch all assets in the department with their images from asset_files
+    $assets = DB::table('assets')
+        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->where('users.department_id', $user->department_id)
+        ->select(
+            'assets.id',
+            'assets.user_id',
+            'assets.Asset_code',
+            'assets.Asset_name',
+            'assets.Category',
+            'assets.Condition',
+            'assets.Lifecycle_Status',
+            'assets.accusion_date',
+            'assets.asset_location',
+            'assets.next_maintenance_date',
+            'assets.qr_code_path',
+            'users.department_id',
+            DB::raw('MAX(asset_files.url) as image_url')
+        )
+        ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'users.department_id')
+        ->orderBy('assets.Asset_name')
         ->get();
 
     $totalAssets = $assets->count();
@@ -412,9 +423,33 @@ Route::get('/department-head/assets/{id}', function ($id) {
     }
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    $asset = Asset::with('user')->find($id);
+    // Fetch asset with its image from asset_files and user with employee_numbers
+    $asset = DB::table('assets')
+        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->where('assets.id', $id)
+        ->select(
+            'assets.id',
+            'assets.user_id',
+            'assets.Asset_code',
+            'assets.Asset_name',
+            'assets.Category',
+            'assets.Condition',
+            'assets.Lifecycle_Status',
+            'assets.accusion_date',
+            'assets.purchase_Price',
+            'assets.serial_Number',
+            'assets.asset_location',
+            'assets.next_maintenance_date',
+            'asset_files.url as image_url',
+            'users.department_id',
+            'employee_numbers.Full_Name as full_name'
+        )
+        ->first();
+    
     if (!$asset) return abort(404);
-    if (($asset->user?->department_id ?? null) !== $user->department_id) return abort(403);
+    if (($asset->department_id ?? null) !== $user->department_id) return abort(403);
 
     return view('department_head.asset.show', compact('asset'));
 })->where('id', '[0-9]+');
@@ -482,9 +517,10 @@ Route::get('/admin', function () {
     try {
         $logs = DB::table('audit_logs')
             ->leftJoin('users', 'audit_logs.user_id', '=', 'users.id')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
             ->leftJoin('assets', 'audit_logs.asset_id', '=', 'assets.id')
             ->leftJoin('requests', 'audit_logs.request_id', '=', 'requests.id')
-            ->select('audit_logs.*', 'users.full_name as user_name', 'assets.Asset_code as asset_code', 'assets.Asset_name as asset_name', 'requests.request_type as request_type', 'requests.status as request_status')
+            ->select('audit_logs.*', 'employee_numbers.Full_Name as user_name', 'assets.Asset_code as asset_code', 'assets.Asset_name as asset_name', 'requests.request_type as request_type', 'requests.status as request_status')
             ->orderByDesc('audit_logs.created_at')
             ->limit(2)
             ->get();
@@ -768,9 +804,10 @@ Route::get('/admin/audit-logs', function () {
     try {
         $logs = DB::table('audit_logs')
             ->leftJoin('users', 'audit_logs.user_id', '=', 'users.id')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
             ->leftJoin('assets', 'audit_logs.asset_id', '=', 'assets.id')
             ->leftJoin('requests', 'audit_logs.request_id', '=', 'requests.id')
-            ->select('audit_logs.*', 'users.id as user_id', 'users.full_name as user_name', 'users.role as user_role', 'assets.id as asset_id', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'requests.id as request_id', 'requests.request_type as request_type')
+            ->select('audit_logs.*', 'users.id as user_id', 'employee_numbers.Full_Name as user_name', 'users.role as user_role', 'assets.id as asset_id', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'requests.id as request_id', 'requests.request_type as request_type')
             ->orderByDesc('audit_logs.created_at')
             ->paginate(50);
     } catch (\Exception $e) {
@@ -935,11 +972,12 @@ Route::get('/admin/inventory-download', function () {
         // Fetch all assets with user information (accountable person)
         $assets = DB::table('assets')
             ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
             ->select(
                 'assets.Asset_code',
                 'assets.Asset_name',
                 'assets.Category',
-                'users.full_name as accountable',
+                'employee_numbers.Full_Name as accountable',
                 'assets.accusion_date',
                 'assets.asset_location',
                 'assets.Lifecycle_Status',
@@ -1012,8 +1050,9 @@ Route::get('/api/notifications/department', function () {
 
     $repairs = DB::table('requests')
         ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-        ->select('requests.id', 'requests.status', 'requests.updated_at', 'assets.Asset_name', 'users.full_name as submitted_by')
+        ->select('requests.id', 'requests.status', 'requests.updated_at', 'assets.Asset_name', 'employee_numbers.Full_Name as submitted_by')
         ->where('requests.request_type', 'Repair')
         ->where('users.department_id', $user->department_id)
         ->orderByDesc('requests.updated_at')
@@ -1091,7 +1130,7 @@ Route::get('/admin/repair', function () {
                     'assets.supplier as supplier',
                     'assets.model as model',
                     'assets.manufacture as manufacture',
-                    'users.full_name as requested_by',
+                    'employee_numbers.Full_Name as requested_by',
                     'departments.Name as department'
                 )
                 ->orderByDesc('repairs.created_at')
@@ -1189,6 +1228,7 @@ Route::get('/admin/replacement', function () {
                 ->leftJoin('users', 'requests.user_id', '=', 'users.id')
                 ->leftJoin('assets as old', 'replacements.old_asset_id', '=', 'old.id')
                 ->leftJoin('assets as nw', 'replacements.new_asset_id', '=', 'nw.id')
+                ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
                 ->select(
                     'replacements.*',
                     'old.Asset_name as old_asset_name',
@@ -1197,7 +1237,7 @@ Route::get('/admin/replacement', function () {
                     'nw.Asset_name as new_asset_name',
                     'nw.Asset_code as new_asset_code',
                     'nw.qr_code_path as new_asset_qr',
-                    'users.full_name as requested_by'
+                    'employee_numbers.Full_Name as requested_by'
                 );
 
             $replacements = $base->orderByDesc('replacements.created_at')->paginate(10);
@@ -1358,12 +1398,13 @@ Route::get('/admin/pullout', function () {
 Route::get('/admin/users/search', function (Request $request) {
     $q = $request->query('q');
     $usersQuery = User::query()
-        ->select('users.id', 'users.full_name', 'users.email', 'departments.Name as department')
-        ->leftJoin('departments', 'users.department_id', '=', 'departments.id');
+        ->select('users.id', 'employee_numbers.Full_Name as full_name', 'users.email', 'departments.Name as department')
+        ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id');
     
     if ($q) {
         $usersQuery->where(function ($builder) use ($q) {
-            $builder->where('users.full_name', 'like', "%{$q}%")
+            $builder->where('employee_numbers.Full_Name', 'like', "%{$q}%")
                     ->orWhere('users.email', 'like', "%{$q}%")
                     ->orWhere('departments.Name', 'like', "%{$q}%");
         });
@@ -1397,6 +1438,12 @@ Route::post('/admin/assets', function (Request $request) {
         'asset_photo' => 'nullable|image|max:10240',
         'qr_image' => 'nullable|string',
         'notes' => 'nullable|string',
+        'lifespan_months' => 'nullable|integer|min:1',
+        'expiration_date' => 'nullable|date',
+        'repair_counts' => 'nullable|integer|min:0',
+        'last_maintenance_date' => 'nullable|date',
+        'maintenance_interval' => 'nullable|integer|min:1',
+        'next_maintenance_date' => 'nullable|date',
     ]);
 
     // Map form categories to migration enum values where possible
@@ -1454,14 +1501,48 @@ Route::post('/admin/assets', function (Request $request) {
             'serial_Number' => $validated['serial_number'] ?? null,
             'asset_location' => $validated['location'] ?? null,
             'qr_code_path' => null,
-            'file_name' => $fileName,
-            'file_path' => $filePath,
-            'file_size' => $fileSize,
-            'mime_type' => $mime,
-            // Save the public URL for the uploaded file (if any)
-            'url' => $url,
+            'lifespan_months' => $validated['lifespan_months'] ?? null,
+            'expiration_date' => $validated['expiration_date'] ?? null,
+            'repair_counts' => $validated['repair_counts'] ?? 0,
+            'last_maintenance_date' => $validated['last_maintenance_date'] ?? null,
+            'next_maintenance_date' => $validated['next_maintenance_date'] ?? null,
         ]);
         Log::info('Asset created', ['id' => $asset->id ?? null, 'code' => $assetCode]);
+
+        // Calculate next_maintenance_date if not provided
+        if (!$validated['next_maintenance_date'] && $validated['maintenance_interval']) {
+            $maintenanceMonths = (int)$validated['maintenance_interval'];
+            
+            // If last_maintenance_date exists, use it; otherwise use created_at
+            $baseDate = $validated['last_maintenance_date'] 
+                ? Carbon::parse($validated['last_maintenance_date'])
+                : $asset->created_at;
+            
+            $nextMaintenance = $baseDate->addMonths($maintenanceMonths);
+            $asset->update(['next_maintenance_date' => $nextMaintenance]);
+            Log::info('Auto-calculated next_maintenance_date', ['asset_id' => $asset->id, 'next_date' => $nextMaintenance]);
+        }
+
+        // Save uploaded file to asset_files table (not to assets table)
+        if ($fileName && $filePath && $fileSize && $mime) {
+            try {
+                DB::table('asset_files')->insert([
+                    'Asset_id' => $asset->id,
+                    'file_name' => $fileName,
+                    'file_path' => $filePath,
+                    'file_size' => $fileSize,
+                    'mime_type' => $mime,
+                    'url' => $url,
+                    'uploaded_at' => now()->toDateTimeString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                Log::info('File saved to asset_files table', ['asset_id' => $asset->id, 'file_name' => $fileName]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to save file to asset_files table', ['error' => $e->getMessage()]);
+            }
+        }
+
         try {
             DB::table('audit_logs')->insert([
                 'user_id' => Auth::id(),
@@ -1548,7 +1629,9 @@ Route::get('/admin/requests', function () {
     $requests = DB::table('requests')
         ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
         ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->leftJoin('users as assignee', 'requests.assign_to_user_id', '=', 'assignee.id')
+        ->leftJoin('employee_numbers as assignee_emp', 'assignee.employee_numbers_id', '=', 'assignee_emp.id')
         ->select([
             'requests.id',
             'requests.request_type',
@@ -1556,11 +1639,11 @@ Route::get('/admin/requests', function () {
             'requests.Note',
             'requests.created_at',
             'requests.url',
-            'users.full_name as submitted_by',
+            'employee_numbers.Full_Name as submitted_by',
             'users.email',
             'assets.Asset_name as asset_name',
             'assets.Asset_code as asset_code',
-            'assignee.full_name as assigned_to',
+            'assignee_emp.Full_Name as assigned_to',
         ])
         ->orderByDesc('requests.created_at')
         ->get()
@@ -2017,7 +2100,8 @@ Route::middleware(['auth'])->group(function () {
         $requests = DB::table('requests')
             ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
             ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-            ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'users.full_name as requester_name')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+            ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'employee_numbers.Full_Name as requester_name')
             ->where('users.department_id', $user->department_id)
             ->orderByDesc('requests.created_at')
             ->paginate(10);
