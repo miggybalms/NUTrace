@@ -20,6 +20,8 @@ return new class extends Migration
             $table->unsignedBigInteger('asset_id')->nullable();
             $table->foreign('asset_id')->references('id')->on('assets')->onDelete('set null');
             $table->text('notes')->nullable();
+            $table->enum('action_type', ['CREATE', 'UPDATE', 'REPAIR', 'REPLACEMENT', 'DISPOSAL', 'TRANSFER', 'LOGIN', 'APPROVAL']);
+            $table->text('action_description')->nullable();
             $table->timestamps();
         });
     }

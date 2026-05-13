@@ -90,7 +90,7 @@
                             <div class="flex items-center mt-1">
                                 <span class="text-sm text-blue-600 font-medium">Asset Officer</span>
                                 <span class="mx-2 text-gray-300">•</span>
-                                <p class="text-sm text-gray-500">Manage and track all university assets</p>
+                                <p class="text-sm text-gray-500">Manage and track all university assets across departments</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
@@ -102,6 +102,41 @@
                                 <i class="ri-add-line mr-2"></i>
                                 Add New Asset
                             </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Legend -->
+                <div class="px-8 py-3 bg-gray-50 border-t border-gray-100">
+                    <p class="text-xs font-medium text-gray-600 mb-2">Asset Lifecycle Statuses:</p>
+                    <div class="flex flex-wrap gap-4">
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-blue-600 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Acquired</strong> - Newly registered</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-green-600 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Active</strong> - In use</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-purple-600 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Checking</strong> - Evaluation pending</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-amber-500 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Repair</strong> - Needs maintenance</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-pink-600 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Replace</strong> - Replacement in progress</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-slate-500 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Pullout</strong> - Transferred out</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="w-3 h-3 bg-red-600 rounded-full"></div>
+                            <span class="text-gray-600"><strong>Disposed</strong> - Removed from service</span>
                         </div>
                     </div>
                 </div>
@@ -168,7 +203,9 @@
                                     @php
                                         $acquired = 0;
                                         $active = 0;
+                                        $forChecking = 0;
                                         $forRepair = 0;
+                                        $forReplacement = 0;
                                         $pulledOut = 0;
                                         $disposed = 0;
                                         
@@ -176,7 +213,9 @@
                                             switch($asset->status) {
                                                 case 'acquired': $acquired++; break;
                                                 case 'active': $active++; break;
+                                                case 'for_checking': $forChecking++; break;
                                                 case 'for_repair': $forRepair++; break;
+                                                case 'for_replacement': $forReplacement++; break;
                                                 case 'pulled_out': $pulledOut++; break;
                                                 case 'disposed': $disposed++; break;
                                             }
@@ -188,48 +227,64 @@
                                         <div class="h-3 w-full rounded-full bg-gray-100 overflow-hidden flex">
                                             @if($dept->total_assets > 0)
                                                 @if($acquired > 0)
-                                                    <div style="width: {{ round(($acquired / $dept->total_assets) * 100, 1) }}%; background-color: #3b82f6;"></div>
+                                                    <div style="width: {{ round(($acquired / $dept->total_assets) * 100, 1) }}%; background-color: #3b82f6;" title="Acquired: {{ $acquired }}"></div>
                                                 @endif
                                                 @if($active > 0)
-                                                    <div style="width: {{ round(($active / $dept->total_assets) * 100, 1) }}%; background-color: #22c55e;"></div>
+                                                    <div style="width: {{ round(($active / $dept->total_assets) * 100, 1) }}%; background-color: #22c55e;" title="Active: {{ $active }}"></div>
+                                                @endif
+                                                @if($forChecking > 0)
+                                                    <div style="width: {{ round(($forChecking / $dept->total_assets) * 100, 1) }}%; background-color: #8b5cf6;" title="For Checking: {{ $forChecking }}"></div>
                                                 @endif
                                                 @if($forRepair > 0)
-                                                    <div style="width: {{ round(($forRepair / $dept->total_assets) * 100, 1) }}%; background-color: #f59e0b;"></div>
+                                                    <div style="width: {{ round(($forRepair / $dept->total_assets) * 100, 1) }}%; background-color: #f59e0b;" title="For Repair: {{ $forRepair }}"></div>
+                                                @endif
+                                                @if($forReplacement > 0)
+                                                    <div style="width: {{ round(($forReplacement / $dept->total_assets) * 100, 1) }}%; background-color: #ec4899;" title="For Replacement: {{ $forReplacement }}"></div>
                                                 @endif
                                                 @if($pulledOut > 0)
-                                                    <div style="width: {{ round(($pulledOut / $dept->total_assets) * 100, 1) }}%; background-color: #94a3b8;"></div>
+                                                    <div style="width: {{ round(($pulledOut / $dept->total_assets) * 100, 1) }}%; background-color: #94a3b8;" title="Pulled Out: {{ $pulledOut }}"></div>
                                                 @endif
                                                 @if($disposed > 0)
-                                                    <div style="width: {{ round(($disposed / $dept->total_assets) * 100, 1) }}%; background-color: #ef4444;"></div>
+                                                    <div style="width: {{ round(($disposed / $dept->total_assets) * 100, 1) }}%; background-color: #ef4444;" title="Disposed: {{ $disposed }}"></div>
                                                 @endif
                                             @endif
                                         </div>
                                     </div>
                                     
-                                    <div class="grid grid-cols-5 gap-3 mb-6">
-                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
+                                    <div class="grid grid-cols-7 gap-2 mb-6">
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Assets newly registered into system">
                                             <p class="text-xs text-gray-500">Acquired</p>
-                                            <p class="text-xl font-bold text-blue-600">{{ $acquired }}</p>
+                                            <p class="text-lg font-bold text-blue-600">{{ $acquired }}</p>
                                             <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($acquired / $dept->total_assets) * 100) : 0 }}%)</p>
                                         </div>
-                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Operational assets in service">
                                             <p class="text-xs text-gray-500">Active</p>
-                                            <p class="text-xl font-bold text-green-600">{{ $active }}</p>
+                                            <p class="text-lg font-bold text-green-600">{{ $active }}</p>
                                             <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($active / $dept->total_assets) * 100) : 0 }}%)</p>
                                         </div>
-                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
-                                            <p class="text-xs text-gray-500">For Repair</p>
-                                            <p class="text-xl font-bold text-amber-500">{{ $forRepair }}</p>
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Assets pending evaluation after expiration">
+                                            <p class="text-xs text-gray-500">Checking</p>
+                                            <p class="text-lg font-bold text-purple-600">{{ $forChecking }}</p>
+                                            <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($forChecking / $dept->total_assets) * 100) : 0 }}%)</p>
+                                        </div>
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Assets requiring maintenance or repair">
+                                            <p class="text-xs text-gray-500">Repair</p>
+                                            <p class="text-lg font-bold text-amber-500">{{ $forRepair }}</p>
                                             <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($forRepair / $dept->total_assets) * 100) : 0 }}%)</p>
                                         </div>
-                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
-                                            <p class="text-xs text-gray-500">Pulled Out</p>
-                                            <p class="text-xl font-bold text-slate-500">{{ $pulledOut }}</p>
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Assets being replaced due to condition">
+                                            <p class="text-xs text-gray-500">Replace</p>
+                                            <p class="text-lg font-bold text-pink-600">{{ $forReplacement }}</p>
+                                            <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($forReplacement / $dept->total_assets) * 100) : 0 }}%)</p>
+                                        </div>
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Assets transferred out of inventory">
+                                            <p class="text-xs text-gray-500">Pullout</p>
+                                            <p class="text-lg font-bold text-slate-500">{{ $pulledOut }}</p>
                                             <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($pulledOut / $dept->total_assets) * 100) : 0 }}%)</p>
                                         </div>
-                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200">
+                                        <div class="text-center p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition cursor-pointer" title="Assets removed from service">
                                             <p class="text-xs text-gray-500">Disposed</p>
-                                            <p class="text-xl font-bold text-red-500">{{ $disposed }}</p>
+                                            <p class="text-lg font-bold text-red-600">{{ $disposed }}</p>
                                             <p class="text-xs text-gray-400">({{ $dept->total_assets > 0 ? round(($disposed / $dept->total_assets) * 100) : 0 }}%)</p>
                                         </div>
                                     </div>

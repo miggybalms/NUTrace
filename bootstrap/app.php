@@ -11,8 +11,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Log user login events
+        $middleware->web(append: \App\Http\Middleware\LogUserLogin::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->withSchedule(function ($schedule) {
+        // Check for expired assets daily at 2 AM
+        $schedule->command('assets:check-expiration')
+            ->daily()
+            ->at('02:00')
+            ->onOneServer();
+    })
+    ->create();

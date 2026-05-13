@@ -46,6 +46,20 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
         }
+
+        /* Pulse animation for notification bell */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -70,10 +84,28 @@
                             </div>
                         </div>
                         <div class="flex items-center space-x-4">
-                            <div class="relative cursor-pointer">
-                                <i class="ri-notification-3-line text-xl text-gray-600"></i>
-                                <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                            <!-- Maintenance Alerts Bell -->
+                            <div class="relative">
+                                <button id="maintenanceAlertsBell" class="relative cursor-pointer text-gray-600 hover:text-gray-900 transition">
+                                    <i class="ri-notification-3-line text-xl"></i>
+                                    <span id="alertBadge" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center hidden">0</span>
+                                </button>
+                                
+                                <!-- Maintenance Alerts Dropdown -->
+                                <div id="alertsDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                                    <div class="p-4 border-b border-gray-100">
+                                        <h3 class="font-semibold text-gray-900">Maintenance Alerts</h3>
+                                        <p class="text-xs text-gray-500 mt-1">Assets due for maintenance</p>
+                                    </div>
+                                    <div id="alertsList" class="divide-y divide-gray-100">
+                                        <div class="p-4 text-center text-gray-500 text-sm">
+                                            <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                                            <p>No maintenance alerts</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+
                             <div class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
                                 <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
                                     <span class="text-white text-xs font-semibold">AD</span>
@@ -538,6 +570,100 @@
             stopCameraBtn.style.display = 'none';
             startCameraBtn.style.display = 'inline-block';
         });
+
+        // Maintenance Alerts System
+        const maintenanceAlertsBell = document.getElementById('maintenanceAlertsBell');
+        const alertsDropdown = document.getElementById('alertsDropdown');
+        const alertBadge = document.getElementById('alertBadge');
+        const alertsList = document.getElementById('alertsList');
+
+        // Fetch maintenance alerts
+        function fetchMaintenanceAlerts() {
+            fetch('/admin/api/maintenance-alerts')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const count = data.count;
+                        
+                        // Update badge
+                        if (count > 0) {
+                            alertBadge.textContent = count;
+                            alertBadge.classList.remove('hidden');
+                            maintenanceAlertsBell.classList.add('animate-pulse');
+                            playNotificationSound();
+                        } else {
+                            alertBadge.classList.add('hidden');
+                            maintenanceAlertsBell.classList.remove('animate-pulse');
+                        }
+
+                        // Update alerts list
+                        if (count > 0) {
+                            alertsList.innerHTML = data.alerts.map(alert => `
+                                <div class="p-3 hover:bg-gray-50 transition border-l-4 border-orange-500">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium text-gray-900">${alert.Asset_name}</p>
+                                            <p class="text-xs text-gray-500 mt-0.5">Code: ${alert.Asset_code}</p>
+                                            <p class="text-xs text-gray-500">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
+                                            <p class="text-xs text-orange-600 font-medium mt-1">
+                                                <i class="ri-alert-line"></i> Due: ${new Date(alert.next_maintenance_date).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <a href="/admin/assets/${alert.id}" class="text-xs text-blue-600 hover:text-blue-700 font-medium ml-2">
+                                            View <i class="ri-arrow-right-line"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            `).join('');
+                        } else {
+                            alertsList.innerHTML = `
+                                <div class="p-4 text-center text-gray-500 text-sm">
+                                    <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                                    <p>No maintenance alerts</p>
+                                </div>
+                            `;
+                        }
+                    }
+                })
+                .catch(error => console.error('Error fetching maintenance alerts:', error));
+        }
+
+        // Play notification sound
+        function playNotificationSound() {
+            // Create a simple beep sound using Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        }
+
+        // Toggle dropdown
+        maintenanceAlertsBell.addEventListener('click', function (e) {
+            e.stopPropagation();
+            alertsDropdown.classList.toggle('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function () {
+            alertsDropdown.classList.add('hidden');
+        });
+
+        // Fetch alerts on page load
+        fetchMaintenanceAlerts();
+
+        // Refresh alerts every 30 seconds
+        setInterval(fetchMaintenanceAlerts, 30000);
     </script>
 </body>
 </html>

@@ -354,7 +354,7 @@
                         <div class="bg-gray-50 rounded-lg p-3">
                             <p class="text-xs text-gray-400 mb-1">Replacement Date</p>
                             <p class="text-sm font-medium text-gray-900">
-                                {{ $r->replacement_date ? \Carbon\Carbon::parse($r->replacement_date)->format('M d, Y') : '—' }}
+                                {{ $r->Replacement_Date ? \Carbon\Carbon::parse($r->Replacement_Date)->format('M d, Y') : '—' }}
                             </p>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-3">

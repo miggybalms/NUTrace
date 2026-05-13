@@ -37,7 +37,7 @@
         <div class="space-y-2">
             @foreach($departmentUsers as $du)
             <div class="flex items-center justify-between">
-                <div class="truncate">{{ $du->full_name }}</div>
+                <div class="truncate">{{ $du->full_name ?? 'Unknown' }}</div>
                 <div class="text-xs text-gray-400">{{ $du->role }}</div>
             </div>
             @endforeach

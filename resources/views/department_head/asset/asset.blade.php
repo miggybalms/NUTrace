@@ -226,16 +226,26 @@
         }
         .filter-btn { transition: all 0.2s ease; }
     </style>
-    <!-- QR Modal (image-only) -->
+    <!-- QR Modal -->
     <div id="qrModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" onclick="closeQrModal()">
-        <div class="p-0 max-w-full" onclick="event.stopPropagation();">
-            <img id="qrModalImg" src="" alt="QR Code" class="w-64 h-64 md:w-80 md:h-80 object-contain rounded-md bg-white p-2"/>
+        <div class="bg-white rounded-lg p-6 max-w-sm" onclick="event.stopPropagation();">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Asset QR Code</h3>
+                <button onclick="closeQrModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            <div id="qrModalCanvas" class="flex items-center justify-center bg-gray-50 rounded-lg p-4"></div>
+            <p id="qrModalAssetId" class="text-sm font-mono text-gray-600 text-center mt-4"></p>
         </div>
     </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <script>
         // Get current logged-in user's ID (department head)
         const currentUserId = "{{ Auth::user()->id ?? '' }}";
+        let qrModalInstance = null;
 
         // Filter functionality
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -266,16 +276,30 @@
 
         function openQrModal(el) {
             var code = el.getAttribute('data-asset-code') || '';
-            var img = document.getElementById('qrModalImg');
-            if (code && code.length > 0) {
-                img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(code);
-            } else {
-                img.src = '';
+            var canvas = document.getElementById('qrModalCanvas');
+            var idEl = document.getElementById('qrModalAssetId');
+
+            // Clear previous QR
+            if (qrModalInstance) {
+                try { qrModalInstance.clear(); } catch(e) {}
             }
+            canvas.innerHTML = '';
+
+            if (code && code.length > 0) {
+                qrModalInstance = new QRCode(canvas, {
+                    text: code,
+                    width: 220,
+                    height: 220,
+                    colorDark: "#1f2937",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+                idEl.textContent = code;
+            }
+
             var modal = document.getElementById('qrModal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
-            // focus for ESC key close
             modal.setAttribute('tabindex', '-1');
             modal.focus();
         }
@@ -284,7 +308,11 @@
             var modal = document.getElementById('qrModal');
             modal.classList.add('hidden');
             modal.classList.remove('flex');
-            document.getElementById('qrModalImg').src = '';
+            if (qrModalInstance) {
+                try { qrModalInstance.clear(); } catch(e) {}
+            }
+            qrModalInstance = null;
+            document.getElementById('qrModalCanvas').innerHTML = '';
         }
 
         // Close on ESC

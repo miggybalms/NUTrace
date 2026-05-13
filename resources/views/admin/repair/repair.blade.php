@@ -467,6 +467,17 @@
                                 </div>
                             ` : ''}
                         </div>
+
+                        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                            <button onclick="sendAssetToReplacement(${repair.id}, ${repair.asset_id}, ${repair.request_id})" class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200 transition flex items-center">
+                                <i class="ri-refresh-line mr-2"></i>
+                                Send to Replacement
+                            </button>
+                            <button onclick="sendAssetToDisposal(${repair.id}, ${repair.asset_id}, ${repair.request_id})" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm hover:bg-red-200 transition flex items-center">
+                                <i class="ri-delete-bin-line mr-2"></i>
+                                Send to Disposal
+                            </button>
+                        </div>
                     </div>
                 `;
                 document.getElementById('viewRepairContent').innerHTML = content;
@@ -585,6 +596,72 @@
         function closeViewRepairModal() {
             document.getElementById('viewRepairModal').classList.add('hidden');
             document.getElementById('viewRepairModal').classList.remove('flex');
+        }
+        
+        // Send asset to replacement
+        function sendAssetToReplacement(repairId, assetId, requestId) {
+            if (!confirm('Create a replacement request for this asset?')) return;
+            
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            fetch('/admin/replacements/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf || '',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    request_id: requestId,
+                    asset_id: assetId,
+                    reason: 'Created from repair request',
+                    replacement_reason: 'Beyond Repair'
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Replacement request created successfully!');
+                    closeViewRepairModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to create replacement request'));
+                }
+            })
+            .catch(err => {
+                alert('Error creating replacement: ' + err.message);
+            });
+        }
+        
+        // Send asset to disposal
+        function sendAssetToDisposal(repairId, assetId, requestId) {
+            if (!confirm('Create a disposal request for this asset?')) return;
+            
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            fetch('/admin/disposals/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf || '',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    request_id: requestId,
+                    asset_id: assetId,
+                    reason: 'Created from repair request',
+                    disposal_reason: 'Beyond Repair'
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Disposal request created successfully!');
+                    closeViewRepairModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to create disposal request'));
+                }
+            })
+            .catch(err => {
+                alert('Error creating disposal: ' + err.message);
+            });
         }
         
         // Form submission
