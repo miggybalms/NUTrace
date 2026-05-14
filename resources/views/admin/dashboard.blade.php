@@ -86,18 +86,37 @@
                         <div class="flex items-center space-x-4">
                             <!-- Maintenance Alerts Bell -->
                             <div class="relative">
-                                <button id="maintenanceAlertsBell" class="relative cursor-pointer text-gray-600 hover:text-gray-900 transition">
+                                <button id="maintenanceAlertsBell" class="relative cursor-pointer text-gray-600 hover:text-gray-900 transition" title="Maintenance & Lifespan Alerts">
                                     <i class="ri-notification-3-line text-xl"></i>
                                     <span id="alertBadge" class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center hidden">0</span>
                                 </button>
                                 
-                                <!-- Maintenance Alerts Dropdown -->
-                                <div id="alertsDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
-                                    <div class="p-4 border-b border-gray-100">
-                                        <h3 class="font-semibold text-gray-900">Maintenance Alerts</h3>
-                                        <p class="text-xs text-gray-500 mt-1">Assets due for maintenance</p>
+                                <!-- Alerts Dropdown -->
+                                <div id="alertsDropdown" class="hidden absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-screen overflow-y-auto">
+                                    <!-- Lifespan Expiration Alerts Tab -->
+                                    <div class="p-4 border-b border-gray-200 bg-red-50">
+                                        <h3 class="font-semibold text-red-900">
+                                            <i class="ri-time-line mr-2"></i>
+                                            Assets Requiring Evaluation
+                                        </h3>
+                                        <p class="text-xs text-red-700 mt-1">Assets that have reached their lifespan and require evaluation</p>
                                     </div>
-                                    <div id="alertsList" class="divide-y divide-gray-100">
+                                    <div id="lifespanAlertsList" class="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                                        <div class="p-4 text-center text-gray-500 text-sm">
+                                            <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                                            <p>No lifespan expiration alerts</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Maintenance Alerts Tab -->
+                                    <div class="p-4 border-b border-gray-200 bg-amber-50">
+                                        <h3 class="font-semibold text-amber-900">
+                                            <i class="ri-tools-line mr-2"></i>
+                                            Maintenance Due
+                                        </h3>
+                                        <p class="text-xs text-amber-700 mt-1">Assets requiring preventive maintenance</p>
+                                    </div>
+                                    <div id="maintenanceAlertsList" class="divide-y divide-gray-100 max-h-56 overflow-y-auto">
                                         <div class="p-4 text-center text-gray-500 text-sm">
                                             <p><i class="ri-check-line text-green-500 text-lg"></i></p>
                                             <p>No maintenance alerts</p>
@@ -571,61 +590,102 @@
             startCameraBtn.style.display = 'inline-block';
         });
 
-        // Maintenance Alerts System
+        // Maintenance & Lifespan Alerts System
         const maintenanceAlertsBell = document.getElementById('maintenanceAlertsBell');
         const alertsDropdown = document.getElementById('alertsDropdown');
         const alertBadge = document.getElementById('alertBadge');
-        const alertsList = document.getElementById('alertsList');
+        const lifespanAlertsList = document.getElementById('lifespanAlertsList');
+        const maintenanceAlertsList = document.getElementById('maintenanceAlertsList');
+
+        // Fetch lifespan expiration alerts
+        function fetchLifespanAlerts() {
+            fetch('/admin/api/lifespan-alerts')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.alerts.length > 0) {
+                        lifespanAlertsList.innerHTML = data.alerts.map(alert => `
+                            <div class="p-3 hover:bg-red-50 transition border-l-4 border-red-500">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900">${alert.Asset_name}</p>
+                                        <p class="text-xs text-gray-500 mt-0.5">Code: ${alert.Asset_code}</p>
+                                        <p class="text-xs text-gray-500">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
+                                        <p class="text-xs text-red-600 font-medium mt-1">
+                                            <i class="ri-error-warning-line"></i> Expired: ${new Date(alert.expiration_date).toLocaleDateString()}
+                                        </p>
+                                        <p class="text-xs text-gray-500 mt-1">Repair history: ${alert.repair_counts || 0}</p>
+                                    </div>
+                                    <a href="/admin/assets/${alert.id}" class="text-xs text-blue-600 hover:text-blue-700 font-medium ml-2">
+                                        Evaluate <i class="ri-arrow-right-line"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        lifespanAlertsList.innerHTML = `
+                            <div class="p-4 text-center text-gray-500 text-sm">
+                                <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                                <p>No lifespan expiration alerts</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => console.error('Error fetching lifespan alerts:', error));
+        }
 
         // Fetch maintenance alerts
         function fetchMaintenanceAlerts() {
             fetch('/admin/api/maintenance-alerts')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        const count = data.count;
-                        
-                        // Update badge
-                        if (count > 0) {
-                            alertBadge.textContent = count;
-                            alertBadge.classList.remove('hidden');
-                            maintenanceAlertsBell.classList.add('animate-pulse');
-                            playNotificationSound();
-                        } else {
-                            alertBadge.classList.add('hidden');
-                            maintenanceAlertsBell.classList.remove('animate-pulse');
-                        }
-
-                        // Update alerts list
-                        if (count > 0) {
-                            alertsList.innerHTML = data.alerts.map(alert => `
-                                <div class="p-3 hover:bg-gray-50 transition border-l-4 border-orange-500">
-                                    <div class="flex items-start justify-between">
-                                        <div class="flex-1">
-                                            <p class="text-sm font-medium text-gray-900">${alert.Asset_name}</p>
-                                            <p class="text-xs text-gray-500 mt-0.5">Code: ${alert.Asset_code}</p>
-                                            <p class="text-xs text-gray-500">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
-                                            <p class="text-xs text-orange-600 font-medium mt-1">
-                                                <i class="ri-alert-line"></i> Due: ${new Date(alert.next_maintenance_date).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                        <a href="/admin/assets/${alert.id}" class="text-xs text-blue-600 hover:text-blue-700 font-medium ml-2">
-                                            View <i class="ri-arrow-right-line"></i>
-                                        </a>
+                    if (data.success && data.alerts.length > 0) {
+                        maintenanceAlertsList.innerHTML = data.alerts.map(alert => `
+                            <div class="p-3 hover:bg-amber-50 transition border-l-4 border-amber-500">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900">${alert.Asset_name}</p>
+                                        <p class="text-xs text-gray-500 mt-0.5">Code: ${alert.Asset_code}</p>
+                                        <p class="text-xs text-gray-500">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
+                                        <p class="text-xs text-amber-600 font-medium mt-1">
+                                            <i class="ri-alert-line"></i> Due: ${new Date(alert.next_maintenance_date).toLocaleDateString()}
+                                        </p>
                                     </div>
+                                    <a href="/admin/assets/${alert.id}" class="text-xs text-blue-600 hover:text-blue-700 font-medium ml-2">
+                                        Service <i class="ri-arrow-right-line"></i>
+                                    </a>
                                 </div>
-                            `).join('');
-                        } else {
-                            alertsList.innerHTML = `
-                                <div class="p-4 text-center text-gray-500 text-sm">
-                                    <p><i class="ri-check-line text-green-500 text-lg"></i></p>
-                                    <p>No maintenance alerts</p>
-                                </div>
-                            `;
-                        }
+                            </div>
+                        `).join('');
+                    } else {
+                        maintenanceAlertsList.innerHTML = `
+                            <div class="p-4 text-center text-gray-500 text-sm">
+                                <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                                <p>No maintenance alerts</p>
+                            </div>
+                        `;
                     }
+                    
+                    updateAlertBadge();
                 })
                 .catch(error => console.error('Error fetching maintenance alerts:', error));
+        }
+
+        // Update alert badge with total count
+        function updateAlertBadge() {
+            fetch('/admin/api/lifespan-alerts').then(r => r.json()).then(d1 => {
+                fetch('/admin/api/maintenance-alerts').then(r => r.json()).then(d2 => {
+                    const totalCount = (d1.count || 0) + (d2.count || 0);
+                    if (totalCount > 0) {
+                        alertBadge.textContent = totalCount;
+                        alertBadge.classList.remove('hidden');
+                        maintenanceAlertsBell.classList.add('animate-pulse');
+                        playNotificationSound();
+                    } else {
+                        alertBadge.classList.add('hidden');
+                        maintenanceAlertsBell.classList.remove('animate-pulse');
+                    }
+                });
+            });
         }
 
         // Play notification sound
@@ -659,11 +719,34 @@
             alertsDropdown.classList.add('hidden');
         });
 
-        // Fetch alerts on page load
+        // Auto-transition assets that need evaluation (on page load)
+        function autoTransitionAssets() {
+            fetch('/admin/api/assets/check-and-transition', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.transitioned_count > 0) {
+                    console.log(`Auto-transitioned ${data.transitioned_count} asset(s) to "For Checking" status`);
+                }
+            })
+            .catch(error => console.error('Auto-transition error:', error));
+        }
+
+        // Trigger auto-transition and fetch alerts on page load
+        autoTransitionAssets();
+        fetchLifespanAlerts();
         fetchMaintenanceAlerts();
 
-        // Refresh alerts every 30 seconds
-        setInterval(fetchMaintenanceAlerts, 30000);
+        // Refresh alerts and auto-transition every 30 seconds
+        setInterval(() => {
+            autoTransitionAssets();
+            fetchLifespanAlerts();
+            fetchMaintenanceAlerts();
+        }, 30000);
     </script>
 </body>
 </html>

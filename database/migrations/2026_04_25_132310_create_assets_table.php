@@ -28,7 +28,7 @@ return new class extends Migration
             ]);
             $table->enum('Condition', ['New', 'Excellent', 'Good', 'Fair', 'Existing']);
             $table->enum('Lifecycle_Status', [
-                'Acquired', 'Active', 'For Repair','For Replacement', 'Pullout', 'Disposal'
+                'Acquired', 'Active', 'For Repair','For Checking', 'For Replacement', 'Pullout', 'Disposal'
             ])->default('Acquired');
             $table->date('accusion_date')->nullable();
             $table->decimal('accusion_cost', 12, 2)->nullable();

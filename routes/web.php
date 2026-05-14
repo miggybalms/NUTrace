@@ -861,6 +861,116 @@ Route::get('/admin/api/maintenance-alerts', function () {
     ]);
 });
 
+// Admin lifespan expiration alerts API endpoint
+Route::get('/admin/api/lifespan-alerts', function () {
+    $user = Auth::user();
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
+    // Get all assets where expiration_date <= today (expired assets needing evaluation)
+    // Shows both assets in "For Checking" status and assets that expired but haven't been auto-transitioned yet
+    $lifespanAlerts = DB::table('assets')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->whereNotNull('assets.expiration_date')
+        ->whereDate('assets.expiration_date', '<=', now()->toDateString())
+        ->select(
+            'assets.id',
+            'assets.Asset_code',
+            'assets.Asset_name',
+            'assets.expiration_date',
+            'assets.Lifecycle_Status',
+            'assets.repair_counts',
+            'employee_numbers.Full_Name as assigned_to'
+        )
+        ->orderBy('assets.expiration_date', 'asc')
+        ->get();
+
+    $count = $lifespanAlerts->count();
+
+    return response()->json([
+        'success' => true,
+        'count' => $count,
+        'alerts' => $lifespanAlerts
+    ]);
+});
+
+// Admin API: Auto-transition assets that need evaluation (expired lifespan or maintenance overdue)
+Route::post('/admin/api/assets/check-and-transition', function () {
+    $user = Auth::user();
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
+    try {
+        $today = \Carbon\Carbon::now()->toDateString();
+        $transitionedCount = 0;
+
+        DB::transaction(function () use ($today, &$transitionedCount) {
+            // 1. Find and transition assets with expired lifespan
+            $expiredAssets = DB::table('assets')
+                ->whereNotNull('expiration_date')
+                ->whereDate('expiration_date', '<=', $today)
+                ->where('Lifecycle_Status', '=', 'Active')
+                ->get();
+
+            foreach ($expiredAssets as $asset) {
+                DB::table('assets')->where('id', $asset->id)->update([
+                    'Lifecycle_Status' => 'For Checking',
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('audit_logs')->insert([
+                    'asset_id' => $asset->id,
+                    'action_type' => 'UPDATE',
+                    'action_description' => 'Automatic status change: Asset lifespan expired',
+                    'notes' => 'Asset lifespan expired on ' . $asset->expiration_date . '. Automatically transitioned to "For Checking" for evaluation.',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $transitionedCount++;
+            }
+
+            // 2. Find and transition assets with overdue maintenance
+            $maintenanceOverdueAssets = DB::table('assets')
+                ->whereNotNull('next_maintenance_date')
+                ->whereDate('next_maintenance_date', '<=', $today)
+                ->where('Lifecycle_Status', '=', 'Active')
+                ->get();
+
+            foreach ($maintenanceOverdueAssets as $asset) {
+                DB::table('assets')->where('id', $asset->id)->update([
+                    'Lifecycle_Status' => 'For Checking',
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('audit_logs')->insert([
+                    'asset_id' => $asset->id,
+                    'action_type' => 'UPDATE',
+                    'action_description' => 'Automatic status change: Maintenance overdue',
+                    'notes' => 'Asset maintenance is overdue (due date: ' . $asset->next_maintenance_date . '). Automatically transitioned to "For Checking" for maintenance evaluation.',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $transitionedCount++;
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => "Asset evaluation check completed. Transitioned {$transitionedCount} asset(s) to 'For Checking' status.",
+            'transitioned_count' => $transitionedCount
+        ]);
+
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Asset transition error: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Failed to check and transition assets: ' . $e->getMessage()], 500);
+    }
+});
+
 // Admin API: Mark maintenance as completed and recalculate next maintenance schedule
 Route::post('/admin/api/assets/{id}/maintenance-complete', function ($id, \Illuminate\Http\Request $request) {
     $user = Auth::user();
@@ -948,51 +1058,159 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
         return response()->json(['success' => false, 'message' => 'Asset is not in "For Checking" status'], 422);
     }
 
-    $newStatus = $request->input('status');
-    $evaluationNotes = $request->input('notes', '');
+    $action = $request->input('action');
+    $evaluationNotes = $request->input('evaluation_notes', '');
     
-    $validStatuses = ['Active', 'For Repair', 'For Replacement', 'Disposal'];
-    if (!in_array($newStatus, $validStatuses)) {
-        return response()->json(['success' => false, 'message' => 'Invalid status'], 400);
-    }
-
     try {
-        DB::transaction(function () use ($id, $asset, $newStatus, $evaluationNotes) {
-            // Update asset lifecycle status based on evaluation
-            DB::table('assets')->where('id', $id)->update([
-                'Lifecycle_Status' => $newStatus,
-                'updated_at' => now(),
-            ]);
-
-            // If moving to Disposal, update asset lifecycle
-            if ($newStatus === 'Disposal') {
-                DB::table('disposals')->insertOrIgnore([
-                    'Asset_id' => $id,
-                    'Approve_by' => Auth::user()?->email ?? 'Admin',
-                    'Description' => 'Disposed after lifespan evaluation',
-                    'disposal_reason' => 'Obsolete',
-                    'disposal_date' => now()->toDateString(),
-                    'notes' => 'Asset evaluated as no longer serviceable. ' . $evaluationNotes,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+        DB::transaction(function () use ($id, $asset, $action, $evaluationNotes, $request) {
+            $adminEmail = Auth::user()?->email ?? 'Admin';
+            
+            switch($action) {
+                case 'return_active':
+                    // Return asset to Active status
+                    $extensionMonths = (int)$request->input('extension_months', 0);
+                    
+                    $updateData = [
+                        'Lifecycle_Status' => 'Active',
+                        'updated_at' => now(),
+                    ];
+                    
+                    // If extension is requested, recalculate expiration date
+                    if ($extensionMonths > 0) {
+                        $currentExpiration = \Carbon\Carbon::parse($asset->expiration_date);
+                        $newExpiration = $currentExpiration->addMonths($extensionMonths);
+                        $updateData['expiration_date'] = $newExpiration;
+                    }
+                    
+                    DB::table('assets')->where('id', $id)->update($updateData);
+                    
+                    // Log evaluation
+                    DB::table('audit_logs')->insert([
+                        'asset_id' => $id,
+                        'user_id' => Auth::id(),
+                        'action_type' => 'UPDATE',
+                        'action_description' => 'Asset returned to Active status after lifespan evaluation',
+                        'notes' => 'Lifespan Evaluation Decision: RETURN TO ACTIVE' . ($extensionMonths > 0 ? " (Extended by $extensionMonths months)" : '') . "\nEvaluation Notes: " . ($evaluationNotes ?: 'Asset condition satisfactory, continues to meet operational requirements'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    break;
+                    
+                case 'send_repair':
+                    // Send asset for repair
+                    DB::table('assets')->where('id', $id)->update([
+                        'Lifecycle_Status' => 'For Repair',
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Create repair record
+                    DB::table('repairs')->insertOrIgnore([
+                        'Asset_id' => $id,
+                        'Request_id' => null,
+                        'Repair_date' => now()->toDateString(),
+                        'Repair_Description' => $evaluationNotes,
+                        'Repair_status' => 'Pending',
+                        'Repair_personnel' => null,
+                        'Assigned_by' => $adminEmail,
+                        'notes' => 'Repair initiated from lifespan evaluation',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Increment repair counter
+                    DB::table('assets')->where('id', $id)->increment('repair_counts');
+                    
+                    // Log evaluation
+                    DB::table('audit_logs')->insert([
+                        'asset_id' => $id,
+                        'user_id' => Auth::id(),
+                        'action_type' => 'REPAIR',
+                        'action_description' => 'Asset sent for repair after lifespan evaluation',
+                        'notes' => 'Lifespan Evaluation Decision: SEND FOR REPAIR\nIssues Identified: ' . ($evaluationNotes ?: 'Maintenance required'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    break;
+                    
+                case 'recommend_replacement':
+                    // Recommend replacement
+                    DB::table('assets')->where('id', $id)->update([
+                        'Lifecycle_Status' => 'For Replacement',
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Create replacement record
+                    DB::table('replacements')->insertOrIgnore([
+                        'Asset_id' => $id,
+                        'Request_id' => null,
+                        'Replacement_date' => now()->toDateString(),
+                        'Replacement_reason' => $evaluationNotes,
+                        'Replacement_status' => 'Pending',
+                        'notes' => 'Replacement initiated from lifespan evaluation',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Log evaluation
+                    DB::table('audit_logs')->insert([
+                        'asset_id' => $id,
+                        'user_id' => Auth::id(),
+                        'action_type' => 'REPLACEMENT',
+                        'action_description' => 'Asset recommended for replacement after lifespan evaluation',
+                        'notes' => 'Lifespan Evaluation Decision: RECOMMEND REPLACEMENT\nReason: ' . ($evaluationNotes ?: 'Asset beyond economic repair'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    break;
+                    
+                case 'proceed_disposal':
+                    // Proceed with disposal
+                    DB::table('assets')->where('id', $id)->update([
+                        'Lifecycle_Status' => 'Disposal',
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Create disposal record
+                    DB::table('disposals')->insertOrIgnore([
+                        'Asset_id' => $id,
+                        'Approve_by' => $adminEmail,
+                        'Description' => 'Asset disposal after lifespan evaluation',
+                        'disposal_reason' => 'End of Lifespan',
+                        'disposal_date' => now()->toDateString(),
+                        'notes' => 'Asset disposed following comprehensive lifespan evaluation. ' . ($evaluationNotes ?: 'No longer serviceable'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Log evaluation
+                    DB::table('audit_logs')->insert([
+                        'asset_id' => $id,
+                        'user_id' => Auth::id(),
+                        'action_type' => 'DISPOSAL',
+                        'action_description' => 'Asset disposed after lifespan evaluation',
+                        'notes' => 'Lifespan Evaluation Decision: PROCEED WITH DISPOSAL\nReason: ' . ($evaluationNotes ?: 'End of life cycle'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    break;
+                    
+                default:
+                    throw new \Exception('Invalid evaluation action: ' . $action);
             }
-
-            // Log the evaluation in audit logs
-            DB::table('audit_logs')->insert([
-                'asset_id' => $id,
-                'user_id' => Auth::id(),
-                'notes' => 'Asset lifespan evaluation: Changed from "For Checking" to "' . $newStatus . '". ' . ($evaluationNotes ? 'Notes: ' . $evaluationNotes : 'No evaluation notes provided.'),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
         });
+
+        $actionMessages = [
+            'return_active' => 'Asset returned to Active status',
+            'send_repair' => 'Asset sent for repair evaluation',
+            'recommend_replacement' => 'Asset recommended for replacement',
+            'proceed_disposal' => 'Asset marked for disposal'
+        ];
 
         return response()->json([
             'success' => true,
-            'message' => 'Asset evaluated successfully and status updated to ' . $newStatus,
+            'message' => $actionMessages[$action] ?? 'Asset evaluated successfully',
             'asset_id' => $id,
-            'new_status' => $newStatus
+            'action' => $action
         ]);
 
     } catch (\Exception $e) {
@@ -1007,6 +1225,54 @@ Route::get('/admin/assets/{id}', function ($id) {
     if (!$asset) {
         abort(404);
     }
+
+    // Auto-transition asset to "For Checking" if conditions are met
+    $today = \Carbon\Carbon::now()->toDateString();
+    $shouldTransition = false;
+    $transitionReason = '';
+
+    // Check if asset is still Active
+    if ($asset->Lifecycle_Status === 'Active') {
+        // Check 1: Asset lifespan has expired
+        if ($asset->expiration_date && \Carbon\Carbon::parse($asset->expiration_date)->toDateString() <= $today) {
+            $shouldTransition = true;
+            $transitionReason = 'Asset lifespan expired on ' . $asset->expiration_date . '. Automatically transitioned to "For Checking" for evaluation.';
+        }
+        // Check 2: Asset maintenance is overdue
+        else if ($asset->next_maintenance_date && \Carbon\Carbon::parse($asset->next_maintenance_date)->toDateString() <= $today) {
+            $shouldTransition = true;
+            $transitionReason = 'Asset maintenance is overdue (due date: ' . $asset->next_maintenance_date . '). Automatically transitioned to "For Checking" for maintenance evaluation.';
+        }
+    }
+
+    // If auto-transition is needed, perform it
+    if ($shouldTransition) {
+        try {
+            DB::transaction(function () use ($asset, $transitionReason) {
+                // Update asset status
+                DB::table('assets')->where('id', $asset->id)->update([
+                    'Lifecycle_Status' => 'For Checking',
+                    'updated_at' => now(),
+                ]);
+
+                // Log the automatic transition
+                DB::table('audit_logs')->insert([
+                    'asset_id' => $asset->id,
+                    'action_type' => 'UPDATE',
+                    'action_description' => 'Automatic status change: Lifespan expired or maintenance overdue',
+                    'notes' => $transitionReason,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            });
+
+            // Refresh asset data to reflect changes
+            $asset = Asset::with('user')->find($id);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to auto-transition asset', ['asset_id' => $id, 'error' => $e->getMessage()]);
+        }
+    }
+
     return view('admin.assets.show', compact('asset'));
 })->where('id', '[0-9]+');
 
