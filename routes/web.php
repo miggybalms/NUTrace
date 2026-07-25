@@ -989,9 +989,11 @@ Route::post('/admin/api/assets/{id}/maintenance-complete', function ($id, \Illum
 
     $maintenanceNotes = $request->input('notes', 'Maintenance completed');
     $completionDate = $request->input('completion_date') ? \Carbon\Carbon::parse($request->input('completion_date')) : now();
+    $currentStatus = $asset->Lifecycle_Status ?? 'Active';
+    $newStatus = $currentStatus === 'Active' ? 'For Checking' : $currentStatus;
 
     try {
-        DB::transaction(function () use ($id, $asset, $completionDate, $maintenanceNotes) {
+        DB::transaction(function () use ($id, $asset, $completionDate, $maintenanceNotes, $newStatus) {
             // Update last_maintenance_date to completion date
             $lastMaintenanceDate = $completionDate->toDateString();
             
@@ -1006,11 +1008,12 @@ Route::post('/admin/api/assets/{id}/maintenance-complete', function ($id, \Illum
             DB::table('assets')->where('id', $id)->update([
                 'last_maintenance_date' => $lastMaintenanceDate,
                 'next_maintenance_date' => $nextMaintenanceDate,
+                'Lifecycle_Status' => $newStatus,
                 'updated_at' => now(),
             ]);
 
-            // Asset stays "Active" throughout maintenance (correct per business logic)
-            // Status doesn't change unless maintenance reveals issues
+            // Keep completed maintenance assets in review instead of automatically marking them Active.
+            // They can be returned to Active explicitly after verification.
 
             // Log the maintenance completion in audit logs
             DB::table('audit_logs')->insert([
@@ -1018,7 +1021,7 @@ Route::post('/admin/api/assets/{id}/maintenance-complete', function ($id, \Illum
                 'user_id' => Auth::id(),
                 'action_type' => 'UPDATE',
                 'notes' => 'Maintenance completed on ' . $lastMaintenanceDate,
-                'action_description' => 'Asset preventive maintenance performed and completed. Next maintenance scheduled for ' . ($nextMaintenanceDate ?? 'No schedule'). '. ' . ($maintenanceNotes ? 'Notes: ' . $maintenanceNotes : ''),
+                'action_description' => 'Asset preventive maintenance performed and completed. Lifecycle status set to ' . $newStatus . '. Next maintenance scheduled for ' . ($nextMaintenanceDate ?? 'No schedule'). '. ' . ($maintenanceNotes ? 'Notes: ' . $maintenanceNotes : ''),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -1029,7 +1032,7 @@ Route::post('/admin/api/assets/{id}/maintenance-complete', function ($id, \Illum
 
         return response()->json([
             'success' => true,
-            'message' => 'Maintenance completed successfully. Next maintenance scheduled for ' . ($updatedAsset->next_maintenance_date ?? 'Not scheduled'),
+            'message' => 'Maintenance completed successfully. Lifecycle status is now ' . ($updatedAsset->Lifecycle_Status ?? $newStatus) . '. Next maintenance scheduled for ' . ($updatedAsset->next_maintenance_date ?? 'Not scheduled'),
             'asset_id' => $id,
             'last_maintenance_date' => $updatedAsset->last_maintenance_date,
             'next_maintenance_date' => $updatedAsset->next_maintenance_date,
@@ -1039,6 +1042,60 @@ Route::post('/admin/api/assets/{id}/maintenance-complete', function ($id, \Illum
     } catch (\Exception $e) {
         \Illuminate\Support\Facades\Log::error('Maintenance completion error: ' . $e->getMessage());
         return response()->json(['success' => false, 'message' => 'Failed to complete maintenance: ' . $e->getMessage()], 500);
+    }
+});
+
+// Admin API: Update asset lifecycle status from the department asset details modal
+Route::post('/admin/api/assets/{id}/status', function ($id, \Illuminate\Http\Request $request) {
+    $user = Auth::user();
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
+    $validated = $request->validate([
+        'status' => 'required|string|in:Acquired,Active,For Checking,For Repair,For Replacement,Pullout,Disposal',
+        'notes' => 'nullable|string|max:1000',
+    ]);
+
+    $asset = DB::table('assets')->where('id', $id)->first();
+    if (!$asset) {
+        return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
+    }
+
+    $currentStatus = $asset->Lifecycle_Status ?? '';
+    $newStatus = $validated['status'];
+
+    if ($currentStatus === $newStatus) {
+        return response()->json(['success' => false, 'message' => 'Asset is already in that status'], 422);
+    }
+
+    try {
+        DB::transaction(function () use ($id, $currentStatus, $newStatus, $validated) {
+            DB::table('assets')->where('id', $id)->update([
+                'Lifecycle_Status' => $newStatus,
+                'updated_at' => now(),
+            ]);
+
+            DB::table('audit_logs')->insert([
+                'asset_id' => $id,
+                'user_id' => Auth::id(),
+                'action_type' => 'UPDATE',
+                'action_description' => 'Asset lifecycle status updated from ' . ($currentStatus ?: 'Unknown') . ' to ' . $newStatus,
+                'notes' => ($validated['notes'] ?? 'Status updated from department asset card') . "\nPrevious Status: " . ($currentStatus ?: 'Unknown') . "\nNew Status: " . $newStatus,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset status updated successfully',
+            'asset_id' => $id,
+            'lifecycle_status' => $newStatus,
+        ]);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Asset status update error: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Failed to update asset status: ' . $e->getMessage()], 500);
     }
 });
 

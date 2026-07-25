@@ -80,8 +80,8 @@
             <div class="border-t border-gray-800 p-4 mt-auto">
                 <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">
                     <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        @if($user && ($user->profile_photo ?? false))
-                            <img src="{{ asset('storage/' . $user->profile_photo) }}"
+                        @if($user && $user->profile_photo_url)
+                            <img src="{{ $user->profile_photo_url }}"
                                  class="w-10 h-10 rounded-full object-cover"
                                  alt="Profile"/>
                         @else

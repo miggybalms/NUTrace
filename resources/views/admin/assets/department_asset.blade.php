@@ -236,9 +236,6 @@
                                             <button class="action-btn text-blue-600 hover:text-blue-700" title="View Details">
                                                 <i class="ri-eye-line text-lg"></i>
                                             </button>
-                                            <button class="action-btn text-green-600 hover:text-green-700" title="Edit Asset">
-                                                <i class="ri-edit-line text-lg"></i>
-                                            </button>
                                             <button class="action-btn text-purple-600 hover:text-purple-700 view-qr-btn" title="View QR Code">
                                                 <i class="ri-qr-code-line text-lg"></i>
                                             </button>
@@ -470,6 +467,7 @@
             // Find the row and get data
             const row = document.querySelector(`tr[data-asset-id="${assetId}"]`);
             if (row) {
+                window.currentAssetId = assetId;
                 const name = row.querySelector('td:nth-child(2) span')?.textContent || 'Asset';
                 const assetIdValue = row.querySelector('td:first-child')?.textContent || '';
                 const category = row.querySelector('td:nth-child(3)')?.textContent || '';
@@ -513,6 +511,22 @@
                     statusBadge.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700';
                 }
                 statusBadge.innerHTML = `<i class="ri-circle-fill mr-1 text-xs"></i>${status}`;
+
+                const statusSelect = document.getElementById('modalLifecycleStatus');
+                if (statusSelect) {
+                    statusSelect.value = status;
+                }
+
+                const statusError = document.getElementById('statusUpdateError');
+                const statusSuccess = document.getElementById('statusUpdateSuccess');
+                if (statusError) {
+                    statusError.textContent = '';
+                    statusError.classList.add('hidden');
+                }
+                if (statusSuccess) {
+                    statusSuccess.textContent = '';
+                    statusSuccess.classList.add('hidden');
+                }
             }
             
             document.getElementById('assetModal').classList.remove('hidden');
@@ -522,6 +536,97 @@
         function closeAssetModal() {
             document.getElementById('assetModal').classList.add('hidden');
             document.getElementById('assetModal').classList.remove('flex');
+            window.currentAssetId = null;
+        }
+
+        async function updateAssetStatus() {
+            const assetId = window.currentAssetId || '';
+            const row = assetId ? document.querySelector(`tr[data-asset-id="${assetId}"]`) : null;
+            const status = document.getElementById('modalLifecycleStatus')?.value || '';
+            const notes = document.getElementById('modalStatusNotes')?.value.trim() || '';
+            const errorEl = document.getElementById('statusUpdateError');
+            const successEl = document.getElementById('statusUpdateSuccess');
+
+            if (!assetId || !status) {
+                if (errorEl) {
+                    errorEl.textContent = 'Asset and status are required.';
+                    errorEl.classList.remove('hidden');
+                }
+                return;
+            }
+
+            if (errorEl) {
+                errorEl.textContent = '';
+                errorEl.classList.add('hidden');
+            }
+            if (successEl) {
+                successEl.textContent = '';
+                successEl.classList.add('hidden');
+            }
+
+            try {
+                const response = await fetch(`/admin/api/assets/${assetId}/status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ status, notes })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (errorEl) {
+                        errorEl.textContent = data.message || 'Failed to update asset status.';
+                        errorEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                if (successEl) {
+                    successEl.textContent = '✓ ' + (data.message || 'Asset status updated successfully');
+                    successEl.classList.remove('hidden');
+                }
+
+                const statusCell = row?.querySelector('td:nth-child(7) span');
+                if (statusCell) {
+                    statusCell.innerHTML = `<i class="ri-circle-fill mr-1 text-xs"></i>${status}`;
+                }
+                if (row) {
+                    row.setAttribute('data-status', status.toLowerCase().replace(/\s+/g, '_'));
+                }
+
+                const modalStatus = document.getElementById('modalStatus');
+                if (modalStatus) {
+                    if (status.toLowerCase().includes('active')) {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
+                    } else if (status.toLowerCase().includes('checking')) {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700';
+                    } else if (status.toLowerCase().includes('repair')) {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700';
+                    } else if (status.toLowerCase().includes('replacement')) {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-700';
+                    } else if (status.toLowerCase().includes('pullout')) {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700';
+                    } else if (status.toLowerCase().includes('disposal')) {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700';
+                    } else {
+                        modalStatus.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700';
+                    }
+                    modalStatus.innerHTML = `<i class="ri-circle-fill mr-1 text-xs"></i>${status}`;
+                }
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+            } catch (error) {
+                if (errorEl) {
+                    errorEl.textContent = 'Error: ' + error.message;
+                    errorEl.classList.remove('hidden');
+                }
+            }
         }
         
         function resetFilters() {

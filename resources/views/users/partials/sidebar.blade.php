@@ -34,11 +34,11 @@
     <div class="border-t border-gray-800 p-4 mt-auto">
         <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">
                 <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    @if($user && ($user->profile_photo ?? false))
-                        <img src="{{ asset('storage/' . $user->profile_photo) }}" class="w-10 h-10 rounded-full object-cover" alt="Profile"/>
-                    @else
-                        <span class="text-white font-semibold text-sm">{{ $initial }}</span>
-                    @endif
+                        @if($user && $user->profile_photo_url)
+                            <img src="{{ $user->profile_photo_url }}" class="w-10 h-10 rounded-full object-cover" alt="Profile"/>
+                        @else
+                            <span class="text-white font-semibold text-sm">{{ $initial }}</span>
+                        @endif
                 </div>
                 <div class="ml-3 flex-1 min-w-0">
                     <p class="text-sm font-medium text-white truncate">{{ $user?->full_name ?? 'User' }}</p>
