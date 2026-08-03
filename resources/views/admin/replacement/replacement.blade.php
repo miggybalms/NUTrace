@@ -122,30 +122,36 @@
                                 </div>
                             </td>
 
-                            {{-- New Asset --}}
-                            <td class="px-6 py-4">
-                                @if(data_get($replacement, 'new_asset_code') || data_get($replacement, 'new_asset_name') || data_get($replacement, 'newAsset'))
-                                    <div class="flex items-center space-x-3">
+                                        {{-- New Asset --}}
+                                        <td class="px-6 py-4">
+                                            @php
+                                            $hasRealNewAsset = data_get($replacement, 'new_asset_id')
+                                            && data_get($replacement, 'new_asset_id') != data_get($replacement, 'old_asset_id')
+                                            && (data_get($replacement, 'new_asset_code') || data_get($replacement, 'newAsset'));
+                                        @endphp
+
+                                        @if($hasRealNewAsset)
+                                        <div class="flex items-center space-x-3">
                                         <div class="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                            <i class="ri-computer-line text-green-600 text-sm"></i>
-                                        </div>
-                                        <div>
-                                            <p class="font-medium text-gray-900 font-mono">{{ data_get($replacement, 'new_asset_code') ?? data_get($replacement, 'newAsset.Asset_code') ?? '—' }}</p>
-                                            <p class="text-xs text-gray-400 mt-0.5">{{ data_get($replacement, 'new_asset_name') ?? data_get($replacement, 'newAsset.Asset_name') ?? '' }}</p>
-                                        </div>
+                                        <i class="ri-computer-line text-green-600 text-sm"></i>
                                     </div>
-                                @else
-                                    @if($replacement->status === 'Approved')
-                                        <button onclick="openLinkModal({{ $replacement->id }})"
-                                            class="flex items-center space-x-2 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 transition text-xs">
-                                            <i class="ri-link mr-1"></i>
-                                            Link new asset
-                                        </button>
+                                    <div>
+                                    <p class="font-medium text-gray-900 font-mono">{{ data_get($replacement, 'new_asset_code') ?? data_get($replacement, 'newAsset.Asset_code') ?? '—' }}</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">{{ data_get($replacement, 'new_asset_name') ?? data_get($replacement, 'newAsset.Asset_name') ?? '' }}</p>
+                                    </div>
+                                    </div>
                                     @else
-                                        <span class="text-xs text-gray-400">—</span>
-                                    @endif
-                                @endif
-                            </td>
+                                    @if($replacement->status === 'Approved')
+                                <button onclick="openLinkModal({{ $replacement->id }})"
+                                class="flex items-center space-x-2 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 transition text-xs">
+                                <i class="ri-link mr-1"></i>
+                                Link new asset
+                                </button>
+                                @else
+                            <span class="text-xs text-gray-400">—</span>
+                            @endif
+                            @endif
+                        </td>
 
                             {{-- Requested By --}}
                             <td class="px-6 py-4">
@@ -271,7 +277,7 @@
                 </table>
             </div>
 
-            @if(isset($replacements) && $replacements->hasPages())
+            @if(isset($replacements) && method_exists($replacements, 'hasPages') && $replacements->hasPages())
             <div class="px-6 py-4 border-t border-gray-100">
                 {{ $replacements->links() }}
             </div>
@@ -327,15 +333,20 @@
                             <p class="text-xs font-semibold text-green-600 mb-2 flex items-center">
                                 <i class="ri-arrow-right-line mr-1"></i> New Asset
                             </p>
-                            @if(data_get($r, 'new_asset_code') || data_get($r, 'new_asset_name') || data_get($r, 'newAsset'))
-                                <p class="font-semibold text-gray-900 text-sm">{{ data_get($r, 'new_asset_name') ?? data_get($r, 'newAsset.Asset_name') ?? '—' }}</p>
-                                <p class="text-xs text-gray-400 font-mono">{{ data_get($r, 'new_asset_code') ?? data_get($r, 'newAsset.Asset_code') ?? '—' }}</p>
-                                <p class="text-xs text-gray-500 mt-1">{{ data_get($r, 'new_asset_category') ?? data_get($r, 'newAsset.Category') ?? '—' }}</p>
-                                <span class="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded-full mt-2 inline-block">
-                                    {{ data_get($r, 'new_asset_lifecycle_status') ?? data_get($r, 'newAsset.Lifecycle_Status') ?? '—' }}
-                                </span>
+                            @php
+                            $hasRealNewAsset = data_get($r, 'new_asset_id')
+                            && data_get($r, 'new_asset_id') != data_get($r, 'old_asset_id');
+                            @endphp
+
+                            @if($hasRealNewAsset)
+                            <p class="font-semibold text-gray-900 text-sm">{{ data_get($r, 'new_asset_name') ?? data_get($r, 'newAsset.Asset_name') ?? '—' }}</p>
+                            <p class="text-xs text-gray-400 font-mono">{{ data_get($r, 'new_asset_code') ?? data_get($r, 'newAsset.Asset_code') ?? '—' }}</p>
+                            <p class="text-xs text-gray-500 mt-1">{{ data_get($r, 'new_asset_category') ?? data_get($r, 'newAsset.Category') ?? '—' }}</p>
+                            <span class="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded-full mt-2 inline-block">
+                            {{ data_get($r, 'new_asset_lifecycle_status') ?? data_get($r, 'newAsset.Lifecycle_Status') ?? '—' }}
+                            </span>
                             @else
-                                <p class="text-xs text-gray-400 italic mt-4">Not yet assigned</p>
+                            <p class="text-xs text-gray-400 italic mt-4">Not yet assigned</p>
                             @endif
                         </div>
                     </div>

@@ -573,71 +573,74 @@
             }
         }
 
-        async function handleAutoDispose(code) {
-            const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-            let assetId = null;
-            let assetStatus = null;
-            
-            let opt = document.querySelector('option[data-code="' + code + '"]');
-            if (opt) {
-                assetId = opt.value;
-                assetStatus = opt.getAttribute('data-status');
-            } else {
-                try {
-                    const res = await fetch('/admin/assets/find-by-code?code=' + encodeURIComponent(code), 
-                        { headers: { 'Accept': 'application/json' }}
-                    );
-                    if (res.ok) {
-                        const data = await res.json();
-                        assetId = data.id || null;
-                        assetStatus = data.status || null;
-                    }
-                } catch (e) {
-                    console.warn('Server lookup failed:', e);
-                }
-            }
+async function handleAutoDispose(code) {
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    let assetId = null;
+    let assetStatus = null;
 
-            if (!assetId) {
-                showToast('Asset not found: ' + code, 'error');
-                return;
+    // 1. Try to find asset in the dropdown first
+    let opt = document.querySelector('option[data-code="' + code + '"]');
+    if (opt) {
+        assetId = opt.value;
+        assetStatus = opt.getAttribute('data-status');
+    } else {
+        // 2. Fallback: ask the server
+        try {
+            const res = await fetch('/admin/assets/find-by-code?code=' + encodeURIComponent(code), {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                assetId = data.id || null;
+                assetStatus = data.status || null;
             }
-
-            // Check if asset status is Active or Acquired
-            if (assetStatus && assetStatus !== 'Active' && assetStatus !== 'Acquired') {
-                showToast('Only assets with "Active" or "Acquired" status can be disposed. Current status: ' + assetStatus, 'error');
-                return;
-            }
-
-            const payload = {
-                asset_id: assetId,
-                disposal_date: new Date().toISOString().slice(0,10),
-                reason: 'Scanned Disposal',
-                disposed_by: adminName,
-                notes: 'Recorded by admin via QR scan.',
-            };
-
-            try {
-                const res = await fetch('/admin/disposal/record', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrf,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-                const json = await res.json();
-                if (res.ok) {
-                    showToast('✓ Disposal recorded successfully!');
-                    await refreshDisposalList();
-                } else {
-                    showToast('Failed: ' + (json.message || res.statusText), 'error');
-                }
-            } catch (e) {
-                showToast('Network error: ' + e.message, 'error');
-            }
+        } catch (e) {
+            console.warn('Server lookup failed:', e);
         }
+    }
 
+    if (!assetId) {
+        showToast('Asset not found: ' + code, 'error');
+        return;
+    }
+
+    // 3. Send disposal request
+    const payload = {
+        asset_id: assetId,
+        disposal_date: new Date().toISOString().slice(0, 10),
+        reason: 'Scanned Disposal',
+        disposed_by: adminName,
+        notes: 'Recorded by admin via QR scan.',
+    };
+
+    try {
+        const res = await fetch('/admin/disposal/record', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const json = await res.json().catch(() => ({}));
+        console.log('Disposal response:', res.status, json);
+
+        if (res.ok && json.success) {
+            showToast('✓ Disposal recorded successfully!');
+            await refreshDisposalList();
+        } else {
+            // This is where "already exists" message will appear
+            const realError = json.error || json.message || res.statusText || 'Unknown error';
+            showToast('Failed: ' + realError, 'error');
+            console.error('Disposal error:', json);
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+        console.error(e);
+    }
+}
         async function refreshDisposalList() {
             try {
                 const response = await fetch(window.location.href);
@@ -742,36 +745,39 @@
             }
         }
         
-        document.getElementById('disposalForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData);
-            
-            try {
-                const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                const response = await fetch('/admin/disposal/record', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrf,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                if (response.ok) {
-                    showToast('Disposal recorded successfully!');
-                    closeDisposalModal();
-                    await refreshDisposalList();
-                    this.reset();
-                } else {
-                    const error = await response.json();
-                    showToast('Error: ' + (error.message || 'Failed to record'), 'error');
-                }
-            } catch (error) {
-                showToast('Network error: ' + error.message, 'error');
-            }
+document.getElementById('disposalForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData);
+    
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const response = await fetch('/admin/disposal/record', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(data)
         });
+        
+        const json = await response.json().catch(() => ({}));
+        console.log('Form disposal response:', response.status, json);
+
+        if (response.ok && json.success) {
+            showToast('✓ Disposal recorded successfully!');
+            closeDisposalModal();
+            await refreshDisposalList();
+            this.reset();
+        } else {
+            const realError = json.error || json.message || response.statusText || 'Unknown error';
+            showToast('Failed: ' + realError, 'error');
+        }
+    } catch (error) {
+        showToast('Network error: ' + error.message, 'error');
+    }
+});
 
         // Clean up on page unload
         window.addEventListener('beforeunload', function() {

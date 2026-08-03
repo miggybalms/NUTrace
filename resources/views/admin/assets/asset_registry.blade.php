@@ -125,6 +125,11 @@
             overflow-y: auto;
             scrollbar-width: thin;
         }
+
+        .bulk-qr-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -161,6 +166,10 @@
                 <form action="{{ route('admin.assets.store') }}" method="POST" enctype="multipart/form-data" class="max-w-4xl mx-auto" id="assetForm">
                     @csrf
                     <input type="hidden" name="qr_image" id="qr_image_input" value="">
+                    @php
+                        $bulkQrLabels = $bulkQrLabels ?? [];
+                        $bulkRegisteredCount = $bulkRegisteredCount ?? 0;
+                    @endphp
                     @if(session('success'))
                         <div class="mb-4 p-4 rounded-lg bg-green-50 border border-green-100 text-green-700">
                             {{ session('success') }}
@@ -201,6 +210,16 @@
                                        <option value="P.E Equipment">P.E Equipment</option>
                                        <option value="Low value Asset">Low value Asset</option>
                                 </select>
+                            </div>
+
+                            <!-- Supplier -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Supplier
+                                </label>
+                                <input type="text" name="supplier"
+                                       placeholder="Enter supplier name"
+                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
                             </div>
 
                             <!-- Condition -->
@@ -462,6 +481,14 @@
                                     </button>
                                 </div>
                                 <input type="hidden" name="asset_code" id="asset-code-input" value="">
+                                <div class="mt-4 max-w-sm">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Quantity <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="number" name="quantity" id="asset-quantity" min="1" max="100" value="1" required
+                                           class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                    <p class="text-xs text-gray-500 mt-1">Registers multiple identical assets. Quantity is not stored.</p>
+                                </div>
                             </div>
                             
                             <!-- Right side - QR Code -->
@@ -493,7 +520,7 @@
                                 class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all hover:scale-105 flex items-center shadow-md hover:shadow-lg"
                                 disabled>
                             <i class="ri-add-line mr-2"></i>
-                            Register Asset
+                            Register Assets
                         </button>
                     </div>
                 </form>
@@ -535,10 +562,40 @@
         </div>
     </div>
 
+    <!-- Bulk QR Preview Modal -->
+    <div id="bulkQrModal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 items-center justify-center modal">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl mx-4 max-h-[92vh] overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-900">Bulk QR Code Preview</h3>
+                    <p class="text-sm text-gray-500 mt-1" id="bulkQrSummary">Generated QR labels</p>
+                </div>
+                <button onclick="closeBulkQrModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <div id="bulkQrGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+            <div class="bulk-qr-actions p-6 border-t border-gray-200 bg-gray-50 flex flex-wrap gap-3 justify-end">
+                <button type="button" onclick="downloadBulkQrSheet()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center">
+                    <i class="ri-download-line mr-2"></i>
+                    Download Labels
+                </button>
+                <button type="button" onclick="printBulkQrSheet()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center">
+                    <i class="ri-printer-line mr-2"></i>
+                    Print QR Codes
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
         let qrcodeInstance = null;
         let modalQRCodeInstance = null;
+        const bulkQrLabels = @json($bulkQrLabels ?? []);
+        const bulkRegisteredCount = @json($bulkRegisteredCount ?? 0);
         
         // Initialize QR Code on page load and wire form inputs to regenerate
         document.addEventListener('DOMContentLoaded', function() {
@@ -551,7 +608,7 @@
             });
 
             // Also update when condition/radio or other selects change
-            document.querySelectorAll('select, input[type=text], input[type=date], input[type=radio]').forEach(el => el.addEventListener('change', () => { generateQRCode(); checkFormReadiness(); }));
+            document.querySelectorAll('select, input[type=text], input[type=number], input[type=date], input[type=radio]').forEach(el => el.addEventListener('change', () => { generateQRCode(); checkFormReadiness(); }));
 
             // Setup button references
             window._regenerateBtn = document.getElementById('regenerate-btn');
@@ -559,6 +616,11 @@
 
             // Initial readiness check
             checkFormReadiness();
+
+            if (bulkQrLabels.length > 0) {
+                renderBulkQrLabels();
+                openBulkQrModal();
+            }
         });
         
         function generateQRCode() {
@@ -595,7 +657,7 @@
             setTimeout(() => {
                 const qrCanvas = document.querySelector('#qrcode canvas');
                 if (qrCanvas && window._registerBtn) {
-                    window._registerBtn.disabled = false;
+                    window._registerBtn.disabled = !checkFormReadiness();
                     // also store the QR image into the hidden input so server receives it
                     try {
                         const dataUrl = qrCanvas.toDataURL('image/png');
@@ -629,10 +691,7 @@
                 displayElement.style.opacity = '1';
                 generateQRCode(); // Regenerate QR code with new ID
                 // enable register button now that qr exists
-                const qrCanvas = document.querySelector('#qrcode canvas');
-                if (qrCanvas && window._registerBtn) {
-                    window._registerBtn.disabled = false;
-                }
+                checkFormReadiness();
             }, 150);
             
             // Remove the highlight after animation
@@ -654,11 +713,15 @@
             const category = document.getElementById('asset-category')?.value?.trim();
             const acquisition = document.querySelector('input[name="acquisition_date"]')?.value?.trim();
             const condition = document.querySelector('input[name="condition"]:checked');
+            const quantity = parseInt(document.getElementById('asset-quantity')?.value || '0', 10);
 
-            const ready = name && category && acquisition && condition;
+            const ready = name && category && acquisition && condition && quantity >= 1;
             if (window._regenerateBtn) {
                 window._regenerateBtn.disabled = !ready;
                 window._regenerateBtn.classList.toggle('opacity-50', !ready);
+            }
+            if (window._registerBtn && document.querySelector('#qrcode canvas')) {
+                window._registerBtn.disabled = !ready;
             }
             return !!ready;
         }
@@ -742,6 +805,139 @@
                 printWindow.document.close();
                 printWindow.print();
             }
+        }
+
+        function openBulkQrModal() {
+            const modal = document.getElementById('bulkQrModal');
+            if (!modal) return;
+            const summary = document.getElementById('bulkQrSummary');
+            if (summary) {
+                summary.textContent = `Successfully registered ${bulkRegisteredCount} asset(s). QR labels are ready for printing.`;
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeBulkQrModal() {
+            const modal = document.getElementById('bulkQrModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function renderBulkQrLabels() {
+            const grid = document.getElementById('bulkQrGrid');
+            if (!grid) return;
+
+            grid.innerHTML = '';
+
+            bulkQrLabels.forEach((label) => {
+                const card = document.createElement('div');
+                card.className = 'bulk-qr-card rounded-xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col items-center gap-3';
+
+                const qrBox = document.createElement('div');
+                qrBox.className = 'w-36 h-36 flex items-center justify-center bg-white';
+
+                if (label.qr_url) {
+                    const img = document.createElement('img');
+                    img.src = label.qr_url;
+                    img.alt = `QR for ${label.code}`;
+                    img.className = 'w-36 h-36 object-contain';
+                    qrBox.appendChild(img);
+                } else {
+                    new QRCode(qrBox, {
+                        text: label.code,
+                        width: 144,
+                        height: 144,
+                        colorDark: '#1f2937',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                }
+
+                const meta = document.createElement('div');
+                meta.className = 'text-center';
+                const codeText = document.createElement('p');
+                codeText.className = 'text-sm font-semibold text-gray-900 break-all';
+                codeText.textContent = label.code || '';
+                const nameText = document.createElement('p');
+                nameText.className = 'text-xs text-gray-500 mt-1';
+                nameText.textContent = label.name || 'Asset';
+                meta.appendChild(codeText);
+                meta.appendChild(nameText);
+
+                card.appendChild(qrBox);
+                card.appendChild(meta);
+                grid.appendChild(card);
+            });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function buildBulkQrSheetHtml() {
+            const labelsHtml = bulkQrLabels.map((label) => {
+                const qrSource = label.qr_url || '';
+                return `
+                    <div class="bulk-qr-card">
+                        <div class="qr-image">
+                            ${qrSource ? `<img src="${escapeHtml(qrSource)}" alt="QR ${escapeHtml(label.code)}" />` : `<div class="fallback-qr">${escapeHtml(label.code)}</div>`}
+                        </div>
+                        <div class="qr-code">${escapeHtml(label.code)}</div>
+                        <div class="qr-name">${escapeHtml(label.name || 'Asset')}</div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <html>
+                    <head>
+                        <title>Bulk QR Labels</title>
+                        <style>
+                            @page { size: A4; margin: 12mm; }
+                            body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+                            .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10mm; }
+                            .bulk-qr-card { border: 1px solid #d1d5db; border-radius: 12px; padding: 10px; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+                            .qr-image { width: 60mm; height: 60mm; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; }
+                            .qr-image img { width: 100%; height: 100%; object-fit: contain; }
+                            .fallback-qr { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10pt; color: #111827; border: 1px dashed #9ca3af; border-radius: 8px; padding: 6px; word-break: break-all; }
+                            .qr-code { font-size: 11pt; font-weight: 700; color: #111827; word-break: break-all; }
+                            .qr-name { font-size: 9pt; color: #6b7280; margin-top: 3px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="sheet">${labelsHtml}</div>
+                    </body>
+                </html>
+            `;
+        }
+
+        function printBulkQrSheet() {
+            if (!bulkQrLabels.length) return;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(buildBulkQrSheetHtml());
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+
+        function downloadBulkQrSheet() {
+            if (!bulkQrLabels.length) return;
+            const blob = new Blob([buildBulkQrSheetHtml()], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'bulk-qr-labels.html';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
         }
         
         // User search using server-side endpoint (returns real DB users)
@@ -906,9 +1102,16 @@
             const category = document.querySelector('select[name="category"]').value;
             const condition = document.querySelector('input[name="condition"]:checked');
             const acquisitionDate = document.querySelector('input[name="acquisition_date"]').value;
+            const quantity = parseInt(document.getElementById('asset-quantity')?.value || '0', 10);
             if (!assetName || !category || !condition || !acquisitionDate) {
                 e.preventDefault();
                 alert('Please fill in all required fields (*)');
+                return;
+            }
+
+            if (!quantity || quantity < 1) {
+                e.preventDefault();
+                alert('Please enter a valid quantity of at least 1.');
                 return;
             }
 

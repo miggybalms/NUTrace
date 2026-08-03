@@ -20,14 +20,24 @@
                             <h1 class="text-2xl font-bold">{{ $asset->Asset_name ?? 'Asset' }}</h1>
                             <p class="text-sm text-gray-500 mt-1">Code: <span class="font-mono">{{ $asset->Asset_code }}</span></p>
                             <p class="text-sm text-gray-500 mt-1">Status: {{ $asset->Lifecycle_Status }}</p>
-                            <p class="text-sm text-gray-500 mt-1">Assigned to: {{ $asset->user?->full_name ?? 'Unassigned' }}</p>
+                            <p class="text-sm text-gray-500 mt-1">Assigned to: {{ $asset->full_name ?? 'Unassigned' }}</p>
                         </div>
                         <div class="text-right">
-                            @if($asset->url)
-                                <img src="{{ $asset->url }}" alt="Asset photo" class="h-28 w-auto rounded-lg border" />
-                            @else
-                                <div class="h-28 w-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">No Photo</div>
-                            @endif
+                        @php
+                        $photo = $asset->image_url ?? $asset->url ?? null;
+                        @endphp
+
+                        @if($photo)
+                        <img src="{{ \Illuminate\Support\Str::startsWith($photo, ['http://', 'https://', '/storage', 'storage/'])
+                        ? (Str::startsWith($photo, 'storage/') ? asset($photo) : $photo)
+                        : asset('storage/' . ltrim($photo, '/')) }}"
+                        alt="{{ $asset->Asset_name ?? 'Asset' }}"
+                        class="h-28 w-auto rounded-lg border object-cover" />
+                        @else
+                        <div class="h-28 w-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-sm">
+                        No Photo
+                        </div>
+                        @endif
                             @if(!empty($asset->qr_code_url) || !empty($asset->qr_code_path))
                                 <div class="mt-3">
                                     <p class="text-xs text-gray-500">Asset QR</p>

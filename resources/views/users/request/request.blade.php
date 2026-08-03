@@ -20,7 +20,7 @@
                             class="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 w-56"/>
                     </div>
                     <!-- Submit Request Button -->
-                    <a href="/user/requests/create"
+                    <a href="{{ route('user.request-asset') }}"
                        class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm">
                         <i class="ri-add-line mr-2"></i>
                         Submit Request

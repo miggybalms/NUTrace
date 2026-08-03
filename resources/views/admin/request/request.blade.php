@@ -497,23 +497,27 @@
             });
         });
         
-        function filterRequests(status) {
-            const rows = document.querySelectorAll('#requests-table-body tr');
-            rows.forEach(row => {
-                if (row.querySelector('td')) { // Skip empty state row
-                    // Status is in the 7th column (Request ID=1, Asset=2, Type=3, Submitted By=4, Date=5, Assigned To=6, Status=7)
-                    const statusCell = row.querySelector('td:nth-child(7) .status-badge');
-                    if (statusCell) {
-                        const rowStatus = statusCell.textContent.trim().toLowerCase();
-                        if (status === 'all' || rowStatus === status) {
-                            row.style.display = '';
-                        } else {
-                            row.style.display = 'none';
-                        }
-                    }
-                }
-            });
+ function filterRequests(status) {
+    const rows = document.querySelectorAll('#requests-table-body tr');
+    
+    rows.forEach(row => {
+        // Skip the empty-state row
+        if (!row.querySelector('td')) return;
+
+        // Status is in the 6th column
+        const statusCell = row.querySelector('td:nth-child(6) .status-badge');
+        
+        if (statusCell) {
+            const rowStatus = statusCell.textContent.trim().toLowerCase();
+            
+            if (status === 'all' || rowStatus === status) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
         }
+    });
+}
         
         // Read `tab` from query parameters and set initial active tab (defaults to 'all')
         (function() {

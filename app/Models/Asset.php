@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 #[Fillable([
     'user_id', 'Asset_code', 'Asset_name', 'Category', 'Condition', 'Lifecycle_Status',
     'accusion_date', 'accusion_cost', 'purchase_Price', 'warranty_months', 'supplier', 'model', 'manufacture',
-    'serial_Number', 'asset_location', 'qr_code_path', 'qr_code_url',
+    'serial_Number', 'asset_location', 'qr_code_path',
     'lifespan_months', 'expiration_date', 'repair_counts', 'last_maintenance_date', 'next_maintenance_date', 'maintenance_interval'
 ])]
 class Asset extends Model

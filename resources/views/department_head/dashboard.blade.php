@@ -185,7 +185,7 @@
                 <div class="mb-8">
                     <a href="{{ route('user.request-asset') }}" class="submit-btn bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all inline-flex items-center shadow-md">
                         <i class="ri-add-line mr-2 text-lg"></i>
-                        + Submit Request
+                        Submit Request
                     </a>
                 </div>
 

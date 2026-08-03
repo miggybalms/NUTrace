@@ -216,12 +216,12 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Select Asset *</label>
                         <select name="asset_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-red-500 focus:ring focus:ring-red-200">
-                            <option value="">Select asset...</option>
-                            <option value="1">Dell XPS 15 Laptop (AST-001)</option>
-                            <option value="2">HP Monitor 24" (AST-002)</option>
-                            <option value="3">Logitech Keyboard (AST-003)</option>
-                            <option value="4">Wireless Mouse (AST-004)</option>
-                            <option value="5">HP LaserJet Printer (AST-005)</option>
+                        <option value="">Select asset...</option>
+                        @foreach($availableAssets ?? [] as $asset)
+                        <option value="{{ $asset->id }}">
+                        {{ $asset->Asset_name }} ({{ $asset->Asset_code }})
+                        </option>
+                        @endforeach
                         </select>
                     </div>
                     <div>
