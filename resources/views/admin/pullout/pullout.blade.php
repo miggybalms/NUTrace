@@ -138,26 +138,30 @@
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
-            <!-- Header -->
-            <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div class="px-8 py-5">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center">
-                            <a href="#" onclick="window.history.back(); return false;" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
-                                <i class="ri-arrow-left-line text-xl"></i>
-                            </a>
-                            <div>
-                                <h2 class="text-2xl font-bold text-gray-900">Record Pullout</h2>
-                                <p class="text-sm text-gray-500 mt-1">Manage pulled out assets</p>
+                <!-- Header -->
+                <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                    <div class="px-4 sm:px-8 py-5">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center">
+                                <!-- Hamburger, mobile only -->
+                                <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-gray-600 hover:text-gray-900">
+                                    <i class="ri-menu-line text-2xl"></i>
+                                </button>
+                                <a href="#" onclick="window.history.back(); return false;" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
+                                    <i class="ri-arrow-left-line text-xl"></i>
+                                </a>
+                                <div>
+                                    <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Record Pullout</h2>
+                                    <p class="text-sm text-gray-500 mt-1 hidden sm:block">Manage pulled out assets</p>
+                                </div>
                             </div>
+                            <button onclick="openScannerAuto()" class="bg-orange-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-orange-700 transition-all hover:scale-105 flex items-center shadow-md">
+                                <i class="ri-add-line sm:mr-2"></i>
+                                <span class="hidden sm:inline">Record Pullout</span>
+                            </button>
                         </div>
-                        <button onclick="openScannerAuto()" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-all hover:scale-105 flex items-center shadow-md">
-                            <i class="ri-add-line mr-2"></i>
-                            Record Pullout
-                        </button>
                     </div>
                 </div>
-            </div>
 
             <!-- Content -->
             <div class="p-8">
@@ -188,10 +192,30 @@
                                                 <i class="ri-logout-box-r-line text-orange-600 text-xl"></i>
                                             </div>
                                             <div>
-                                                <h3 class="font-semibold text-gray-900">{{ $record->asset_name ?? 'Asset' }}</h3>
-                                                <p class="text-xs text-gray-500 font-mono">{{ $record->asset_code ?? 'N/A' }}</p>
+                                                <h3 class="font-semibold text-gray-900">
+                                                    @if(($record->asset_count ?? 1) > 1)
+                                                        {{ $record->asset_count }} Assets
+                                                    @else
+                                                        {{ $record->asset_name ?? 'Asset' }}
+                                                    @endif
+                                                </h3>
+                                                <p class="text-xs text-gray-500 font-mono">
+                                                    @if(($record->asset_count ?? 1) > 1)
+                                                        {{ $record->asset_codes->take(3)->implode(', ') }}
+                                                        @if($record->asset_codes->count() > 3)
+                                                            ...
+                                                        @endif
+                                                    @else
+                                                        {{ $record->asset_code ?? 'N/A' }}
+                                                    @endif
+                                                </p>
                                             </div>
                                         </div>
+                                        @if(($record->asset_count ?? 1) > 1)
+                                        <div class="mb-3 inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">
+                                            {{ $record->asset_count }} assets in one pullout
+                                        </div>
+                                        @endif
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                                             <div>
                                                 <p class="text-xs text-gray-500">Pullout Date</p>
@@ -223,16 +247,19 @@
                                         </div>
                                         @endif
                                     </div>
-                                    <div class="flex space-x-2">
-                                        <button onclick="viewPulloutDetails({{ $record->id }})" class="text-blue-600 hover:text-blue-700">
+                                        <div class="flex space-x-2">
+                                            <button onclick="viewPulloutDetails({{ $record->id }})" class="text-blue-600 hover:text-blue-700" title="View">
                                             <i class="ri-eye-line text-xl"></i>
-                                        </button>
-                                        @if(($record->status ?? 'pending') == 'pending')
-                                        <button onclick="approvePullout({{ $record->id }})" class="text-green-600 hover:text-green-700">
+                                            </button>
+                                            @if(($record->status ?? 'pending') == 'pending')
+                                            <button onclick="approvePullout({{ $record->id }})" class="text-green-600 hover:text-green-700" title="Approve">
                                             <i class="ri-checkbox-circle-line text-xl"></i>
-                                        </button>
-                                        @endif
-                                        <button onclick="deletePulloutRecord({{ $record->id }})" class="text-red-600 hover:text-red-700">
+                                            </button>
+                                            @endif
+                                            <button onclick="openEditPullout({{ $record->id }})" class="text-amber-600 hover:text-amber-700" title="Edit / Resolve">
+                                            <i class="ri-edit-line text-xl"></i>
+                                            </button>
+                                            <button onclick="openDisposeFromPullout({{ $record->id }})"class="text-red-600 hover:text-red-700" title="Dispose assets"> 
                                             <i class="ri-delete-bin-line text-xl"></i>
                                         </button>
                                     </div>
@@ -263,6 +290,70 @@
         </div>
     </div>
 
+    <!-- View Pullout Details Modal -->
+<div id="viewPulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h3 class="text-xl font-bold text-gray-900">Pullout Details</h3>
+                <p class="text-sm text-gray-500 mt-1">Pullout #<span id="viewPulloutIdLabel">—</span></p>
+            </div>
+            <button type="button" onclick="closeViewPullout()" class="text-gray-400 hover:text-gray-600">
+                <i class="ri-close-line text-2xl"></i>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-5">
+            <!-- Basic info -->
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <p class="text-xs text-gray-500">Pullout Date</p>
+                    <p id="viewPulloutDate" class="font-medium text-gray-900">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Status</p>
+                    <p id="viewPulloutStatus" class="font-medium">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Reason</p>
+                    <p id="viewPulloutReason" class="font-medium text-gray-900">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Pulled By</p>
+                    <p id="viewPulloutBy" class="font-medium text-gray-900">—</p>
+                </div>
+                <div class="col-span-2">
+                    <p class="text-xs text-gray-500">Destination / New Location</p>
+                    <p id="viewPulloutDestination" class="font-medium text-gray-900">—</p>
+                </div>
+                <div class="col-span-2">
+                    <p class="text-xs text-gray-500">Notes</p>
+                    <p id="viewPulloutNotes" class="font-medium text-gray-900">—</p>
+                </div>
+            </div>
+
+            <!-- Assets list -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-700 mb-2">Assets in this pullout</h4>
+                <div id="viewAssetList" class="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+            <button type="button" onclick="closeViewPullout()"
+                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+
     <!-- New Pullout Modal -->
     <div id="pulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center modal">
         <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -278,18 +369,24 @@
                 @csrf
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Asset *
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Asset(s) *
                             <button type="button" onclick="openScanner('pullout_asset_select')" title="Scan asset QR" class="ml-3 inline-flex items-center px-2 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100">
                                 <i class="ri-camera-line"></i>
                                 <span class="sr-only">Scan</span>
                             </button>
                         </label>
-                        <select id="pullout_asset_select" name="asset_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
-                            <option value="">Search or select asset...</option>
+                        <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <input type="text" id="pulloutAssetSearch" oninput="filterPulloutAssets(this.value)" placeholder="Search assets by code or name..." class="w-full sm:flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                            <button type="button" onclick="selectAllVisiblePulloutAssets()" class="px-4 py-2 border border-orange-200 rounded-lg text-orange-700 bg-orange-50 hover:bg-orange-100 transition">
+                                Select All Visible
+                            </button>
+                        </div>
+                        <select id="pullout_asset_select" name="asset_ids[]" multiple required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200 min-h-[180px]">
                             @foreach($availableAssets ?? [] as $asset)
                             <option value="{{ $asset->id }}" data-code="{{ $asset->asset_code }}" data-status="{{ $asset->Lifecycle_Status }}">{{ $asset->name }} ({{ $asset->asset_code }}) - Assigned to: {{ $asset->assignedUser->name ?? 'Unassigned' }}</option>
                             @endforeach
                         </select>
+                        <p class="mt-2 text-xs text-gray-500">Hold Ctrl on Windows or Command on Mac to select multiple assets.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Pullout Date *</label>
@@ -332,24 +429,170 @@
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center modal">
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
-            <div class="p-6">
-                <div class="text-center">
-                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <i class="ri-delete-bin-line text-2xl text-red-600"></i>
-                    </div>
-                    <h3 class="text-lg font-bold text-gray-900 mb-2">Delete Pullout Record</h3>
-                    <p class="text-gray-500 mb-4">Are you sure you want to delete this pullout record? This action cannot be undone.</p>
-                    <div class="flex space-x-3">
-                        <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                        <button onclick="confirmDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
-                    </div>
+    <!-- Dispose from Pullout Modal -->
+<div id="disposeFromPulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h3 class="text-xl font-bold text-gray-900">Dispose Assets</h3>
+                <p class="text-sm text-gray-500 mt-1">Pullout #<span id="disposePulloutIdLabel">—</span></p>
+            </div>
+            <button type="button" onclick="closeDisposeFromPullout()" class="text-gray-400 hover:text-gray-600">
+                <i class="ri-close-line text-2xl"></i>
+            </button>
+        </div>
+
+        <form id="disposeFromPulloutForm" class="p-6 space-y-4">
+            @csrf
+            <input type="hidden" id="disposePulloutId" name="pullout_id">
+
+            <div>
+                <p class="text-sm text-gray-600 mb-2">Select which assets to dispose:</p>
+                <div id="disposeAssetList" class="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                    <!-- filled by JS -->
+                </div>
+                <div class="mt-2 flex gap-2">
+                    <button type="button" onclick="selectAllDisposeAssets(true)" class="text-xs text-blue-600 hover:underline">Select all</button>
+                    <button type="button" onclick="selectAllDisposeAssets(false)" class="text-xs text-gray-500 hover:underline">Clear</button>
                 </div>
             </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Disposal Date</label>
+                <input type="date" name="disposal_date" value="{{ date('Y-m-d') }}"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <select name="reason" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="Obsolete">Obsolete</option>
+                    <option value="Damage">Damaged</option>
+                    <option value="Beyond Repair">Beyond Repair</option>
+                    <option value="Lost">Lost / Stolen</option>
+                    <option value="Replace">Replaced / Upgraded</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="Any additional notes..."></textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button type="button" onclick="closeDisposeFromPullout()"
+                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Dispose Selected
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="editPulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div>
+                <h3 class="text-xl font-bold text-gray-900">Resolve Pullout</h3>
+                <p class="text-sm text-gray-500 mt-1">Pullout #<span id="editPulloutIdLabel">—</span></p>
+            </div>
+            <button type="button" onclick="closeEditPullout()" class="text-gray-400 hover:text-gray-600">
+                <i class="ri-close-line text-2xl"></i>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-4">
+            <input type="hidden" id="editPulloutId">
+
+            <!-- Asset selection -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="block text-sm font-medium text-gray-700">Assets in this pullout *</label>
+                    <button type="button" onclick="toggleAllEditAssets(true)" class="text-xs text-orange-600 hover:underline">Select All</button>
+                </div>
+                <div id="editAssetList" class="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                    <!-- Filled by JS -->
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Uncheck any asset you want to leave in pullout.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Action *</label>
+                <select id="editAction" onchange="toggleEditActionFields()"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                    <option value="">Select action...</option>
+                    <option value="assign">Assign to new user (release from storage)</option>
+                    <option value="repair">Send to repair</option>
+                </select>
+            </div>
+
+            <!-- Assign block -->
+            <div id="editAssignBlock" class="hidden space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">New Owner *</label>
+                    <div class="relative">
+                        <input type="text" id="editUserSearch" autocomplete="off"
+                            placeholder="Type name or email to search..."
+                            oninput="filterEditUsers()" onfocus="showEditUserList()"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                        <input type="hidden" id="editAssignUserId" value="">
+                        <div id="editUserList"
+                            class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                            @foreach($users ?? [] as $u)
+                                <button type="button"
+                                    class="edit-user-option w-full text-left px-4 py-2 text-sm hover:bg-orange-50 border-b border-gray-100 last:border-0"
+                                    data-id="{{ $u->id }}"
+                                    data-label="{{ strtolower(($u->full_name ?? '') . ' ' . ($u->email ?? '')) }}"
+                                    onclick="selectEditUser(this)">
+                                    <span class="font-medium text-gray-900">{{ $u->full_name ?? 'User' }}</span>
+                                    <span class="text-gray-500 text-xs block">{{ $u->email }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Selected: <span id="editSelectedUserLabel" class="font-medium text-gray-700">None</span>
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">New Location *</label>
+                    <input type="text" id="editNewLocation" placeholder="e.g., Room 301, Faculty Office, Lab 2"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                </div>
+            </div>
+
+            <!-- Repair block -->
+            <div id="editRepairBlock" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Issue description</label>
+                <textarea id="editRepairNotes" rows="3" placeholder="What needs repair?"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Notes (optional)</label>
+                <textarea id="editNotes" rows="2" placeholder="Optional notes..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200"></textarea>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <button type="button" onclick="closeEditPullout()"
+                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="button" onclick="submitEditPullout()"
+                class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Save</button>
         </div>
     </div>
+</div> <!-- end of modal overlay -->
 
     <!-- Scanner Modal - Stays open until manually closed (same style as disposal) -->
     <div id="scannerModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 items-center justify-center modal">
@@ -406,6 +649,192 @@
         const adminName = "{{ Auth::user()->name ?? Auth::user()->email ?? 'Admin' }}";
         
         const statusEl = document.getElementById('qr-reader-status');
+
+
+// Store assets of the current pullout
+let currentPulloutAssets = [];
+
+function openEditPullout(id) {
+    document.getElementById('editPulloutId').value = id;
+    document.getElementById('editPulloutIdLabel').textContent = id;
+    document.getElementById('editAction').value = '';
+    document.getElementById('editAssignUserId').value = '';
+    document.getElementById('editNewLocation').value = '';
+    document.getElementById('editUserSearch').value = '';
+    document.getElementById('editSelectedUserLabel').textContent = 'None';
+    document.getElementById('editUserList')?.classList.add('hidden');
+    document.getElementById('editNotes').value = '';
+    document.getElementById('editRepairNotes').value = '';
+    toggleEditActionFields();
+
+    // Load the assets that belong to this pullout
+    loadPulloutAssets(id);
+
+    const modal = document.getElementById('editPulloutModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+async function loadPulloutAssets(pulloutId) {
+    const container = document.getElementById('editAssetList');
+    container.innerHTML = '<p class="text-sm text-gray-500 p-2">Loading assets...</p>';
+
+    try {
+        const res = await fetch(`/admin/pullout/${pulloutId}/assets`);
+        const data = await res.json();
+
+        if (!data.success || !data.assets.length) {
+            container.innerHTML = '<p class="text-sm text-red-500 p-2">No assets found.</p>';
+            currentPulloutAssets = [];
+            return;
+        }
+
+        currentPulloutAssets = data.assets;
+        container.innerHTML = '';
+
+        data.assets.forEach(asset => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded';
+            div.innerHTML = `
+                <input type="checkbox" class="edit-asset-checkbox rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                    value="${asset.id}" id="edit_asset_${asset.id}" checked>
+                <label for="edit_asset_${asset.id}" class="text-sm cursor-pointer flex-1">
+                    <span class="font-medium">${asset.name}</span>
+                    <span class="text-xs text-gray-500 font-mono ml-1">${asset.code}</span>
+                </label>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<p class="text-sm text-red-500 p-2">Failed to load assets.</p>';
+        currentPulloutAssets = [];
+    }
+}
+
+function toggleAllEditAssets(checked) {
+    document.querySelectorAll('.edit-asset-checkbox').forEach(cb => cb.checked = checked);
+}
+
+async function submitEditPullout() {
+    const id = document.getElementById('editPulloutId').value;
+    const action = document.getElementById('editAction').value;
+    const assignToUserId = document.getElementById('editAssignUserId').value || null;
+    const repairNotes = document.getElementById('editRepairNotes')?.value || '';
+    const newLocation = document.getElementById('editNewLocation')?.value || '';
+    const notes = document.getElementById('editNotes')?.value || '';
+
+    // Collect ONLY the checked assets
+    const selectedAssetIds = Array.from(
+        document.querySelectorAll('#editAssetList .edit-asset-checkbox:checked')
+    ).map(cb => parseInt(cb.value, 10));
+
+    console.log('Selected asset IDs being sent:', selectedAssetIds);
+
+    if (!action) {
+        showToast('Please select an action.', 'error');
+        return;
+    }
+    if (selectedAssetIds.length === 0) {
+        showToast('Please select at least one asset.', 'error');
+        return;
+    }
+
+    if (action === 'assign') {
+        if (!assignToUserId) {
+            showToast('Please select a new owner.', 'error');
+            return;
+        }
+        if (!newLocation.trim()) {
+            showToast('New location is required.', 'error');
+            return;
+        }
+    }
+
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const res = await fetch('/admin/pullout/' + id + '/resolve', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                action: action,
+                asset_ids: selectedAssetIds,          // ← this line was missing
+                assign_to_user_id: assignToUserId,
+                repair_notes: repairNotes,
+                new_location: newLocation,
+                notes: notes,
+            }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            showToast(data.message || 'Failed to update pullout', 'error');
+            return;
+        }
+        showToast(data.message || 'Updated successfully');
+        closeEditPullout();
+        await refreshPulloutList();
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+function showEditUserList() {
+    const list = document.getElementById('editUserList');
+    if (list) list.classList.remove('hidden');
+}
+
+function filterEditUsers() {
+    const q = (document.getElementById('editUserSearch')?.value || '').toLowerCase().trim();
+    const list = document.getElementById('editUserList');
+    if (!list) return;
+
+    list.classList.remove('hidden');
+    list.querySelectorAll('.edit-user-option').forEach((btn) => {
+        const label = btn.getAttribute('data-label') || '';
+        btn.style.display = (!q || label.includes(q)) ? '' : 'none';
+    });
+}
+
+function selectEditUser(btn) {
+    const id = btn.getAttribute('data-id');
+    const name = btn.querySelector('.font-medium')?.textContent || 'User';
+    const email = btn.querySelector('.text-xs')?.textContent || '';
+
+    document.getElementById('editAssignUserId').value = id;
+    document.getElementById('editUserSearch').value = name + (email ? ' (' + email + ')' : '');
+    document.getElementById('editSelectedUserLabel').textContent = name + (email ? ' — ' + email : '');
+    document.getElementById('editUserList').classList.add('hidden');
+}
+
+// Close list when clicking outside
+document.addEventListener('click', function (e) {
+    const block = document.getElementById('editAssignBlock');
+    const list = document.getElementById('editUserList');
+    if (!block || !list || block.classList.contains('hidden')) return;
+    if (!block.contains(e.target)) {
+        list.classList.add('hidden');
+    }
+});
+
+function closeEditPullout() {
+    const modal = document.getElementById('editPulloutModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function toggleEditActionFields() {
+    const action = document.getElementById('editAction').value;
+    document.getElementById('editAssignBlock').classList.toggle('hidden', action !== 'assign');
+    document.getElementById('editRepairBlock').classList.toggle('hidden', action !== 'repair');
+}
+
+
+
 
         // Open scanner for auto pullout (Record Pullout button)
         function openScannerAuto() {
@@ -586,7 +1015,11 @@
             }
             
             if (opt) {
-                sel.value = opt.value;
+                if (sel.multiple) {
+                    opt.selected = true;
+                } else {
+                    sel.value = opt.value;
+                }
                 sel.dispatchEvent(new Event('change'));
                 sel.classList.add('border-green-500', 'bg-green-50');
                 setTimeout(() => {
@@ -596,6 +1029,31 @@
             } else {
                 showToast('Asset not found: ' + code, 'error');
             }
+        }
+
+        function filterPulloutAssets(query) {
+            const select = document.getElementById('pullout_asset_select');
+            if (!select) return;
+
+            const term = (query || '').trim().toLowerCase();
+            Array.from(select.options).forEach((option) => {
+                const haystack = `${option.textContent || ''} ${option.dataset.code || ''}`.toLowerCase();
+                option.hidden = term ? !haystack.includes(term) : false;
+            });
+        }
+
+        function selectAllVisiblePulloutAssets() {
+            const select = document.getElementById('pullout_asset_select');
+            if (!select) return;
+
+            Array.from(select.options).forEach((option) => {
+                if (!option.hidden) {
+                    option.selected = true;
+                }
+            });
+
+            select.dispatchEvent(new Event('change'));
+            showToast('Visible assets selected.');
         }
 
         async function handleAutoPullout(code) {
@@ -634,7 +1092,7 @@
             }
 
             const payload = {
-                asset_id: assetId,
+                asset_ids: [assetId],
                 pullout_date: new Date().toISOString().slice(0,10),
                 reason: 'Scanned Pullout',
                 pulled_by: adminName,
@@ -762,9 +1220,76 @@
             document.getElementById('pulloutModal').classList.remove('flex');
         }
         
-        function viewPulloutDetails(id) {
-            showToast('Viewing details for pullout #' + id);
+async function viewPulloutDetails(id) {
+    // Show loading state
+    document.getElementById('viewPulloutIdLabel').textContent = id;
+    document.getElementById('viewPulloutDate').textContent = 'Loading...';
+    document.getElementById('viewPulloutStatus').textContent = '—';
+    document.getElementById('viewPulloutReason').textContent = '—';
+    document.getElementById('viewPulloutBy').textContent = '—';
+    document.getElementById('viewPulloutDestination').textContent = '—';
+    document.getElementById('viewPulloutNotes').textContent = '—';
+    document.getElementById('viewAssetList').innerHTML = '<p class="p-4 text-sm text-gray-500">Loading assets...</p>';
+
+    const modal = document.getElementById('viewPulloutModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+        // Fetch pullout basic info + assets
+        const res = await fetch(`/admin/pullout/${id}/details`);
+        const data = await res.json();
+
+        if (!data.success) {
+            showToast(data.message || 'Failed to load details', 'error');
+            closeViewPullout();
+            return;
         }
+
+        const p = data.pullout;
+
+        document.getElementById('viewPulloutDate').textContent = p.pullout_date || '—';
+        document.getElementById('viewPulloutStatus').innerHTML = `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                ${p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                  p.status === 'approved' ? 'bg-green-100 text-green-700' :
+                  'bg-red-100 text-red-700'}">
+                ${p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : '—'}
+            </span>`;
+        document.getElementById('viewPulloutReason').textContent = p.reason || p.Description || '—';
+        document.getElementById('viewPulloutBy').textContent = p.pulled_by || p.Approve_by || '—';
+        document.getElementById('viewPulloutDestination').textContent = p.destination || '—';
+        document.getElementById('viewPulloutNotes').textContent = p.notes || '—';
+
+        // Assets
+        const list = document.getElementById('viewAssetList');
+        if (!data.assets || data.assets.length === 0) {
+            list.innerHTML = '<p class="p-4 text-sm text-gray-500">No assets linked.</p>';
+        } else {
+            list.innerHTML = data.assets.map(a => `
+                <div class="flex items-center justify-between p-3 hover:bg-gray-50">
+                    <div>
+                        <p class="font-medium text-gray-900">${a.name || 'Asset'}</p>
+                        <p class="text-xs text-gray-500 font-mono">${a.code || '—'}</p>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                        ${a.status || '—'}
+                    </span>
+                </div>
+            `).join('');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Network error while loading details', 'error');
+        closeViewPullout();
+    }
+}
+
+function closeViewPullout() {
+    const modal = document.getElementById('viewPulloutModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
         
         async function approvePullout(id) {
             if (confirm('Approve this pullout request?')) {
@@ -802,37 +1327,113 @@
             currentDeleteId = null;
         }
         
-        async function confirmDelete() {
-            if (currentDeleteId) {
-                try {
-                    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                    const response = await fetch('/admin/pullout/delete/' + currentDeleteId, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json'
-                        }
-                    });
-                    if (response.ok) {
-                        showToast('Pullout record deleted');
-                        await refreshPulloutList();
-                    } else {
-                        showToast('Failed to delete', 'error');
-                    }
-                } catch (error) {
-                    showToast('Network error: ' + error.message, 'error');
-                }
-                closeDeleteModal();
-            }
+async function openDisposeFromPullout(id) {
+    document.getElementById('disposePulloutId').value = id;
+    document.getElementById('disposePulloutIdLabel').textContent = id;
+    document.getElementById('disposeAssetList').innerHTML = '<p class="p-4 text-sm text-gray-500">Loading assets...</p>';
+
+    const modal = document.getElementById('disposeFromPulloutModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+        const res = await fetch(`/admin/pullout/${id}/details`);
+        const data = await res.json();
+
+        if (!data.success || !data.assets || data.assets.length === 0) {
+            document.getElementById('disposeAssetList').innerHTML =
+                '<p class="p-4 text-sm text-gray-500">No assets linked to this pullout.</p>';
+            return;
         }
+
+        document.getElementById('disposeAssetList').innerHTML = data.assets.map(a => `
+            <label class="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
+                <input type="checkbox" name="asset_ids[]" value="${a.id}" class="dispose-asset-cb rounded border-gray-300 text-red-600" checked>
+                <div class="flex-1">
+                    <p class="font-medium text-gray-900">${a.name || 'Asset'}</p>
+                    <p class="text-xs text-gray-500 font-mono">${a.code || '—'}</p>
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">${a.status || '—'}</span>
+            </label>
+        `).join('');
+    } catch (e) {
+        console.error(e);
+        showToast('Failed to load assets', 'error');
+        closeDisposeFromPullout();
+    }
+}
+
+function closeDisposeFromPullout() {
+    const modal = document.getElementById('disposeFromPulloutModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function selectAllDisposeAssets(checked) {
+    document.querySelectorAll('.dispose-asset-cb').forEach(cb => cb.checked = checked);
+}
+
+document.getElementById('disposeFromPulloutForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const pulloutId = document.getElementById('disposePulloutId').value;
+    const selected = Array.from(document.querySelectorAll('.dispose-asset-cb:checked')).map(cb => cb.value);
+
+    if (selected.length === 0) {
+        showToast('Please select at least one asset to dispose.', 'error');
+        return;
+    }
+
+    const formData = new FormData(this);
+    const payload = {
+        asset_ids: selected,
+        disposal_date: formData.get('disposal_date'),
+        reason: formData.get('reason'),
+        notes: formData.get('notes') || '',
+        disposed_by: @json(Auth::user()->email ?? 'Admin'),
+    };
+
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const res = await fetch(`/admin/pullout/${pulloutId}/dispose`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            showToast(data.message || data.error || 'Failed to dispose', 'error');
+            return;
+        }
+
+        showToast(data.message || 'Assets disposed successfully!');
+        closeDisposeFromPullout();
+        await refreshPulloutList();
+    } catch (err) {
+        showToast('Network error: ' + err.message, 'error');
+    }
+});
 
         // Form submission
         document.getElementById('pulloutForm')?.addEventListener('submit', async function(e) {
             e.preventDefault();
             const formData = new FormData(this);
             const data = Object.fromEntries(formData);
+            data.asset_ids = formData.getAll('asset_ids[]').filter(Boolean);
+            delete data['asset_ids[]'];
+            delete data.asset_id;
             data.status = 'pending';
+
+            if (!data.asset_ids.length) {
+                showToast('Please select at least one asset.', 'error');
+                return;
+            }
             
             try {
                 const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');

@@ -82,32 +82,38 @@
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
-            <!-- Header -->
-            <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div class="px-8 py-5">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-2xl font-bold text-gray-900">Requests</h2>
-                            <div class="flex items-center mt-1">
-                                <span class="text-sm text-blue-600 font-medium">Admin</span>
-                                <span class="mx-2 text-gray-300">•</span>
-                                <p class="text-sm text-gray-500">Manage and process asset requests</p>
+                <!-- Header -->
+                <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                    <div class="px-4 sm:px-8 py-5">
+                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                            <div class="flex items-center">
+                                <!-- Hamburger, mobile only -->
+                                <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-gray-600 hover:text-gray-900">
+                                    <i class="ri-menu-line text-2xl"></i>
+                                </button>
+                                <div>
+                                    <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Requests</h2>
+                                    <div class="flex items-center mt-1">
+                                        <span class="text-sm text-blue-600 font-medium">Admin</span>
+                                        <span class="mx-2 text-gray-300">•</span>
+                                        <p class="text-sm text-gray-500 hidden sm:block">Manage and process asset requests</p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center">
-                                <i class="ri-file-copy-line mr-2"></i>
-                                Export Report
-                            </button>
+                            <div class="flex items-center space-x-3">
+                            <button onclick="exportRequests()" class="w-full sm:w-auto justify-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center">
+                                    <i class="ri-file-copy-line mr-2"></i>
+                                    Export Report
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
             <!-- Content -->
-            <div class="p-8">
+            <div class="p-4 sm:p-8">
                 <!-- Statistics Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div class="flex items-center justify-between">
                             <div>
@@ -136,26 +142,26 @@
 
                 <!-- Tabs -->
                 <div class="bg-white rounded-t-xl shadow-sm border border-gray-200 mb-0">
-                    <div class="flex space-x-8 px-6 pt-4">
-                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition" data-tab="all">
+                    <div class="flex space-x-6 sm:space-x-8 px-4 sm:px-6 pt-4 overflow-x-auto scrollbar-hide">
+                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition whitespace-nowrap" data-tab="all">
                             All Requests
                         </button>
-                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition" data-tab="pending">
+                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition whitespace-nowrap" data-tab="pending">
                             Pending
                         </button>
-                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition" data-tab="approved">
+                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition whitespace-nowrap" data-tab="approved">
                             Approved
                         </button>
-                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition" data-tab="rejected">
+                        <button class="tab-btn pb-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition whitespace-nowrap" data-tab="rejected">
                             Rejected
                         </button>
                     </div>
                 </div>
 
                 <!-- Main Content Area: Request List + Details Side by Side -->
-                <div class="flex gap-6">
+                <div class="flex flex-col lg:flex-row gap-6">
                     <!-- Request List Section -->
-                    <div class="flex-1 bg-white rounded-b-xl shadow-sm border border-t-0 border-gray-200 overflow-hidden">
+                    <div class="flex-1 min-w-0 bg-white rounded-b-xl lg:rounded-b-xl shadow-sm border border-t-0 border-gray-200 overflow-hidden">
                         <div class="overflow-x-auto scrollbar-hide">
                             <table class="w-full">
                                 <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
@@ -231,7 +237,7 @@
                     </div>
 
                     <!-- Request Details Section -->
-                    <div class="w-96 bg-white rounded-xl shadow-sm border border-gray-200 overflow-y-auto" id="request-details-panel">
+                    <div class="w-full lg:w-96 lg:flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 overflow-y-auto" id="request-details-panel">
                         <div class="p-6">
                             <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                                 <i class="ri-file-info-line mr-2 text-blue-600"></i>
@@ -261,9 +267,12 @@
                                         <p class="text-sm font-semibold text-gray-900 font-mono" id="detail-id">-</p>
                                     </div>
                                     
+                                    <!-- Assets list (supports bulk) -->
                                     <div class="pb-3 border-b border-gray-100">
-                                        <p class="text-xs text-gray-500 mb-1">Asset Name</p>
-                                        <p class="text-sm font-semibold text-gray-900" id="detail-asset">-</p>
+                                        <p class="text-xs text-gray-500 mb-2">Asset(s)</p>
+                                        <div id="detail-assets-list" class="space-y-2">
+                                            <!-- filled by JS -->
+                                        </div>
                                     </div>
                                     
                                     <div class="pb-3 border-b border-gray-100">
@@ -298,7 +307,7 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Action Buttons for Details Panel -->
+                                <!-- Action Buttons -->
                                 <div class="mt-6 pt-4 border-t border-gray-200 flex gap-3" id="detail-actions">
                                     <button onclick="approveCurrentRequest()" class="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center">
                                         <i class="ri-checkbox-circle-line mr-2"></i>
@@ -323,6 +332,46 @@
     </div>
 
     <script>
+        function exportRequests() {
+    const rows = [['Request ID', 'Asset Name', 'Type', 'Submitted By', 'Date', 'Status']];
+
+    document.querySelectorAll('#requests-table-body tr').forEach(row => {
+        // Skip empty state or hidden rows
+        if (!row.querySelector('td') || row.style.display === 'none') return;
+
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 6) return;
+
+        rows.push([
+            cells[0]?.innerText.trim() || '',
+            cells[1]?.innerText.trim() || '',
+            cells[2]?.innerText.trim().replace(/\n/g, ' ') || '',
+            cells[3]?.innerText.trim() || '',
+            cells[4]?.innerText.trim() || '',
+            cells[5]?.innerText.trim().replace(/\n/g, ' ') || '',
+        ]);
+    });
+
+    if (rows.length <= 1) {
+        alert('No requests to export.');
+        return;
+    }
+
+    // Build CSV (escape quotes)
+    const csv = rows.map(r =>
+        r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'requests-report-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
         // Sample requests data (replace with your actual data from Laravel)
         const requestsData = @json($requests ?? []);
         let currentSelectedRequestId = null;
@@ -347,54 +396,77 @@
             }
         }
         
-        function displayRequestDetails(request) {
-            // Hide no selection message and show details
-            document.getElementById('no-selection-message').style.display = 'none';
-            document.getElementById('request-detail-content').style.display = 'block';
-            
-            // Populate photo
-            const photoImg = document.getElementById('detail-photo');
-            const photoPlaceholder = document.getElementById('detail-photo-placeholder');
-            if (request.image) {
-                photoImg.src = request.image;
-                photoImg.classList.remove('hidden');
-                photoPlaceholder.classList.add('hidden');
-            } else {
-                photoImg.classList.add('hidden');
-                photoPlaceholder.classList.remove('hidden');
-            }
-            
-            // Populate details
-            document.getElementById('detail-id').textContent = `#REQ-${String(request.id).padStart(4, '0')}`;
-            document.getElementById('detail-asset').textContent = request.asset_name;
-            document.getElementById('detail-type').innerHTML = getTypeBadge(request.type);
-            document.getElementById('detail-submitter').textContent = request.submitted_by;
-            document.getElementById('detail-email').textContent = request.email || 'user@university.edu';
-            document.getElementById('detail-date').textContent = new Date(request.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-            document.getElementById('detail-description').textContent = request.description || 'No description provided.';
-            
-            // Status badge
-            const statusBadge = document.getElementById('detail-status-badge');
-            statusBadge.innerHTML = getStatusBadge(request.status);
-            
-            // Show/hide action buttons based on status
-            const actionButtons = document.getElementById('detail-actions');
-            if (request.status === 'pending') {
-                actionButtons.style.display = 'flex';
-            } else {
-                actionButtons.style.display = 'none';
+            function displayRequestDetails(request) {
+                // Hide no selection message and show details
+                document.getElementById('no-selection-message').style.display = 'none';
+                document.getElementById('request-detail-content').style.display = 'block';
+                
+                // Populate photo
+                const photoImg = document.getElementById('detail-photo');
+                const photoPlaceholder = document.getElementById('detail-photo-placeholder');
+                if (request.image) {
+                    photoImg.src = request.image;
+                    photoImg.classList.remove('hidden');
+                    photoPlaceholder.classList.add('hidden');
+                } else {
+                    photoImg.classList.add('hidden');
+                    photoPlaceholder.classList.remove('hidden');
+                }
+                
+                // Basic fields
+                document.getElementById('detail-id').textContent = `#REQ-${String(request.id).padStart(4, '0')}`;
+                document.getElementById('detail-type').innerHTML = getTypeBadge(request.type);
+                document.getElementById('detail-submitter').textContent = request.submitted_by;
+                document.getElementById('detail-email').textContent = request.email || '—';
+                document.getElementById('detail-date').textContent = new Date(request.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('detail-description').textContent = request.description || 'No description provided.';
+                
+                // Status badge
+                const statusBadge = document.getElementById('detail-status-badge');
+                statusBadge.innerHTML = getStatusBadge(request.status);
+                
+                // Show/hide action buttons
+                const actionButtons = document.getElementById('detail-actions');
+                actionButtons.style.display = (request.status === 'pending') ? 'flex' : 'none';
+
+                // Assigned-to (Transfer)
+                const assignedBlock = document.getElementById('detail-assigned-block');
+                const assignedToEl = document.getElementById('detail-assigned-to');
+                if (request.type === 'transfer' && request.assigned_to) {
+                    assignedToEl.textContent = request.assigned_to;
+                    assignedBlock.style.display = 'block';
+                } else {
+                    assignedBlock.style.display = 'none';
+                }
+
+                // ─── Assets list (supports bulk) ───────────────────────
+                const assetsContainer = document.getElementById('detail-assets-list');
+                assetsContainer.innerHTML = '';
+
+                const assets = request.assets || [];
+                if (assets.length === 0) {
+                    assetsContainer.innerHTML = `<p class="text-sm text-gray-500">No assets linked to this request.</p>`;
+                } else {
+                    assets.forEach(asset => {
+                        const div = document.createElement('div');
+                        div.className = 'bg-gray-50 rounded-lg px-3 py-2';
+                        div.innerHTML = `
+                            <p class="text-sm font-medium text-gray-900">${escapeHtml(asset.name || 'Unnamed')}</p>
+                            <p class="text-xs text-gray-500 font-mono mt-0.5">${escapeHtml(asset.code || '')}</p>
+                        `;
+                        assetsContainer.appendChild(div);
+                    });
+                }
             }
 
-            // Show assigned to block if transfer and assigned_to present
-            const assignedBlock = document.getElementById('detail-assigned-block');
-            const assignedToEl = document.getElementById('detail-assigned-to');
-            if (request.type === 'transfer' && request.assigned_to) {
-                assignedToEl.textContent = request.assigned_to;
-                assignedBlock.style.display = 'block';
-            } else {
-                assignedBlock.style.display = 'none';
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
             }
-        }
         
         function getTypeBadge(type) {
             const badges = {

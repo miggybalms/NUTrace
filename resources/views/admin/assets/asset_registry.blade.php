@@ -9,128 +9,120 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-        }
-        
-        .sidebar-item {
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        
-        .sidebar-item:hover {
-            background-color: #374151;
-        }
-        
-        .sidebar-item.active {
-            background-color: #1f2937;
-            color: #3b82f6;
-            border-right: 3px solid #3b82f6;
-        }
-        
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        /* Regenerate Button Animations */
-        .regenerate-btn {
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .regenerate-btn:hover {
-            background-color: #3b82f6;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
-        
-        .regenerate-btn:hover i {
-            animation: spin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .regenerate-btn:active {
-            transform: translateY(0px);
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* QR Code Styles */
-        .qr-container {
-            transition: all 0.3s ease;
-        }
-        
-        .qr-container:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-        }
-        
-        .modal {
-            transition: all 0.3s ease;
-        }
-        
-        .modal.show {
-            display: flex;
-            animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-        
-        .download-btn:hover {
-            transform: translateY(-2px);
-        }
-        
-        .asset-id-display {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
-        }
-        
-        .asset-id-display.updated {
-            transform: scale(1.02);
-            background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
-            border-color: #3b82f6;
-        }
-        
-        .condition-badge {
-            transition: all 0.2s ease;
-        }
-        
-        .condition-badge:hover {
-            transform: scale(1.05);
-        }
-        
-        .search-results {
-            max-height: 200px;
-            overflow-y: auto;
-            scrollbar-width: thin;
-        }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    }
 
-        .bulk-qr-card {
-            break-inside: avoid;
-            page-break-inside: avoid;
-        }
-    </style>
+    .sidebar-item {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .sidebar-item:hover {
+        background-color: #374151;
+    }
+    
+    .sidebar-item.active {
+        background-color: #1f2937;
+        color: #3b82f6;
+        border-right: 3px solid #3b82f6;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .regenerate-btn {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .regenerate-btn:hover {
+        background-color: #3b82f6;
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    
+    .regenerate-btn:hover i {
+        animation: spin 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .regenerate-btn:active {
+        transform: translateY(0px);
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .qr-container {
+        transition: all 0.3s ease;
+    }
+    
+    .qr-container:hover {
+        transform: scale(1.05);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    
+    .modal {
+        transition: all 0.3s ease;
+    }
+    
+    .modal.show {
+        display: flex;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: scale(0.9); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    
+    .download-btn:hover {
+        transform: translateY(-2px);
+    }
+    
+    .asset-id-display {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    }
+    
+    .asset-id-display.updated {
+        transform: scale(1.02);
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+        border-color: #3b82f6;
+    }
+    
+    .condition-badge {
+        transition: all 0.2s ease;
+    }
+    
+    .condition-badge:hover {
+        transform: scale(1.05);
+    }
+    
+    .search-results {
+        max-height: 200px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+
+    .bulk-qr-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+</style>
 </head>
 <body class="bg-gray-50">
     <div class="flex h-screen overflow-hidden">
@@ -768,44 +760,134 @@
             }
         }
         
-        function printQRCode() {
-            const qrCanvas = document.querySelector('#modal-qrcode canvas');
-            if (qrCanvas) {
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write(`
-                    <html>
-                        <head>
-                            <title>Print QR Code</title>
-                            <style>
-                                body {
-                                    display: flex;
-                                    justify-content: center;
-                                    align-items: center;
-                                    height: 100vh;
-                                    margin: 0;
-                                    font-family: Arial, sans-serif;
-                                }
-                                .container {
-                                    text-align: center;
-                                }
-                                img {
-                                    max-width: 300px;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="container">
-                                <h2>Asset QR Code</h2>
-                                <img src="${qrCanvas.toDataURL()}" />
-                                <p>Asset ID: ${document.getElementById('asset-code-input').value}</p>
-                            </div>
-                        </body>
-                    </html>
-                `);
-                printWindow.document.close();
-                printWindow.print();
-            }
-        }
+                function printQRCode() {
+                    const assetCode = document.getElementById('asset-code-input')?.value || '';
+                    const assetName = document.getElementById('asset-name')?.value || 'ASSET';
+                    const category  = document.getElementById('asset-category')?.value || '';
+                    const location  = document.getElementById('asset-location')?.value || '';
+                    const acquired  = document.querySelector('input[name="acquisition_date"]')?.value || '';
+
+                    let acquiredFormatted = '—';
+                    if (acquired) {
+                        const d = new Date(acquired);
+                        acquiredFormatted = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+                    }
+
+                    let qrDataUrl = '';
+                    const canvas = document.querySelector('#qrcode canvas') || document.querySelector('#modal-qrcode canvas');
+                    if (canvas) qrDataUrl = canvas.toDataURL('image/png');
+
+                    const win = window.open('', '_blank', 'width=500,height=300');
+                    win.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                <title>QR Sticker – ${assetCode}</title>
+                <style>
+                @page { size: 90mm 40mm; margin: 0; }
+                * { margin:0; padding:0; box-sizing:border-box; }
+                body { font-family: Arial, Helvetica, sans-serif; }
+                .tag {
+                    width: 90mm;
+                    height: 40mm;
+                    border: 0.4mm solid #222;
+                    display: grid;
+                    grid-template-columns: 1fr 28mm;
+                    grid-template-rows: auto 1fr auto;
+                    overflow: hidden;
+                }
+                .top {
+                    grid-column: 1 / -1;
+                    text-align: center;
+                    padding: 1.5mm 2mm 1mm;
+                    border-bottom: 0.3mm solid #222;
+                }
+                .top .office { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.4px; }
+                .top .name   { font-size: 9pt; font-weight: 700; text-transform: uppercase; margin-top: 0.5mm; }
+                .top .sub    { font-size: 5.5pt; color: #444; margin-top: 0.3mm; }
+                .left {
+                    padding: 1.5mm 2mm;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    gap: 1mm;
+                    border-right: 0.3mm solid #222;
+                }
+                .code {
+                    font-family: 'Courier New', monospace;
+                    font-size: 8pt;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                }
+                .meta {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr 1fr;
+                    gap: 1mm;
+                    font-size: 6pt;
+                }
+                .meta div {
+                    border: 0.25mm solid #999;
+                    padding: 0.8mm;
+                    text-align: center;
+                }
+                .meta strong { display:block; font-size: 5pt; color:#555; }
+                .qr-side {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 1mm;
+                }
+                .qr-side img { width: 22mm; height: 22mm; }
+                .qr-side span { font-size: 5pt; margin-top: 0.5mm; }
+                .footer {
+                    grid-column: 1 / -1;
+                    text-align: center;
+                    font-size: 6pt;
+                    font-weight: 700;
+                    color: #c00;
+                    padding: 1mm;
+                    border-top: 0.3mm solid #222;
+                    letter-spacing: 0.5px;
+                }
+                @media print {
+                    body { margin: 0; }
+                    .tag { border: 0.4mm solid #222; }
+                }
+                </style>
+                </head>
+                <body>
+                <div class="tag">
+                    <div class="top">
+                    <div class="office">ASSET MANAGEMENT OFFICE</div>
+                    <div class="name">${assetName}</div>
+                    <div class="sub">NU LIPA</div>
+                    </div>
+                    <div class="left">
+                    <div class="code">${assetCode}</div>
+                    <div class="meta">
+                        <div><strong>Location</strong>${location || '—'}</div>
+                        <div><strong>Category</strong>${category || '—'}</div>
+                        <div><strong>Acquired</strong>${acquiredFormatted}</div>
+                    </div>
+                    </div>
+                    <div class="qr-side">
+                    <img src="${qrDataUrl}" alt="QR">
+                    <span>Scan me</span>
+                    </div>
+                    <div class="footer">DO NOT REMOVE THIS TAG</div>
+                </div>
+                <script>
+                    window.onload = function() {
+                    window.print();
+                    setTimeout(() => window.close(), 500);
+                    };
+                <\/script>
+                </body>
+                </html>
+                    `);
+                    win.document.close();
+                }
 
         function openBulkQrModal() {
             const modal = document.getElementById('bulkQrModal');
@@ -872,73 +954,217 @@
             });
         }
 
-        function escapeHtml(value) {
-            return String(value ?? '')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;');
-        }
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
 
-        function buildBulkQrSheetHtml() {
-            const labelsHtml = bulkQrLabels.map((label) => {
-                const qrSource = label.qr_url || '';
-                return `
-                    <div class="bulk-qr-card">
-                        <div class="qr-image">
-                            ${qrSource ? `<img src="${escapeHtml(qrSource)}" alt="QR ${escapeHtml(label.code)}" />` : `<div class="fallback-qr">${escapeHtml(label.code)}</div>`}
+            function formatAcquiredDate(raw) {
+                if (!raw || raw === '—') return '—';
+                const d = new Date(raw);
+                if (isNaN(d.getTime())) return '—';
+                return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
+            }
+
+            async function buildBulkQrSheetHtml() {
+                // Recover form data saved before submit
+                let saved = {};
+                try {
+                    saved = JSON.parse(sessionStorage.getItem('lastAssetMeta') || '{}');
+                } catch (e) {}
+
+                const cards = await Promise.all(bulkQrLabels.map(async (label) => {
+                    let qrSrc = '';
+
+                    if (label.qr_url) {
+                        try {
+                            const res = await fetch(label.qr_url);
+                            const blob = await res.blob();
+                            qrSrc = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result);
+                                reader.readAsDataURL(blob);
+                            });
+                        } catch (e) {}
+                    }
+
+                    if (!qrSrc && label.code) {
+                        const temp = document.createElement('div');
+                        temp.style.cssText = 'position:absolute;left:-9999px';
+                        document.body.appendChild(temp);
+                        new QRCode(temp, {
+                            text: label.code,
+                            width: 128,
+                            height: 128,
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
+                        const canvas = temp.querySelector('canvas');
+                        if (canvas) qrSrc = canvas.toDataURL('image/png');
+                        temp.remove();
+                    }
+
+                    // Prefer label data → saved form data → dash
+                    const location = label.location || saved.location || '—';
+                    const category = label.category || saved.category || '—';
+                    const acquired = formatAcquiredDate(label.acquired || saved.acquired || '');
+
+                    return `
+                    <div class="tag">
+                        <div class="header">
+                        <div class="office">ASSET MANAGEMENT OFFICE</div>
+                        <div class="name">${escapeHtml(label.name || saved.name || 'ASSET')}</div>
+                        <div class="campus">NU LIPA</div>
                         </div>
-                        <div class="qr-code">${escapeHtml(label.code)}</div>
-                        <div class="qr-name">${escapeHtml(label.name || 'Asset')}</div>
+                        <div class="body">
+                        <div class="info">
+                            <div class="code">${escapeHtml(label.code || '')}</div>
+                            <div class="row">
+                            <div class="cell"><span>Location</span>${escapeHtml(location)}</div>
+                            <div class="cell"><span>Category</span>${escapeHtml(category)}</div>
+                            <div class="cell"><span>Acquired</span>${escapeHtml(acquired)}</div>
+                            </div>
+                        </div>
+                        <div class="qr">
+                            ${qrSrc ? `<img src="${qrSrc}" alt="QR">` : `<div class="no-qr">NO QR</div>`}
+                            <span>Scan me</span>
+                        </div>
+                        </div>
+                        <div class="footer">DO NOT REMOVE THIS TAG</div>
                     </div>
-                `;
-            }).join('');
+                    `;
+                }));
 
-            return `
-                <html>
-                    <head>
-                        <title>Bulk QR Labels</title>
-                        <style>
-                            @page { size: A4; margin: 12mm; }
-                            body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-                            .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10mm; }
-                            .bulk-qr-card { border: 1px solid #d1d5db; border-radius: 12px; padding: 10px; text-align: center; break-inside: avoid; page-break-inside: avoid; }
-                            .qr-image { width: 60mm; height: 60mm; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; }
-                            .qr-image img { width: 100%; height: 100%; object-fit: contain; }
-                            .fallback-qr { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10pt; color: #111827; border: 1px dashed #9ca3af; border-radius: 8px; padding: 6px; word-break: break-all; }
-                            .qr-code { font-size: 11pt; font-weight: 700; color: #111827; word-break: break-all; }
-                            .qr-name { font-size: 9pt; color: #6b7280; margin-top: 3px; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="sheet">${labelsHtml}</div>
-                    </body>
-                </html>
-            `;
-        }
+                return `<!DOCTYPE html>
+            <html>
+            <head>
+            <title>Bulk QR Labels</title>
+            <style>
+            @page { size: A4; margin: 8mm; }
+            * { margin:0; padding:0; box-sizing:border-box; }
+            body { font-family: Arial, Helvetica, sans-serif; }
+            .sheet {
+                display: grid;
+                grid-template-columns: repeat(2, 90mm);
+                gap: 5mm 6mm;
+                justify-content: center;
+            }
+            .tag {
+                width: 90mm;
+                height: 40mm;
+                border: 0.45mm solid #111;
+                display: flex;
+                flex-direction: column;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                overflow: hidden;
+            }
+            .header {
+                text-align: center;
+                padding: 1.2mm 2mm 0.8mm;
+                border-bottom: 0.35mm solid #111;
+            }
+            .header .office { font-size: 6pt; font-weight: 700; letter-spacing: 0.5px; }
+            .header .name   { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; margin-top: 0.3mm; }
+            .header .campus { font-size: 5.5pt; color: #444; }
+            .body {
+                flex: 1;
+                display: grid;
+                grid-template-columns: 1fr 25mm;
+                min-height: 0;
+            }
+            .info {
+                padding: 1.2mm 2mm;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 1.2mm;
+                border-right: 0.35mm solid #111;
+            }
+            .code {
+                font-family: 'Courier New', monospace;
+                font-size: 7.5pt;
+                font-weight: 700;
+            }
+            .row {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 0.8mm;
+            }
+            .cell {
+                border: 0.25mm solid #888;
+                padding: 0.6mm 0.5mm;
+                text-align: center;
+                font-size: 5.5pt;
+                line-height: 1.15;
+            }
+            .cell span {
+                display: block;
+                font-size: 4.5pt;
+                color: #555;
+                font-weight: 600;
+            }
+            .qr {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 1mm;
+            }
+            .qr img { width: 20mm; height: 20mm; }
+            .qr span { font-size: 4.5pt; margin-top: 0.3mm; }
+            .no-qr {
+                width: 20mm; height: 20mm;
+                border: 0.3mm dashed #999;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 5pt; color: #999;
+            }
+            .footer {
+                text-align: center;
+                font-size: 5.5pt;
+                font-weight: 700;
+                color: #c00;
+                padding: 0.7mm;
+                border-top: 0.35mm solid #111;
+                letter-spacing: 0.4px;
+            }
+            </style>
+            </head>
+            <body>
+            <div class="sheet">${cards.join('')}</div>
+            </body>
+            </html>`;
+            }
 
-        function printBulkQrSheet() {
-            if (!bulkQrLabels.length) return;
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(buildBulkQrSheetHtml());
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-        }
+            async function printBulkQrSheet() {
+                if (!bulkQrLabels || !bulkQrLabels.length) {
+                    alert('No QR labels to print.');
+                    return;
+                }
+                const html = await buildBulkQrSheetHtml();
+                const win = window.open('', '_blank');
+                win.document.write(html);
+                win.document.close();
+                win.focus();
+                setTimeout(() => win.print(), 800);
+            }
 
-        function downloadBulkQrSheet() {
-            if (!bulkQrLabels.length) return;
-            const blob = new Blob([buildBulkQrSheetHtml()], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'bulk-qr-labels.html';
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            URL.revokeObjectURL(url);
-        }
+            async function downloadBulkQrSheet() {
+                if (!bulkQrLabels || !bulkQrLabels.length) return;
+                const html = await buildBulkQrSheetHtml();
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'bulk-qr-labels.html';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+            }
         
         // User search using server-side endpoint (returns real DB users)
         const searchInput = document.getElementById('user-search');
@@ -1139,6 +1365,12 @@
                 // ignore
             }
         });
+        sessionStorage.setItem('lastAssetMeta', JSON.stringify({
+        location: document.getElementById('asset-location')?.value || '',
+        category: document.getElementById('asset-category')?.value || '',
+        acquired: document.querySelector('input[name="acquisition_date"]')?.value || '',
+        name:     document.getElementById('asset-name')?.value || ''
+        }));
         
         // Toast popup for server messages
         function showToast(message, type = 'success') {

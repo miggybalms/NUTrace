@@ -3,12 +3,24 @@
     $initials = $user ? strtoupper(substr($user->full_name, 0, 2)) : 'AO';
 @endphp
 
-<div class="w-64 bg-gray-900 text-white flex flex-col overflow-y-auto">
-    <div class="p-6 border-b border-gray-800">
+<!-- Mobile overlay (click to close sidebar) -->
+<div id="sidebarOverlay" onclick="closeSidebar()"
+     class="hidden fixed inset-0 bg-black/50 z-40 lg:hidden"></div>
+
+<div id="sidebar"
+     class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col overflow-y-auto
+            transform -translate-x-full transition-transform duration-300 ease-in-out
+            lg:translate-x-0 lg:static lg:z-auto">
+
+    <div class="p-6 border-b border-gray-800 flex items-center justify-between">
         <h1 class="text-2xl font-bold flex items-center">
             <i class="ri-dashboard-line mr-2"></i>
             Dashboard
         </h1>
+        <!-- Close button, mobile only -->
+        <button onclick="closeSidebar()" class="lg:hidden text-gray-400 hover:text-white">
+            <i class="ri-close-line text-2xl"></i>
+        </button>
     </div>
 
     <div class="p-4 border-b border-gray-800">
@@ -76,3 +88,28 @@
         </a>
     </div>
 </div>
+
+<script>
+    function openSidebar() {
+        document.getElementById('sidebar').classList.remove('-translate-x-full');
+        document.getElementById('sidebarOverlay').classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('sidebarOverlay').classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.contains('-translate-x-full')
+            ? openSidebar()
+            : closeSidebar();
+    }
+    // Reset sidebar state if window is resized past the mobile breakpoint
+    window.addEventListener('resize', function () {
+        if (window.innerWidth >= 1024) {
+            document.getElementById('sidebarOverlay').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+    });
+</script>

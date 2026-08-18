@@ -33,16 +33,15 @@ class AppServiceProvider extends ServiceProvider
 
         View::share('currentUser', $user);
 
-        // Auto-transition assets from 'Acquired' to 'Active' after 1 day
+        // Auto-transition assets from 'Acquired' to 'Active' after 1 minute
         try {
             if (\Illuminate\Support\Facades\Schema::hasTable('assets')) {
-                $threshold = Carbon::now()->subDay();
+                $threshold = Carbon::now()->subMinute();
 
                 $updated = Asset::where('Lifecycle_Status', 'Acquired')
                     ->where(function ($q) use ($threshold) {
                         $q->whereNotNull('accusion_date')
-                          ->where('accusion_date', '<=', $threshold->toDateString())
-                          ->orWhere('created_at', '<=', $threshold);
+                          ->where('created_at', '<=', $threshold);
                     })
                     ->update(['Lifecycle_Status' => 'Active']);
 

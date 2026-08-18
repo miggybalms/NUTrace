@@ -155,20 +155,24 @@
         <div class="flex-1 overflow-y-auto bg-gray-50">
             <!-- Header -->
             <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div class="px-8 py-5">
+                <div class="px-4 sm:px-8 py-5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center">
+                            <!-- Hamburger, mobile only -->
+                            <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-gray-600 hover:text-gray-900">
+                                <i class="ri-menu-line text-2xl"></i>
+                            </button>
                             <a href="#" onclick="window.history.back(); return false;" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
                                 <i class="ri-arrow-left-line text-xl"></i>
                             </a>
                             <div>
-                                <h2 class="text-2xl font-bold text-gray-900">Disposal</h2>
-                                <p class="text-sm text-gray-500 mt-1">Manage disposed assets</p>
+                                <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Disposal</h2>
+                                <p class="text-sm text-gray-500 mt-1 hidden sm:block">Manage disposed assets</p>
                             </div>
                         </div>
-                        <button onclick="openScannerAuto()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all hover:scale-105 flex items-center shadow-md">
-                            <i class="ri-add-line mr-2"></i>
-                            Record Disposal
+                        <button onclick="openScannerAuto()" class="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-700 transition-all hover:scale-105 flex items-center shadow-md">
+                            <i class="ri-add-line sm:mr-2"></i>
+                            <span class="hidden sm:inline">Record Disposal</span>
                         </button>
                     </div>
                 </div>
@@ -226,14 +230,23 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex space-x-2">
-                                        <button onclick="viewDisposalDetails({{ $record->id }})" class="text-blue-600 hover:text-blue-700">
-                                            <i class="ri-eye-line text-xl"></i>
-                                        </button>
-                                        <button onclick="deleteDisposalRecord({{ $record->id }})" class="text-red-600 hover:text-red-700">
-                                            <i class="ri-delete-bin-line text-xl"></i>
-                                        </button>
-                                    </div>
+                                        <div class="flex space-x-2">
+                                            @if($record->asset_still_exists ?? true)
+                                                {{-- Asset still in database → show view + permanent delete --}}
+                                                <button onclick="viewDisposalDetails({{ $record->id }})" 
+                                                        class="text-blue-600 hover:text-blue-700" title="View">
+                                                    <i class="ri-eye-line text-xl"></i>
+                                                </button>
+                                                <button onclick="permanentDeleteAsset({{ $record->id }})" 
+                                                        class="text-red-600 hover:text-red-700" 
+                                                        title="Permanently delete asset from system">
+                                                    <i class="ri-delete-bin-line text-xl"></i>
+                                                </button>
+                                            @else
+                                                {{-- Asset already gone → just a historical record --}}
+                                                <span class="text-xs text-gray-400 italic self-center">Archived</span>
+                                            @endif
+                                        </div>
                                 </div>
                             </div>
                             @endforeach
@@ -735,16 +748,41 @@ async function handleAutoDispose(code) {
             document.getElementById('disposalModal').classList.remove('flex');
         }
         
-        function viewDisposalDetails(id) {
-            showToast('Viewing details for disposal #' + id);
+function viewDisposalDetails(id) {
+    showToast('Viewing details for disposal #' + id);
+}
+
+async function permanentDeleteAsset(disposalId) {
+    if (!confirm('This will PERMANENTLY delete the asset from the system.\n\nThe disposal record will remain for history, but the asset can never be recovered.\n\nAre you sure?')) {
+        return;
+    }
+
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const res = await fetch(`/admin/disposal/${disposalId}/permanent-delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+            },
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            showToast(data.error || data.message || 'Failed to delete', 'error');
+            console.error('Permanent delete failed:', data);
+            return;
         }
-        
-        function deleteDisposalRecord(id) {
-            if (confirm('Are you sure you want to delete this disposal record?')) {
-                showToast('Disposal record #' + id + ' deleted');
-            }
-        }
-        
+
+        showToast(data.message || 'Asset permanently deleted. Record kept.');
+        await refreshDisposalList();
+    } catch (err) {
+        showToast('Network error: ' + err.message, 'error');
+    }
+}
+
 document.getElementById('disposalForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
@@ -763,7 +801,6 @@ document.getElementById('disposalForm')?.addEventListener('submit', async functi
         });
         
         const json = await response.json().catch(() => ({}));
-        console.log('Form disposal response:', response.status, json);
 
         if (response.ok && json.success) {
             showToast('✓ Disposal recorded successfully!');
@@ -779,11 +816,10 @@ document.getElementById('disposalForm')?.addEventListener('submit', async functi
     }
 });
 
-        // Clean up on page unload
-        window.addEventListener('beforeunload', function() {
-            stopScanner();
-        });
-    </script>
+window.addEventListener('beforeunload', function() {
+    stopScanner();
+});
+</script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 </body>
 </html>

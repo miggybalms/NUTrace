@@ -73,17 +73,24 @@
         <div class="flex-1 overflow-y-auto bg-gray-50">
             <!-- Header -->
             <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div class="px-8 py-5">
-                    <div class="flex justify-between items-center">
+            <div class="px-4 sm:px-8 py-5">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center">
+                        <!-- Hamburger, mobile only -->
+                        <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-gray-600 hover:text-gray-900">
+                            <i class="ri-menu-line text-2xl"></i>
+                        </button>
                         <div>
-                            <h2 class="text-2xl font-bold text-gray-900">Dashboard</h2>
+                            <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h2>
                             <div class="flex items-center mt-1">
                                 <span class="text-sm text-blue-600 font-medium">Admin</span>
                                 <span class="mx-2 text-gray-300">•</span>
-                                <p class="text-sm text-gray-500">Overview of asset management system</p>
+                                <p class="text-sm text-gray-500 hidden sm:block">Overview of asset management system</p>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-4">
+                    </div>
+                    <div class="flex items-center space-x-4">
+                <!-- bell + avatar block stays exactly the same -->
                             <!-- Maintenance Alerts Bell -->
                             <div class="relative">
                                 <button id="maintenanceAlertsBell" class="relative cursor-pointer text-gray-600 hover:text-gray-900 transition" title="Maintenance & Lifespan Alerts">
@@ -139,7 +146,7 @@
             <!-- Dashboard Content -->
             <div class="p-8">
                 <!-- Quick Summary -->
-                <div class="mb-8 flex items-start justify-between">
+                <div class="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
                         <h3 class="text-lg font-semibold text-gray-900">Quick summary of key metrics</h3>
                         <p class="text-sm text-gray-500 mt-1">Real-time overview of your asset inventory</p>
@@ -153,7 +160,7 @@
                 </div>
 
                 <!-- Metrics Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
                     <!-- Acquired this month -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 card-hover">
                         <div class="flex items-start justify-between">

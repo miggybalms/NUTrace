@@ -23,11 +23,11 @@
                     <input type="date" id="dateFilter"
                         class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 text-gray-600"/>
                     <!-- Export -->
-                    <button onclick="exportLogs()"
-                        class="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">
+                    <a href="{{ url('/admin/audit-logs/export') }}"
+                    class="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">
                         <i class="ri-download-line mr-2"></i>
                         Export
-                    </button>
+                    </a>
                     <!-- Notification -->
                     <div class="relative cursor-pointer">
                         <i class="ri-notification-3-line text-xl text-gray-600"></i>

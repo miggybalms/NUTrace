@@ -13,6 +13,62 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\UserRequestController;
 use Carbon\Carbon;
 
+if (!function_exists('normalizePulloutAssetIds')) {
+    function normalizePulloutAssetIds($assetIds): array
+    {
+        if ($assetIds instanceof \Illuminate\Support\Collection) {
+            $assetIds = $assetIds->all();
+        }
+
+        if (!is_array($assetIds)) {
+            $assetIds = [$assetIds];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($assetId) => (int) $assetId,
+            $assetIds
+        ))));
+    }
+}
+
+if (!function_exists('createPulloutTransaction')) {
+    function createPulloutTransaction(array $data, array $assetIds): int
+    {
+        $assetIds = normalizePulloutAssetIds($assetIds);
+
+        if (empty($assetIds)) {
+            throw new \InvalidArgumentException('At least one asset must be selected.');
+        }
+
+        return DB::transaction(function () use ($data, $assetIds) {
+            $pulloutId = DB::table('pullouts')->insertGetId([
+                'request_id' => $data['request_id'] ?? null,
+                'asset_id' => $data['asset_id'] ?? ($assetIds[0] ?? null),
+                'Approve_by' => $data['Approve_by'] ?? null,
+                'Description' => $data['Description'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'pullout_date' => $data['pullout_date'] ?? now()->toDateString(),
+                'destination' => $data['destination'] ?? null,
+                'expected_return_date' => $data['expected_return_date'] ?? null,
+                'status' => $data['status'] ?? 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            foreach ($assetIds as $assetId) {
+                DB::table('pullout_items')->insert([
+                    'pullout_id' => $pulloutId,
+                    'asset_id' => $assetId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return $pulloutId;
+        });
+    }
+}
+
 // Handle login form submission
 Route::post('/login', function (Request $request) {
     $credentials = $request->validate([
@@ -418,14 +474,11 @@ Route::get('/department-head/assets', function (Request $request) {
 Route::get('/department-head/assets/{id}', function ($id) {
     $user = Auth::user();
     if (!$user) {
-        if ($request->wantsJson() || $request->ajax()) {
-            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
-        }
         return redirect('/login');
     }
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    // Fetch asset with its image from asset_files and user with employee_numbers
+    // Fetch asset with its image and owner name
     $asset = DB::table('assets')
         ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
@@ -449,11 +502,17 @@ Route::get('/department-head/assets/{id}', function ($id) {
             'employee_numbers.Full_Name as full_name'
         )
         ->first();
-    
+
     if (!$asset) return abort(404);
     if (($asset->department_id ?? null) !== $user->department_id) return abort(403);
 
-    return view('department_head.asset.show', compact('asset'));
+    // Repair history for this asset only
+    $repairs = DB::table('repairs')
+        ->where('Assets_id', $id)
+        ->orderByDesc('Repair_Date')
+        ->get();
+
+    return view('department_head.asset.show', compact('asset', 'repairs'));
 })->where('id', '[0-9]+');
 
 // Department Head: take accountability for an asset (sets asset.user_id to current user)
@@ -573,56 +632,99 @@ Route::get('/admin', function () {
 
 // API: lookup asset by Asset_code (used by admin scanner modal)
 Route::get('/admin/assets/scan', function (Request $request) {
-    $code = $request->query('code');
-    if (!$code) {
-        return response()->json(['success' => false, 'message' => 'Missing code'], 400);
+    $code = trim((string) $request->query('code', ''));
+    if ($code === '') {
+        return response()->json(['success' => false, 'message' => 'code missing'], 422);
     }
-    // Try a few safe ways to query the asset code to be compatible with different DB identifier casing
-    $asset = null;
+
     $codeLower = strtolower($code);
-    try {
-        // Try quoting the column name first (handles case-sensitive column names)
-        $asset = Asset::with('user')->whereRaw('LOWER("Asset_code") = ?', [$codeLower])->first();
-    } catch (\Exception $e) {
-        // ignore and try unquoted
-        try {
-            $asset = Asset::with('user')->whereRaw('LOWER(asset_code) = ?', [$codeLower])->first();
-        } catch (\Exception $e) {
-            // final fallback: try direct equality on possible column names
-            try {
-                $asset = Asset::with('user')->where('Asset_code', $code)->orWhere('asset_code', $code)->first();
-            } catch (\Exception $e) {
-                return response()->json(['success' => false, 'message' => 'Lookup failed (DB error).'], 500);
-            }
-        }
+
+    $asset = DB::table('assets')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+        ->whereRaw('LOWER("Asset_code") = ?', [$codeLower])
+        ->select(
+            'assets.id',
+            'assets.Asset_name',
+            'assets.Asset_code',
+            'assets.Lifecycle_Status',
+            'assets.asset_location',
+            'employee_numbers.Full_Name as owner_name',
+            'departments.Name as department_name',
+            DB::raw('MAX(asset_files.url) as image_url')
+        )
+        ->groupBy(
+            'assets.id',
+            'assets.Asset_name',
+            'assets.Asset_code',
+            'assets.Lifecycle_Status',
+            'assets.asset_location',
+            'employee_numbers.Full_Name',
+            'departments.Name'
+        )
+        ->first();
+
+    // Fallback if quoted column fails
+    if (!$asset) {
+        $asset = DB::table('assets')
+            ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+            ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+            ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+            ->whereRaw('LOWER(Asset_code) = ?', [$codeLower])
+            ->select(
+                'assets.id',
+                'assets.Asset_name',
+                'assets.Asset_code',
+                'assets.Lifecycle_Status',
+                'assets.asset_location',
+                'employee_numbers.Full_Name as owner_name',
+                'departments.Name as department_name',
+                DB::raw('MAX(asset_files.url) as image_url')
+            )
+            ->groupBy(
+                'assets.id',
+                'assets.Asset_name',
+                'assets.Asset_code',
+                'assets.Lifecycle_Status',
+                'assets.asset_location',
+                'employee_numbers.Full_Name',
+                'departments.Name'
+            )
+            ->first();
     }
 
     if (!$asset) {
         return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
     }
 
-    // Get department name from user's department_id
-    $departmentName = null;
-    if ($asset->user && $asset->user->department_id) {
-        $dept = DB::table('departments')->where('id', $asset->user->department_id)->first();
-        $departmentName = $dept?->Name ?? $dept?->name ?? null;
+    // Build image URL
+    $imageUrl = null;
+    if (!empty($asset->image_url)) {
+        $img = $asset->image_url;
+        if (str_starts_with($img, 'http') || str_starts_with($img, '/storage')) {
+            $imageUrl = $img;
+        } else {
+            $imageUrl = asset('storage/' . ltrim($img, '/'));
+        }
     }
 
-    $data = [
-        'id' => $asset->id,
-        'asset_code' => $asset->Asset_code ?? $asset->asset_code ?? null,
-        'name' => $asset->Asset_name ?? $asset->name ?? null,
-        'status' => $asset->Lifecycle_Status ?? $asset->lifecycle_status ?? null,
-        'department' => $departmentName,
-        'owner' => $asset->user?->full_name ?? null,
-        'serial' => $asset->serial_Number ?? $asset->serial_number ?? null,
-        'location' => $asset->asset_location ?? null,
-        'purchase_price' => isset($asset->purchase_Price) ? number_format($asset->purchase_Price, 2) : (isset($asset->purchase_price) ? number_format($asset->purchase_price, 2) : null),
-        'image_url' => $asset->url ?? null,
-    ];
-
-    return response()->json(['success' => true, 'data' => $data]);
-});
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'id'         => $asset->id,
+            'name'       => $asset->Asset_name ?? '-',
+            'asset_code' => $asset->Asset_code ?? '-',
+            'status'     => $asset->Lifecycle_Status ?? '-',
+            'department' => $asset->department_name ?? '-',
+            'owner'      => $asset->owner_name ?? 'Unassigned',
+            'location'   => $asset->asset_location ?? '-',
+            'image_url'  => $imageUrl,
+        ],
+    ]);
+})->middleware('auth');
 
 // Create Department Endpoint
 Route::post('/admin/create-department', function (Request $request) {
@@ -675,7 +777,7 @@ Route::get('/admin/department/{deptId}/users', function ($deptId) {
             ->where('users.department_id', $deptId)
             ->select('users.id', 'employee_numbers.Full_Name as full_name', 'users.email', 'employee_numbers.Employee_number as employee_number', 'users.role')
             ->orderBy('employee_numbers.Full_Name')
-            ->get();
+            ->get();    
 
         return response()->json([
             'success' => true,
@@ -852,6 +954,66 @@ Route::get('/admin/audit-logs', function () {
 
     return view('admin.audit-log.audit_logs', compact('logs', 'totalLogs', 'todayLogs', 'weekLogs', 'activeUsers'));
 });
+
+Route::get('/admin/audit-logs/export', function () {
+    $logs = DB::table('audit_logs')
+        ->leftJoin('users', 'audit_logs.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->leftJoin('assets', 'audit_logs.asset_id', '=', 'assets.id')
+        ->leftJoin('requests', 'audit_logs.request_id', '=', 'requests.id')
+        ->select(
+            'audit_logs.id',
+            'audit_logs.notes',
+            'audit_logs.action_type',
+            'audit_logs.action_description',
+            'audit_logs.created_at',
+            'employee_numbers.Full_Name as user_name',
+            'users.role as user_role',
+            'assets.Asset_name as asset_name',
+            'assets.Asset_code as asset_code',
+            'requests.request_type',
+            'audit_logs.request_id'
+        )
+        ->orderByDesc('audit_logs.created_at')
+        ->get();
+
+    $filename = 'audit-logs-' . now()->format('Y-m-d-His') . '.csv';
+
+    $headers = [
+        'Content-Type'        => 'text/csv; charset=UTF-8',
+        'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+    ];
+
+    $callback = function () use ($logs) {
+        $file = fopen('php://output', 'w');
+
+        // UTF-8 BOM so Excel shows special characters correctly
+        fwrite($file, "\xEF\xBB\xBF");
+
+        // Header row
+        fputcsv($file, ['User', 'Role', 'Action', 'Asset', 'Asset Code', 'Request', 'Date']);
+
+        foreach ($logs as $log) {
+            fputcsv($file, [
+                $log->user_name ?? '—',
+                $log->user_role ?? '—',
+                $log->notes ?? ($log->action_description ?? '—'),
+                $log->asset_name ?? '—',
+                $log->asset_code ?? '—',
+                $log->request_type
+                    ? ($log->request_type . ' (REQ-' . str_pad($log->request_id ?? 0, 5, '0', STR_PAD_LEFT) . ')')
+                    : '—',
+                $log->created_at
+                    ? \Carbon\Carbon::parse($log->created_at)->format('Y-m-d H:i:s')
+                    : '—',
+            ]);
+        }
+
+        fclose($file);
+    };
+
+    return response()->stream($callback, 200, $headers);
+})->middleware('auth');
 
 // Admin maintenance alerts API endpoint
 Route::get('/admin/api/maintenance-alerts', function () {
@@ -1359,126 +1521,112 @@ Route::get('/admin/assets/{id}', function ($id) {
 })->where('id', '[0-9]+');
 
 // Admin department assets page
-Route::get('/admin/assets/department/{department}', function ($department) {
-    // Check if parameter is numeric (ID) or string (name)
-    $dept = null;
-    if (is_numeric($department)) {
-        $dept = DB::table('departments')->where('id', $department)->first();
-    } else {
-        $departmentName = urldecode($department);
-        $dept = DB::table('departments')->where('Name', $departmentName)->first();
-    }
-    
-    if (!$dept) {
-        abort(404, 'Department not found');
-    }
-    
-    $departmentId = $dept->id;
-    $departmentName = $dept->Name;
+Route::get('/admin/assets/department/{departmentId?}', function (Request $request, $departmentId = null) {
+    // Resolve department (adjust to how you currently get it)
+    $departmentId = $departmentId ?? $request->query('department_id');
+    $department = DB::table('departments')->where('id', $departmentId)->first();
+    $departmentName = $department->Name ?? 'Department';
 
-    $categoryEnumValues = [
-        'Furnitures and Fixtures',
-        'General and Office Equipment',
-        'Info and Equipment',
-        'laboratory Apparatus and equipment',
-        'library books',
-        'Motor vehicles',
-        'P.E Equipment',
-        'Low value Asset',
+    $status   = $request->query('status', 'all');      // all | active | acquired | for_repair | pulled_out | disposed
+    $search   = trim((string) $request->query('search', ''));
+    $category = $request->query('category', 'all');
+
+    $query = DB::table('assets')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->where('users.department_id', $departmentId)   // or however you scope to the department
+        ->select(
+            'assets.id as db_id',
+            'assets.Asset_code as id',
+            'assets.Asset_name as name',
+            'assets.Category as category',
+            'assets.Category as category_code',
+            'assets.Lifecycle_Status as status_raw',
+            'assets.asset_location as location',
+            'assets.accusion_date as date_acquired',
+            'assets.serial_Number as serial_number',
+            'assets.purchase_Price as purchase_price',
+            'assets.warranty_months as warranty_months',   
+            'assets.Condition as condition',               
+            'assets.qr_code_path',
+            'employee_numbers.Full_Name as accountable'
+        );
+
+        
+
+    // Status filter
+$status = request('status', 'all');
+if ($status !== 'all') {
+    $map = [
+        'active'     => 'Active',
+        'acquired'   => 'Acquired',
+        'for_repair' => 'For Repair',
+        'pulled_out' => 'Pullout',   // or whatever the real value is
+        'disposed'   => 'Disposal',
     ];
+    if (isset($map[$status])) {
+        $query->where('assets.Lifecycle_Status', $map[$status]);
+    }
+}
 
-    $toCategoryCode = function (string $category): string {
-        $normalized = strtolower(trim($category));
-        $normalized = preg_replace('/\s+/', ' ', $normalized);
+    // Search
+if ($search = request('search')) {
+    $query->where(function ($q) use ($search) {
+        $q->where('assets.Asset_name', 'like', "%{$search}%")
+          ->orWhere('assets.Asset_code', 'like', "%{$search}%")
+          ->orWhere('employee_numbers.Full_Name', 'like', "%{$search}%");
+    });
+}
 
-        $map = [
-            'furnitures and fixtures' => 'furnitures_and_fixtures',
-            'general and office equipment' => 'general_and_office_equipment',
-            'info and equipment' => 'info_and_equipment',
-            'laboratory apparatus and equipment' => 'laboratory_apparatus_and_equipment',
-            'library books' => 'library_books',
-            'motor vehicles' => 'motor_vehicles',
-            'p.e equipment' => 'pe_equipment',
-            'low value asset' => 'low_value_asset',
+$assets = $query
+    ->orderBy('assets.Asset_name')
+    ->paginate(10)
+    ->withQueryString();
+
+    // Category
+    $category = request('category', 'all');
+    if ($category && $category !== 'all') {
+        $query->where('assets.Category', $category);
+    }
+
+    $paginator = $query->orderBy('assets.Asset_name')->paginate(10)->withQueryString();
+
+    // Normalize for the Blade
+    $assets = $paginator->getCollection()->map(function ($a) {
+        $statusMap = [
+            'Active'     => 'active',
+            'Acquired'   => 'acquired',
+            'For Repair' => 'for_repair',
+            'Pullout'    => 'pulled_out',
+            'Disposal'   => 'disposed',
         ];
+        $a->status = $statusMap[$a->status_raw] ?? strtolower(str_replace(' ', '_', $a->status_raw ?? ''));
+        $a->date_acquired = $a->date_acquired ? \Carbon\Carbon::parse($a->date_acquired)->format('M d, Y') : '—';
+        return $a;
+    });
 
-        return $map[$normalized] ?? 'other';
-    };
+    $paginator->setCollection($assets);
 
-    // ✅ Fixed: eager load user + Full_Name from employee_numbers
-    $assetsRaw = Asset::with(['user' => function ($q) {
-            $q->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-              ->addSelect(
-                  'users.id',
-                  'users.department_id',
-                  'users.email',
-                  'users.employee_numbers_id',
-                  'employee_numbers.Full_Name as full_name'
-              );
-        }])
-        ->whereHas('user', function ($query) use ($departmentId) {
-            $query->where('department_id', $departmentId);
+    // Category options for the dropdown (optional)
+    $categoryOptions = DB::table('assets')
+        ->whereIn('user_id', function ($q) use ($departmentId) {
+            $q->select('id')->from('users')->where('department_id', $departmentId);
         })
-        ->orderBy('Asset_name')
-        ->get();
-
-    $assets = $assetsRaw
-        ->map(function ($asset) use ($toCategoryCode) {
-            $statusRaw = (string) ($asset->Lifecycle_Status ?? '');
-            $status = match ($statusRaw) {
-                'Acquired' => 'acquired',
-                'Active' => 'active',
-                'For Repair' => 'for_repair',
-                'Pullout' => 'pulled_out',
-                'Disposal', 'Disposed' => 'disposed',
-                default => strtolower(str_replace(' ', '_', $statusRaw)) ?: 'active',
-            };
-
-            $category = (string) ($asset->Category ?? 'Other');
-            $categoryCode = $toCategoryCode($category);
-
-            return (object) [
-                'db_id'          => $asset->id,
-                'id'             => $asset->Asset_code ?? ('AST-' . $asset->id),
-                'name'           => $asset->Asset_name ?? 'Unnamed Asset',
-                'category'       => $category,
-                'accountable'    => $asset->user?->full_name ?? 'Unassigned', // ← now works
-                'date_acquired'  => $asset->accusion_date
-                                    ? (string) \Illuminate\Support\Carbon::parse($asset->accusion_date)->format('M d, Y')
-                                    : '-',
-                'location'       => $asset->asset_location ?? '-',
-                'status'         => $status,
-                'category_code'  => $categoryCode,
-                'qr_code_path'   => $asset->qr_code_path ?? null,
-                'qr_code_url'    => $asset->qr_code_url ?? ($asset->qr_code_path ? Storage::url($asset->qr_code_path) : null),
-                'serial_number'  => $asset->serial_Number ?? null,
-                'purchase_price' => isset($asset->purchase_Price) ? number_format($asset->purchase_Price, 2) : null,
-                'warranty_months'=> $asset->warranty_months ?? null,
-                'condition'      => $asset->Condition ?? null,
-            ];
-        });
-
-    $categoryOptions = collect($categoryEnumValues)
-        ->map(function ($label) use ($toCategoryCode) {
-            return [
-                'value' => $toCategoryCode($label),
-                'label' => $label,
-            ];
-        })
-        ->concat(
-            $assetsRaw->map(function ($asset) use ($toCategoryCode) {
-                $label = trim((string) ($asset->Category ?? ''));
-                return [
-                    'value' => $toCategoryCode($label !== '' ? $label : 'Other'),
-                    'label' => $label !== '' ? $label : 'Other',
-                ];
-            })
-        )
-        ->unique('value')
+        ->distinct()
+        ->pluck('Category')
+        ->filter()
+        ->map(fn ($c) => ['value' => $c, 'label' => $c])
         ->values();
 
-    return view('admin.assets.department_asset', compact('departmentName', 'assets', 'categoryOptions'));
-})->name('admin.assets.department');
+    return view('admin.assets.department_asset', [   // ← adjust view name
+        'assets'          => $paginator,
+        'departmentName'  => $departmentName,
+        'categoryOptions' => $categoryOptions,
+        'currentStatus'   => request('status', 'all'),
+        'currentSearch'   => request('search', ''),
+        'currentCategory' => request('category', 'all'),
+    ]);
+})->middleware('auth');
 
 // Admin asset registry page
 Route::get('/admin/assets/registry', function () {
@@ -1487,6 +1635,40 @@ Route::get('/admin/assets/registry', function () {
 
     return view('admin.assets.asset_registry', compact('bulkQrLabels', 'bulkRegisteredCount'));
 });
+
+Route::get('/admin/assets/{id}/qr-sticker', function ($id) {
+    $asset = DB::table('assets')->where('id', $id)->first();
+    if (!$asset) abort(404);
+
+    return view('admin.assets.qr-sticker', [
+        'assetName'    => $asset->Asset_name,
+        'assetCode'    => $asset->Asset_code,
+        'acquiredDate' => $asset->accusion_date
+            ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y')
+            : '—',
+        'qrUrl'        => $asset->qr_code_path
+            ? Storage::url($asset->qr_code_path)
+            : null,
+    ]);
+})->middleware('auth')->where('id', '[0-9]+');
+
+Route::get('/admin/assets/{id}/qr-sticker', function ($id) {
+    $asset = DB::table('assets')->where('id', $id)->first();
+    if (!$asset) abort(404);
+
+    return view('admin.assets.qr-sticker', [
+        'assetName'    => $asset->Asset_name,
+        'assetCode'    => $asset->Asset_code,
+        'acquiredDate' => $asset->accusion_date
+            ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y')
+            : '—',
+        'qrUrl'        => $asset->qr_code_path
+            ? \Illuminate\Support\Facades\Storage::url($asset->qr_code_path)
+            : null,
+    ]);
+})->middleware('auth')->where('id', '[0-9]+');
+
+
 
 // Admin asset detail view - must come before wildcard routes
 // Admin asset detail view - must come before wildcard routes
@@ -1697,53 +1879,365 @@ Route::get('/api/notifications/department', function () {
 
 // Admin disposal page
 Route::get('/admin/disposal', function () {
-    $totalDisposed = 0;
-    $disposalRecords = collect([]);
-    $availableAssets = collect([]);
+    $disposalRecords = DB::table('disposals')
+        ->leftJoin('assets', 'disposals.Asset_id', '=', 'assets.id')
+        ->select(
+            'disposals.*',
+            DB::raw('COALESCE(assets."Asset_name", disposals."Description") as asset_name'),
+            DB::raw('COALESCE(assets."Asset_code", \'N/A\') as asset_code'),
+            DB::raw('assets."purchase_Price" as original_value'),
+            DB::raw('CASE WHEN assets.id IS NULL THEN 0 ELSE 1 END as asset_still_exists')
+        )
+        ->orderByDesc('disposals.disposal_date')
+        ->get()
+        ->map(function ($r) {
+            $r->id                 = $r->Disposal_ID;
+            $r->asset_still_exists = (bool) $r->asset_still_exists;
+            $r->disposed_by        = $r->Approve_by ?? '-';
+            $r->reason             = $r->disposal_reason ?? $r->Description ?? $r->notes ?? '-';
+            return $r;
+        });
 
-    // If the disposals table exists, load recent disposals and join asset info
-    if (\Illuminate\Support\Facades\Schema::hasTable('disposals')) {
-        try {
-            $query = DB::table('disposals')
-                ->leftJoin('assets', 'disposals.Asset_id', '=', 'assets.id')
-                ->leftJoin('requests', 'disposals.Request_id', '=', 'requests.id')
-                ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-                ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-                ->select('disposals.*', 'disposals.Disposal_ID as id', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'assets.accusion_cost as original_value', 'employee_numbers.Full_Name as requested_by')
-                ->orderByDesc('disposals.disposal_date');
+    $totalDisposed = $disposalRecords->count();
 
-            $disposalRecords = $query->get();
-            $totalDisposed = $disposalRecords->count();
-        } catch (\Exception $e) {
-            // keep defaults if something goes wrong
-            $disposalRecords = collect();
-            $totalDisposed = 0;
-        }
+    $availableAssets = DB::table('assets')
+        ->whereNotIn('Lifecycle_Status', ['Disposal', 'Disposed'])
+        ->select(
+            'id',
+            DB::raw('"Asset_name" as name'),
+            DB::raw('"Asset_code" as asset_code'),
+            'Lifecycle_Status'
+        )
+        ->orderBy('Asset_name')
+        ->get();
+
+    return view('admin.disposal.disposal', [
+        'disposalRecords' => $disposalRecords,
+        'totalDisposed'   => $totalDisposed,
+        'availableAssets' => $availableAssets,
+    ]);
+})->middleware('auth');
+
+Route::post('/admin/disposal/{id}/permanent-delete', function (Request $request, $id) {
+    $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
+
+    if (!$disposal) {
+        return response()->json(['success' => false, 'message' => 'Disposal record not found'], 404);
     }
 
-    // Provide assets to the modal for recording new disposals (exclude already disposed)
-    if (\Illuminate\Support\Facades\Schema::hasTable('assets')) {
-        try {
-            $availableAssets = Asset::where('Lifecycle_Status', '!=', 'Disposal')
-                ->orderBy('Asset_name')
-                ->get()
-                ->map(function ($a) {
-                    return (object) [
-                        'id' => $a->id,
-                        'name' => $a->Asset_name ?? '',
-                        'asset_code' => $a->Asset_code ?? '',
-                        'Lifecycle_Status' => $a->Lifecycle_Status ?? '',
-                    ];
-                });
-        } catch (\Exception $e) {
-            $availableAssets = collect();
-        }
+    $assetId = $disposal->Asset_id ?? null;
+
+    if (!$assetId) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset was already permanently removed. Disposal record kept.',
+            'already_deleted' => true,
+        ]);
     }
 
-    return view('admin.disposal.disposal', compact('totalDisposed', 'disposalRecords', 'availableAssets'));
+    $asset = DB::table('assets')->where('id', $assetId)->first();
+
+    if (!$asset) {
+        try {
+            DB::statement('ALTER TABLE disposals ALTER COLUMN "Asset_id" DROP NOT NULL');
+            DB::table('disposals')->where('Disposal_ID', $id)->update([
+                'Asset_id'   => null,
+                'Request_id' => null,
+                'notes'      => trim(($disposal->notes ? $disposal->notes . ' | ' : '') . 'Asset already gone; link cleared on ' . now()->toDateString()),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset was already permanently removed. Disposal record kept.',
+            'already_deleted' => true,
+        ]);
+    }
+
+    try {
+        DB::beginTransaction();
+
+        // 1. Allow NULL on Asset_id (and Request_id if needed)
+        DB::statement('ALTER TABLE disposals ALTER COLUMN "Asset_id" DROP NOT NULL');
+        try {
+            DB::statement('ALTER TABLE disposals ALTER COLUMN "Request_id" DROP NOT NULL');
+        } catch (\Throwable $e) {
+            // already nullable – ignore
+        }
+
+        // 2. Unlink disposal FIRST (breaks FKs to asset + request)
+        DB::table('disposals')
+            ->where('Disposal_ID', $id)
+            ->update([
+                'Asset_id'   => null,
+                'Request_id' => null,   // ← important: clear before deleting requests
+                'notes'      => trim(($disposal->notes ? $disposal->notes . ' | ' : '') .
+                    'Asset permanently deleted on ' . now()->toDateString() .
+                    ' (was: ' . ($asset->Asset_name ?? '') . ' / ' . ($asset->Asset_code ?? '') . ')'),
+                'updated_at' => now(),
+            ]);
+
+        // 3. Now safe to clean related data
+        DB::table('asset_files')->where('Asset_id', $assetId)->delete();
+        DB::table('pullout_items')->where('asset_id', $assetId)->delete();
+        DB::table('requests')->where('asset_id', $assetId)->delete();
+        try {
+            DB::table('repairs')->where('Assets_id', $assetId)->delete();
+        } catch (\Throwable $e) {
+            // table may not exist
+        }
+
+        try {
+            DB::table('audit_logs')->where('asset_id', $assetId)->update(['asset_id' => null]);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        try {
+            DB::table('pullouts')->where('asset_id', $assetId)->update(['asset_id' => null]);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // 4. Delete the asset
+        DB::table('assets')->where('id', $assetId)->delete();
+
+        // 5. Audit log
+try {
+    DB::table('audit_logs')->insert([
+        'user_id'            => Auth::id(),
+        'asset_id'           => null,
+        'action_type'        => 'DISPOSAL',   // ← change DELETE to DISPOSAL
+        'notes'              => 'Permanently deleted asset from disposal #' . $id,
+        'action_description' => 'Asset permanently removed after disposal. Disposal record retained.',
+        'created_at'         => now(),
+        'updated_at'         => now(),
+    ]);
+} catch (\Throwable $e) {
+    \Log::warning('Audit log skipped on permanent delete: ' . $e->getMessage());
+}
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset permanently deleted. Disposal record kept for history.',
+        ]);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        \Log::error('Permanent disposal delete failed: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to permanently delete asset',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+})->middleware('auth');
+
+
+// Admin requests page
+// Admin requests page – supports bulk requests via request_items
+Route::get('/admin/requests', function () {
+    $requests = DB::table('requests')
+        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->leftJoin('users as assignee', 'requests.assign_to_user_id', '=', 'assignee.id')
+        ->leftJoin('employee_numbers as assignee_emp', 'assignee.employee_numbers_id', '=', 'assignee_emp.id')
+        ->select([
+            'requests.id',
+            'requests.request_type',
+            'requests.status',
+            'requests.Note',
+            'requests.created_at',
+            'requests.url',
+            'requests.asset_id',
+            'employee_numbers.Full_Name as submitted_by',
+            'users.email',
+            'assets.Asset_name as asset_name',
+            'assets.Asset_code as asset_code',
+            'assignee_emp.Full_Name as assigned_to',
+        ])
+        ->orderByDesc('requests.created_at')
+        ->get();
+
+    // Load all related assets from request_items in one query
+    $requestIds = $requests->pluck('id')->all();
+    $itemsByRequest = collect();
+
+    if (!empty($requestIds)) {
+        $itemsByRequest = DB::table('request_items')
+            ->join('assets', 'request_items.asset_id', '=', 'assets.id')
+            ->whereIn('request_items.request_id', $requestIds)
+            ->select(
+                'request_items.request_id',
+                'assets.id as asset_id',
+                'assets.Asset_name',
+                'assets.Asset_code',
+                'assets.Category',
+                'assets.Lifecycle_Status'
+            )
+            ->get()
+            ->groupBy('request_id');
+    }
+
+    $requests = $requests->map(function ($request) use ($itemsByRequest) {
+        $related = $itemsByRequest->get($request->id, collect());
+
+        // Build clean list of assets
+        $assetList = $related->map(function ($a) {
+            return [
+                'id'               => $a->asset_id,
+                'name'             => $a->Asset_name,
+                'code'             => $a->Asset_code,
+                'category'         => $a->Category,
+                'lifecycle_status' => $a->Lifecycle_Status,
+            ];
+        })->values()->all();
+
+        // Fallback for old single-asset requests that still have asset_id set
+        if (empty($assetList) && !empty($request->asset_id)) {
+            $assetList = [[
+                'id'               => $request->asset_id,
+                'name'             => $request->asset_name ?: 'Unknown Asset',
+                'code'             => $request->asset_code ?: '',
+                'category'         => null,
+                'lifecycle_status' => null,
+            ]];
+        }
+
+        $count = count($assetList);
+
+        if ($count === 0) {
+            $displayName = 'Unknown Asset';
+        } elseif ($count === 1) {
+            $displayName = $assetList[0]['name'];
+        } else {
+            $displayName = $assetList[0]['name'] . ' +' . ($count - 1) . ' more';
+        }
+
+        return (object) [
+            'id'           => $request->id,
+            'asset_name'   => $displayName,   // shown in the table
+            'assets'       => $assetList,      // full list for the details panel
+            'asset_count'  => $count,
+            'type'         => strtolower((string) $request->request_type),
+            'submitted_by' => $request->submitted_by ?: 'Unknown User',
+            'email'        => $request->email ?: '',
+            'created_at'   => $request->created_at
+                                ? \Illuminate\Support\Carbon::parse($request->created_at)
+                                : now(),
+            'status'       => strtolower((string) $request->status),
+            'description'  => $request->Note ?: '',
+            'assigned_to'  => $request->assigned_to ?? null,
+            'image'        => $request->url ?? null,
+        ];
+    });
+
+    $totalRequests    = $requests->count();
+    $pendingRequests  = $requests->where('status', 'pending')->count();
+    $approvedRequests = $requests->where('status', 'approved')->count();
+    $rejectedRequests = $requests->where('status', 'rejected')->count();
+
+    return view('admin.request.request', compact(
+        'requests',
+        'totalRequests',
+        'pendingRequests',
+        'approvedRequests',
+        'rejectedRequests'
+    ));
 });
 
-// Admin repair page
+
+Route::post('/admin/repairs/create', function (Request $request) {
+    $assetId = $request->input('asset_id');
+    $issue = trim((string) $request->input('issue_description', ''));
+    $priority = $request->input('priority', 'medium');
+    $requestedBy = trim((string) $request->input('requested_by', '')) ?: (Auth::user()?->email ?? 'Admin');
+
+    if (!$assetId || $issue === '') {
+        return response()->json(['success' => false, 'message' => 'Asset and issue description are required'], 422);
+    }
+
+    $asset = DB::table('assets')->where('id', $assetId)->first();
+    if (!$asset) {
+        return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
+    }
+
+    try {
+        DB::beginTransaction();
+
+        $requestId = DB::table('requests')->insertGetId([
+            'user_id'      => Auth::id(),
+            'asset_id'     => $assetId,
+            'request_type' => 'Repair',
+            'status'       => 'Approved',
+            'Note'         => $issue,
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        $repairId = DB::table('repairs')->insertGetId([
+            'Assets_id'          => $assetId,
+            'Request_id'         => $requestId,
+            'Repair_Description' => $issue,
+            'Repair_Date'        => now(),
+            'Approve_by'         => $requestedBy,
+            'Repair_Cost'        => 0,
+            'status'             => 'Pending',
+            'notes'              => 'Priority: ' . $priority,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ], 'Repair_id');
+
+        DB::table('assets')->where('id', $assetId)->update([
+            'Lifecycle_Status' => 'For Repair',
+            'updated_at'       => now(),
+        ]);
+
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'asset_id'           => $assetId,
+            'request_id'         => $requestId,
+            'action_type'        => 'REPAIR',
+            'notes'              => 'Repair request created for asset',
+            'action_description' => 'Repair #' . $repairId . ' created: ' . $issue,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Repair request created successfully',
+            'repair'  => [
+                'id'             => $repairId,
+                'asset_id'       => $assetId,
+                'request_id'     => $requestId,
+                'asset_name'     => $asset->Asset_name ?? 'Asset',
+                'asset_code'     => $asset->Asset_code ?? '',
+                'issue'          => $issue,
+                'status'         => 'pending',
+                'priority'       => $priority,
+                'requested_by'   => $requestedBy,
+                'department'     => '—',
+                'date_requested' => now()->toDateString(),
+            ],
+        ]);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        \Log::error('Repair create failed: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create repair: ' . $e->getMessage(),
+        ], 500);
+    }
+})->middleware('auth');
+
 Route::get('/admin/repair', function () {
     // 1. Load repairs + asset info
     $repairsRaw = DB::table('repairs')
@@ -1819,6 +2313,7 @@ $availableAssets = DB::table('assets')
 
     return view('admin.repair.repair', compact('repairs', 'availableAssets'));
 })->middleware('auth');
+
 
 // Admin update repair status endpoint
 Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Request $request) {
@@ -2103,9 +2598,14 @@ Route::post('/admin/replacements/{id}/status', function ($id, \Illuminate\Http\R
 });
 
 // Create & Link new asset for a replacement (accept POST or PATCH to be permissive)
-Route::match(['post','patch'], '/admin/replacements/{id}/link', function (Request $request, $id) {
+Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Request $request, $id) {
     $user = Auth::user();
-    if (!$user) return redirect('/login');
+    if (!$user) {
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+        return redirect('/login');
+    }
 
     $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
     if (!$replacement) {
@@ -2115,71 +2615,313 @@ Route::match(['post','patch'], '/admin/replacements/{id}/link', function (Reques
         return abort(404);
     }
 
-    // Get the old asset to inherit some fields (like user assignment)
     $old = DB::table('assets')->where('id', $replacement->old_assets_id)->first();
+    if (!$old) {
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => false, 'message' => 'Old asset not found'], 404);
+        }
+        return back()->with('error', 'Old asset not found.');
+    }
 
-    $code = $request->input('Asset_code') ?: ('AST-' . Str::upper(Str::random(8)));
+            $validated = $request->validate([
+                'Asset_code'           => 'required|string|max:50|unique:assets,Asset_code',
+                'Asset_name'           => 'required|string|max:150',
+                'Category'             => 'required|string|max:150',
+                'Condition'            => 'required|string|max:50',
+                'accusion_date'        => 'required|date',
+                'asset_location'       => 'nullable|string|max:255',
+                'serial_Number'        => 'nullable|string|max:150',
+                'purchase_Price'       => 'nullable|numeric',
+                'supplier'             => 'nullable|string|max:150',
+                'model'                => 'nullable|string|max:150',
+                'manufacture'          => 'nullable|string|max:150',
+                'warranty_months'      => 'nullable|integer|min:0',
+                'lifespan_months'      => 'nullable|integer|min:1',
+                'maintenance_interval' => 'nullable|integer|min:1',
+                'asset_photo'          => 'nullable|image|max:10240',
+            ]);
 
     try {
-        Log::info('Linking new asset for replacement', ['replacement_id' => $id, 'code' => $code]);
-        
-        // Update the old asset with the new code and regenerated QR
-        // This replaces the old asset's code/QR with the new one
-        $oldAssetId = $replacement->old_assets_id;
-        
-        // Generate new QR code for the replacement
-        $qrPath = null;
-        $qrUrl = null;
-        try {
-            $qrSource = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' . urlencode($code);
-            $contents = @file_get_contents($qrSource);
-            if ($contents) {
-                $qrPath = 'assets/qr/' . $code . '.png';
-                Storage::disk('public')->put($qrPath, $contents);
-                $qrUrl = Storage::url($qrPath);
+        $result = DB::transaction(function () use ($validated, $replacement, $old, $id, $user, $request) {
+            // Expiration / next maintenance
+            $expiration = null;
+            if (!empty($validated['lifespan_months']) && !empty($validated['accusion_date'])) {
+                $expiration = \Carbon\Carbon::parse($validated['accusion_date'])
+                    ->addMonths((int) $validated['lifespan_months'])
+                    ->toDateString();
             }
-        } catch (\Throwable $e) {
-            Log::warning('QR generation failed', ['code' => $code, 'error' => $e->getMessage()]);
-        }
+            $nextMaint = null;
+            if (!empty($validated['maintenance_interval']) && !empty($validated['accusion_date'])) {
+                $nextMaint = \Carbon\Carbon::parse($validated['accusion_date'])
+                    ->addMonths((int) $validated['maintenance_interval'])
+                    ->toDateString();
+            }
 
-        // Update the old asset with the new code and QR path
-        $updateData = ['Asset_code' => $code, 'updated_at' => now()];
-        if ($qrPath) $updateData['qr_code_path'] = $qrPath;
-        
-        DB::table('assets')->where('id', $oldAssetId)->update($updateData);
-        
-        // Link replacement to old asset (since we updated it with new code)
-        DB::table('replacements')->where('Replacement_id', $id)->update(['new_assets_id' => $oldAssetId, 'updated_at' => now()]);
+            // 1. Create NEW asset (Active, same user as old)
+            $newAssetId = DB::table('assets')->insertGetId([
+                'user_id'               => $old->user_id,
+                'Asset_code'            => $validated['Asset_code'],
+                'Asset_name'            => $validated['Asset_name'],
+                'Category'              => $validated['Category'] ?? $old->Category,
+                'Condition'             => 'New',
+                'Lifecycle_Status'      => 'Acquired',
+                'accusion_date'         => $validated['accusion_date'] ?? now()->toDateString(),
+                'purchase_Price'        => $validated['purchase_Price'] ?? null,
+                'warranty_months'       => $validated['warranty_months'] ?? null,
+                'supplier'              => $validated['supplier'] ?? ($old->supplier ?? null),
+                'model'                 => $validated['model'] ?? ($old->model ?? null),
+                'manufacture'           => $validated['manufacture'] ?? ($old->manufacture ?? null),
+                'serial_Number'         => $validated['serial_Number'] ?? null,
+                'asset_location'        => $validated['asset_location'] ?? $old->asset_location,
+                'qr_code_path'          => null,
+                'lifespan_months'       => $validated['lifespan_months'] ?? null,
+                'expiration_date'       => $expiration,
+                'maintenance_interval'  => $validated['maintenance_interval'] ?? null,
+                'next_maintenance_date' => $nextMaint,
+                'repair_counts'         => 0,
+                'created_at'            => now(),
+                'updated_at'            => now(),
+            ]);
 
-        Log::info('Updated old asset with new code for replacement', ['old_asset_id' => $oldAssetId, 'new_code' => $code]);
+            // Save photo to asset_files (same as registry)
+            if ($request->hasFile('asset_photo')) {
+                $file = $request->file('asset_photo');
+                $filePath = $file->store('assets', 'public');
+                $fileName = $file->getClientOriginalName();
+                $fileSize = $file->getSize();
+                $mime = $file->getClientMimeType();
+                $url = Storage::url($filePath);
 
-        // If the request expects JSON (AJAX), return the updated asset info
+                DB::table('asset_files')->insert([
+                    'Asset_id'    => $newAssetId,
+                    'file_name'   => $fileName,
+                    'file_path'   => $filePath,
+                    'file_size'   => $fileSize,
+                    'mime_type'   => $mime,
+                    'url'         => $url,
+                    'uploaded_at' => now()->toDateTimeString(),
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
+            }
+
+            // 2. QR code
+            $qrUrl = null;
+            try {
+                $qrSource = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' . urlencode($validated['Asset_code']);
+                $contents = @file_get_contents($qrSource);
+                if ($contents) {
+                    $qrPath = 'assets/qr/' . $validated['Asset_code'] . '-' . time() . '.png';
+                    Storage::disk('public')->put($qrPath, $contents);
+                    DB::table('assets')->where('id', $newAssetId)->update(['qr_code_path' => $qrPath]);
+                    $qrUrl = Storage::url($qrPath);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('QR generation failed on replacement link', ['error' => $e->getMessage()]);
+            }
+
+            // 3. Link on replacement
+            DB::table('replacements')->where('Replacement_id', $id)->update([
+                'new_assets_id' => $newAssetId,
+                'updated_at'    => now(),
+            ]);
+
+            // 4. Move OLD asset to Pullout (reason: Replacement) — do NOT delete
+            DB::table('assets')->where('id', $old->id)->update([
+                'Lifecycle_Status' => 'Pullout',
+                'updated_at'       => now(),
+            ]);
+
+            $pulloutId = DB::table('pullouts')->insertGetId([
+                'request_id'   => $replacement->request_id ?? null,
+                'asset_id'     => $old->id,
+                'Approve_by'   => $user->email ?? 'Admin',
+                'Description'  => 'Replacement',
+                'notes'        => 'Old asset pulled out due to replacement. New asset: ' . $validated['Asset_code'],
+                'pullout_date' => now()->toDateString(),
+                'destination'  => 'Storage Room',
+                'status'       => 'pending',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]);
+
+            DB::table('pullout_items')->insert([
+                'pullout_id' => $pulloutId,
+                'asset_id'   => $old->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // 5. Audit
+            DB::table('audit_logs')->insert([
+                'user_id'            => Auth::id(),
+                'asset_id'           => $newAssetId,
+                'action_type'        => 'CREATE',
+                'notes'              => 'New asset created via replacement #' . $id,
+                'action_description' => 'Linked to old asset ' . ($old->Asset_code ?? $old->id) . '; old asset moved to Pullout',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+
+            return [
+                'newAssetId' => $newAssetId,
+                'qrUrl'      => $qrUrl,
+            ];
+        });
+
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
-                'success' => true,
-                'asset' => [
-                    'id' => $oldAssetId,
-                    'code' => $code,
-                    'name' => $old->Asset_name ?? 'Asset',
-                    'qr_url' => $qrUrl ?? '',
+                'success'        => true,
+                'message'        => 'New asset created and linked. Old asset moved to Pullout.',
+                'replacement_id' => (int) $id,
+                'asset'          => [
+                    'id'       => $result['newAssetId'],
+                    'code'     => $validated['Asset_code'],
+                    'name'     => $validated['Asset_name'],
+                    'qr_url'   => $result['qrUrl'] ?? '',
+                    'location' => $validated['asset_location'] ?? null,
+                    'category' => $validated['Category'] ?? null,
+                    'acquired' => $validated['accusion_date'] ?? null,
                 ],
-                'replacement_id' => $id,
             ]);
         }
 
-        $redirectTo = url()->previous() ?: '/admin/replacement';
-        return redirect($redirectTo)->with('success', 'Asset code and QR updated for replacement.');
+        return redirect(url()->previous() ?: '/admin/replacement')
+            ->with('success', 'New asset created and linked. Old asset moved to Pullout.');
     } catch (\Exception $e) {
-        Log::error('Failed to update asset for replacement', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        Log::error('Failed to link new asset', ['error' => $e->getMessage()]);
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update asset: ' . $e->getMessage()
+                'message' => 'Failed to create asset: ' . $e->getMessage(),
             ], 400);
         }
-        return back()->with('error', 'Failed to update asset: ' . $e->getMessage());
+        return back()->with('error', 'Failed to create asset: ' . $e->getMessage());
     }
-});
+})->middleware('auth');
+
+Route::get('/admin/replacements/{id}/old-asset', function ($id) {
+    $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
+    if (!$replacement) {
+        return response()->json(['success' => false, 'message' => 'Not found'], 404);
+    }
+
+    $old = DB::table('assets')->where('id', $replacement->old_assets_id)->first();
+    if (!$old) {
+        return response()->json(['success' => false, 'message' => 'Old asset not found'], 404);
+    }
+
+    return response()->json(['success' => true, 'asset' => $old]);
+})->middleware('auth');
+
+// Mark replacement as Received
+Route::match(['post', 'patch'], '/admin/replacements/{id}/received', function (Request $request, $id) {
+    $user = Auth::user();
+    if (!$user) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Unauthenticated'], 401)
+            : redirect('/login');
+    }
+
+    $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
+    if (!$replacement) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Replacement not found'], 404)
+            : abort(404);
+    }
+
+    $newId = $replacement->new_assets_id ?? null;
+    $oldId = $replacement->old_assets_id ?? null;
+
+    if (!$newId || !$oldId || (int)$newId === (int)$oldId) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Link a new asset first'], 422)
+            : back()->with('error', 'Link a new asset first.');
+    }
+
+    try {
+        DB::transaction(function () use ($replacement, $newId, $oldId, $id, $user) {
+            // New asset → Active (assigned user already set on create)
+            DB::table('assets')->where('id', $newId)->update([
+                'Lifecycle_Status' => 'Active',
+                'updated_at'       => now(),
+            ]);
+
+            // Old asset → Pullout
+            DB::table('assets')->where('id', $oldId)->update([
+                'Lifecycle_Status' => 'Pullout',
+                'updated_at'       => now(),
+            ]);
+
+            // Optional pullout record
+            $pulloutId = DB::table('pullouts')->insertGetId([
+                'request_id'   => $replacement->request_id ?? null,
+                'asset_id'     => $oldId,
+                'Approve_by'   => $user->email ?? 'Admin',
+                'Description'  => 'Replacement',
+                'notes'        => 'Old asset pulled out after replacement received. New asset ID: ' . $newId,
+                'pullout_date' => now()->toDateString(),
+                'destination'  => 'Storage Room',
+                'status'       => 'pending',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]);
+            DB::table('pullout_items')->insert([
+                'pullout_id' => $pulloutId,
+                'asset_id'   => $oldId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Replacement → Received
+            DB::table('replacements')->where('Replacement_id', $id)->update([
+                'status'             => 'Received', // if you have a `status` column instead
+                'updated_at'         => now(),
+            ]);
+
+            DB::table('audit_logs')->insert([
+                'user_id'            => Auth::id(),
+                'asset_id'           => $newId,
+                'action_type'        => 'REPLACEMENT',
+                'notes'              => 'Replacement #' . $id . ' marked Received',
+                'action_description' => 'New asset Active; old asset Pullout',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        });
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Marked as Received']);
+        }
+        return redirect('/admin/replacement')->with('success', 'Replacement marked as Received.');
+    } catch (\Throwable $e) {
+        \Log::error('Received failed: ' . $e->getMessage());
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+        return back()->with('error', $e->getMessage());
+    }
+})->middleware('auth');
+
+Route::get('/admin/replacements/{id}/old-asset', function ($id) {
+    $replacement = DB::table('replacements')->where('id', $id)->first();
+    if (!$replacement) {
+        return response()->json(['success' => false, 'message' => 'Not found'], 404);
+    }
+
+    $oldId = $replacement->old_asset_id ?? $replacement->asset_id ?? null;
+    if (!$oldId) {
+        return response()->json(['success' => false, 'message' => 'No old asset'], 404);
+    }
+
+    $asset = DB::table('assets')->where('id', $oldId)->first();
+    if (!$asset) {
+        return response()->json(['success' => false, 'message' => 'Old asset not found'], 404);
+    }
+
+    return response()->json(['success' => true, 'asset' => $asset]);
+})->middleware('auth');
+
 
 // Admin pullout page
 Route::get('/admin/pullout', function () {
@@ -2190,47 +2932,93 @@ Route::get('/admin/pullout', function () {
     if (\Illuminate\Support\Facades\Schema::hasTable('pullouts')) {
         try {
             $query = DB::table('pullouts')
-                ->leftJoin('assets', 'pullouts.asset_id', '=', 'assets.id')
                 ->leftJoin('requests', 'pullouts.request_id', '=', 'requests.id')
                 ->leftJoin('users', 'requests.user_id', '=', 'users.id')
                 ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-                ->select('pullouts.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'requests.request_type as request_type', 'requests.status as request_status', 'employee_numbers.Full_Name as requested_by')
+                ->select(
+                    'pullouts.*',
+                    'requests.request_type as request_type',
+                    'requests.status as request_status',
+                    'employee_numbers.Full_Name as requested_by'
+                )
+                ->whereIn('pullouts.status', ['pending', 'approved'])   // ← only show active pullouts
                 ->orderByDesc('pullouts.pullout_date');
 
-            $pulloutRecords = $query->get()->map(function ($r) {
+            $pulloutRows = $query->get();
+
+            $pulloutItems = DB::table('pullout_items')
+                ->leftJoin('assets', 'pullout_items.asset_id', '=', 'assets.id')
+                ->select('pullout_items.pullout_id', 'pullout_items.asset_id', 'assets.Asset_name', 'assets.Asset_code')
+                ->get()
+                ->groupBy('pullout_id');
+
+            $pulloutRecords = $pulloutRows->map(function ($r) use ($pulloutItems) {
+                $items = $pulloutItems->get($r->id, collect());
+                $assetNames = $items->pluck('Asset_name')->filter()->values();
+                $assetCodes = $items->pluck('Asset_code')->filter()->values();
+
+                if ($items->isEmpty() && !empty($r->asset_id)) {
+                    $legacyAsset = DB::table('assets')
+                        ->where('id', $r->asset_id)
+                        ->select('Asset_name', 'Asset_code')
+                        ->first();
+
+                    if ($legacyAsset) {
+                        $assetNames = collect([$legacyAsset->Asset_name]);
+                        $assetCodes = collect([$legacyAsset->Asset_code]);
+                    }
+                }
+
                 return (object) [
-                    'id' => $r->id,
-                    'asset_name' => $r->asset_name ?? ('Asset #' . ($r->asset_id ?? '')),
-                    'asset_code' => $r->asset_code ?? null,
-                    'pullout_date' => $r->pullout_date ? (string) \Illuminate\Support\Carbon::parse($r->pullout_date)->format('M d, Y') : ($r->created_at ? (string) \Illuminate\Support\Carbon::parse($r->created_at)->format('M d, Y') : '-'),
-                    'reason' => $r->Description ?? $r->notes ?? null,
-                    'pulled_by' => $r->Approve_by ?? null,
+                    'id'           => $r->id,
+                    'asset_count'  => max(1, $items->count() ?: ($r->asset_id ? 1 : 0)),
+                    'asset_name'   => $assetNames->first() ?? ('Asset #' . ($r->asset_id ?? '')),
+                    'asset_code'   => $assetCodes->first() ?? null,
+                    'asset_names'  => $assetNames,
+                    'asset_codes'  => $assetCodes,
+                    'pullout_date' => $r->pullout_date
+                        ? (string) \Illuminate\Support\Carbon::parse($r->pullout_date)->format('M d, Y')
+                        : ($r->created_at ? (string) \Illuminate\Support\Carbon::parse($r->created_at)->format('M d, Y') : '-'),
+                    'reason'       => $r->Description ?? $r->notes ?? null,
+                    'pulled_by'    => $r->Approve_by ?? null,
                     'requested_by' => $r->requested_by ?? null,
-                    'status' => isset($r->status) && $r->status ? strtolower($r->status) : (isset($r->request_status) ? strtolower($r->request_status) : (isset($r->request_type) ? strtolower($r->request_type) : 'approved')),
-                    'destination' => $r->destination ?? null,
-                    'raw' => $r,
+                    'status'       => isset($r->status) && $r->status
+                        ? strtolower($r->status)
+                        : (isset($r->request_status) ? strtolower($r->request_status) : 'approved'),
+                    'destination'  => $r->destination ?? null,
+                    'raw'          => $r,
                 ];
             });
-            $totalPulledOut = $pulloutRecords->count();
+
+            $totalPulledOut = DB::table('assets')
+            ->where('Lifecycle_Status', 'Pullout')
+            ->count();
         } catch (\Exception $e) {
             $pulloutRecords = collect();
             $totalPulledOut = 0;
         }
     }
 
-    // Provide assets to the modal for recording new pullouts (exclude already pulled out)
+    // Available assets for the "Record Pullout" modal
     if (\Illuminate\Support\Facades\Schema::hasTable('assets')) {
         try {
+            $blockedAssetIds = DB::table('pullout_items')
+                ->leftJoin('pullouts', 'pullout_items.pullout_id', '=', 'pullouts.id')
+                ->whereRaw("lower(coalesce(pullouts.status, '')) in ('pending', 'approved')")
+                ->pluck('pullout_items.asset_id')
+                ->all();
+
             $availableAssets = Asset::where('Lifecycle_Status', '!=', 'Pullout')
+                ->whereNotIn('id', $blockedAssetIds)
                 ->orderBy('Asset_name')
                 ->get()
                 ->map(function ($a) {
                     return (object) [
-                        'id' => $a->id,
-                        'name' => $a->Asset_name ?? '',
-                        'asset_code' => $a->Asset_code ?? '',
+                        'id'               => $a->id,
+                        'name'             => $a->Asset_name ?? '',
+                        'asset_code'       => $a->Asset_code ?? '',
                         'Lifecycle_Status' => $a->Lifecycle_Status ?? '',
-                        'assignedUser' => (object) ['name' => $a->user?->full_name ?? 'Unassigned'],
+                        'assignedUser'     => (object) ['name' => $a->user?->full_name ?? 'Unassigned'],
                     ];
                 });
         } catch (\Exception $e) {
@@ -2238,8 +3026,46 @@ Route::get('/admin/pullout', function () {
         }
     }
 
-    return view('admin.pullout.pullout', compact('totalPulledOut', 'pulloutRecords', 'availableAssets'));
+    $users = DB::table('users')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->select('users.id', 'users.email', 'employee_numbers.Full_Name as full_name')
+        ->orderBy('employee_numbers.Full_Name')
+        ->get();
+
+    return view('admin.pullout.pullout', compact(
+        'pulloutRecords',
+        'availableAssets',
+        'totalPulledOut',
+        'users'
+    ));
 });
+
+Route::get('/admin/pullout/{id}/assets', function ($id) {
+    $items = DB::table('pullout_items')
+        ->join('assets', 'pullout_items.asset_id', '=', 'assets.id')
+        ->where('pullout_items.pullout_id', $id)
+        ->select('assets.id', 'assets.Asset_name as name', 'assets.Asset_code as code')
+        ->get();
+
+    if ($items->isEmpty()) {
+        $pullout = DB::table('pullouts')->where('id', $id)->first();
+        if ($pullout && $pullout->asset_id) {
+            $asset = DB::table('assets')->where('id', $pullout->asset_id)->first();
+            if ($asset) {
+                $items = collect([(object)[
+                    'id'   => $asset->id,
+                    'name' => $asset->Asset_name,
+                    'code' => $asset->Asset_code,
+                ]]);
+            }
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'assets'  => $items,
+    ]);
+})->middleware('auth');
 
 // Server-side user search for assigning assets (used by asset registry)
 Route::get('/admin/users/search', function (Request $request) {
@@ -2468,10 +3294,13 @@ Route::post('/admin/assets', function (Request $request) {
 
                 $qrUrl = $saveQrToAsset($asset, $assetCode);
                 $createdAssets[] = [
-                    'id' => $asset->id,
-                    'code' => $asset->Asset_code,
-                    'name' => $asset->Asset_name,
-                    'qr_url' => $qrUrl,
+                    'id'       => $asset->id,
+                    'code'     => $asset->Asset_code,
+                    'name'     => $asset->Asset_name,
+                    'qr_url'   => $qrUrl,
+                    'location' => $validated['location'] ?? null,
+                    'category' => $category,
+                    'acquired' => $validated['acquisition_date'] ?? null,
                 ];
             }
         });
@@ -2487,54 +3316,6 @@ Route::post('/admin/assets', function (Request $request) {
         ->with('bulk_registered_count', count($createdAssets));
 })->name('admin.assets.store');
 
-// Admin requests page
-Route::get('/admin/requests', function () {
-    $requests = DB::table('requests')
-        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->leftJoin('users as assignee', 'requests.assign_to_user_id', '=', 'assignee.id')
-        ->leftJoin('employee_numbers as assignee_emp', 'assignee.employee_numbers_id', '=', 'assignee_emp.id')
-        ->select([
-            'requests.id',
-            'requests.request_type',
-            'requests.status',
-            'requests.Note',
-            'requests.created_at',
-            'requests.url',
-            'employee_numbers.Full_Name as submitted_by',
-            'users.email',
-            'assets.Asset_name as asset_name',
-            'assets.Asset_code as asset_code',
-            'assignee_emp.Full_Name as assigned_to',
-        ])
-        ->orderByDesc('requests.created_at')
-        ->get()
-        ->map(function ($request) {
-            return (object) [
-                'id' => $request->id,
-                'asset_name' => $request->asset_name ?: ($request->asset_code ?: 'Unknown Asset'),
-                'type' => strtolower((string) $request->request_type),
-                'submitted_by' => $request->submitted_by ?: 'Unknown User',
-                'email' => $request->email ?: '',
-                'created_at' => $request->created_at ? \Illuminate\Support\Carbon::parse($request->created_at) : now(),
-                'status' => strtolower((string) $request->status),
-                'description' => $request->Note ?: '',
-                'assigned_to' => $request->assigned_to ?? null,
-                'image' => $request->url ?? null,
-            ];
-        });
-
-    $totalRequests = $requests->count();
-    $pendingRequests = collect($requests)->where('status', 'pending')->count();
-    $approvedRequests = collect($requests)->where('status', 'approved')->count();
-    $rejectedRequests = collect($requests)->where('status', 'rejected')->count();
-
-    return view('admin.request.request', compact(
-        'requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'
-    ));
-});
-
 Route::post('/admin/requests/{id}/approve', function ($id) {
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
@@ -2546,183 +3327,199 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
         return response()->json(['message' => 'Only pending requests can be approved.'], 422);
     }
 
-    $approvedBy = Auth::user()?->full_name ?? 'Admin';
+    $approvedBy  = Auth::user()?->email ?? Auth::user()?->full_name ?? 'Admin';
     $requestType = strtolower((string) $requestRecord->request_type);
 
-    DB::transaction(function () use ($requestRecord, $approvedBy, $requestType) {
-        DB::table('requests')
-            ->where('id', $requestRecord->id)
-            ->update([
-                'status' => 'Approved',
-                'updated_at' => now(),
-            ]);
+    // ─── Get all asset IDs for this request ─────────────────
+    $assetIds = DB::table('request_items')
+        ->where('request_id', $requestRecord->id)
+        ->pluck('asset_id')
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values()
+        ->all();
 
-        if ($requestType === 'repair') {
-            $exists = DB::table('repairs')->where('Request_id', $requestRecord->id)->exists();
-            if (!$exists) {
-                DB::table('repairs')->insert([
-                    'Request_id' => $requestRecord->id,
-                    'Assets_id' => $requestRecord->asset_id,
-                    'Approve_by' => $approvedBy,
-                    'Repair_Description' => $requestRecord->Note,
-                    'Repair_Cost' => 0.00,
-                    'status' => 'Pending',
-                    'notes' => $requestRecord->Note,
-                    'Repair_Date' => now(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-            DB::table('assets')->where('id', $requestRecord->asset_id)->update([
-                'Lifecycle_Status' => 'For Repair',
-                'updated_at' => now(),
-            ]);
-        }
-
-        if ($requestType === 'disposal') {
-            $exists = DB::table('disposals')->where('Request_id', $requestRecord->id)->exists();
-            if (!$exists) {
-                DB::table('disposals')->insert([
-                    'Request_id' => $requestRecord->id,
-                    'Asset_id' => $requestRecord->asset_id,
-                    'Approve_by' => $approvedBy,
-                    'Description' => 'Approved disposal request',
-                    'disposal_reason' => 'Obsolete',
-                    'disposal_date' => now()->toDateString(),
-                    'notes' => $requestRecord->Note,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-            DB::table('assets')->where('id', $requestRecord->asset_id)->update([
-                'Lifecycle_Status' => 'Disposal',
-                'updated_at' => now(),
-            ]);
-        }
-
-        if ($requestType === 'pullout') {
-            $exists = DB::table('pullouts')->where('request_id', $requestRecord->id)->exists();
-            if (!$exists) {
-                DB::table('pullouts')->insert([
-                    'request_id' => $requestRecord->id,
-                    'asset_id' => $requestRecord->asset_id,
-                    'Approve_by' => $approvedBy,
-                    'Description' => 'Approved pullout request',
-                    'notes' => $requestRecord->Note,
-                    'pullout_date' => now()->toDateString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-            DB::table('assets')->where('id', $requestRecord->asset_id)->update([
-                'Lifecycle_Status' => 'Pullout',
-                'updated_at' => now(),
-            ]);
-        }
-
-        if ($requestType === 'replacement') {
-    $exists = DB::table('replacements')->where('Request_id', $requestRecord->id)->exists();
-    if (!$exists) {
-        DB::table('replacements')->insert([
-            'Request_id'         => $requestRecord->id,
-            'old_assets_id'      => $requestRecord->asset_id,
-            // Temporary placeholder – will be updated later when the real new asset is assigned
-            'new_assets_id'      => $requestRecord->asset_id,
-            'Approve_by'         => $approvedBy,
-            'reason'             => 'Approved replacement request',
-            'notes'              => $requestRecord->Note,
-            'Replacement_Date'   => now(),
-            'replacement_reason' => 'Obsolete',
-            'status'             => 'Approved',
-            'created_at'         => now(),
-            'updated_at'         => now(),
-        ]);
+    // Fallback for old single-asset requests
+    if (empty($assetIds) && !empty($requestRecord->asset_id)) {
+        $assetIds = [(int) $requestRecord->asset_id];
     }
 
-    // Optionally mark the old asset as "For Replacement"
-    DB::table('assets')->where('id', $requestRecord->asset_id)->update([
-        'Lifecycle_Status' => 'For Replacement',
-        'updated_at'       => now(),
-    ]);
-}
+    if (empty($assetIds)) {
+        return response()->json(['message' => 'No assets found for this request.'], 422);
+    }
 
-if ($requestType === 'transfer') {
     try {
-        // Try several possible column names for the target user
-        $targetUserId = $requestRecord->assign_to_user_id
-                     ?? $requestRecord->assigned_to
-                     ?? $requestRecord->transfer_to_user_id
-                     ?? null;
+        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds) {
 
-        if (empty($targetUserId)) {
-            // Fallback: try to extract from notes if stored there
-            // (optional – remove if not needed)
-            Log::warning("Transfer request #{$requestRecord->id} has no target user ID");
-        } else {
-            // 1. Transfer ownership
-            DB::table('assets')
-                ->where('id', $requestRecord->asset_id)
+            // 1. Mark the request as Approved
+            DB::table('requests')
+                ->where('id', $requestRecord->id)
                 ->update([
-                    'user_id'          => $targetUserId,
-                    'Lifecycle_Status' => 'Active',
-                    'updated_at'       => now(),
+                    'status'     => 'Approved',
+                    'updated_at' => now(),
                 ]);
 
-            // 2. Get the real name of the new owner
-            $assigneeName = DB::table('users')
-                ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-                ->where('users.id', $targetUserId)
-                ->value('employee_numbers.Full_Name');
+            // 2. Process each asset according to request type
+            foreach ($assetIds as $assetId) {
 
-            // 3. Write a proper audit log
+                // ─────────────── REPAIR ───────────────
+                if ($requestType === 'repair') {
+                    $exists = DB::table('repairs')
+                        ->where('Request_id', $requestRecord->id)
+                        ->where('Assets_id', $assetId)
+                        ->exists();
+
+                    if (!$exists) {
+                        DB::table('repairs')->insert([
+                            'Request_id'         => $requestRecord->id,
+                            'Assets_id'          => $assetId,
+                            'Approve_by'         => $approvedBy,
+                            'Repair_Description' => $requestRecord->Note,
+                            'Repair_Cost'        => 0.00,
+                            'status'             => 'Pending',
+                            'notes'              => $requestRecord->Note,
+                            'Repair_Date'        => now(),
+                            'created_at'         => now(),
+                            'updated_at'         => now(),
+                        ]);
+                    }
+
+                    DB::table('assets')->where('id', $assetId)->update([
+                        'Lifecycle_Status' => 'For Repair',
+                        'updated_at'       => now(),
+                    ]);
+                }
+
+                // ─────────────── DISPOSAL ───────────────
+                if ($requestType === 'disposal') {
+                    $exists = DB::table('disposals')
+                        ->where('Request_id', $requestRecord->id)
+                        ->where('Asset_id', $assetId)
+                        ->exists();
+
+                    if (!$exists) {
+                        DB::table('disposals')->insert([
+                            'Request_id'      => $requestRecord->id,
+                            'Asset_id'        => $assetId,
+                            'Approve_by'      => $approvedBy,
+                            'Description'     => 'Approved disposal request',
+                            'disposal_reason' => 'Obsolete',
+                            'disposal_date'   => now()->toDateString(),
+                            'notes'           => $requestRecord->Note,
+                            'created_at'      => now(),
+                            'updated_at'      => now(),
+                        ]);
+                    }
+
+                    DB::table('assets')->where('id', $assetId)->update([
+                        'Lifecycle_Status' => 'Disposal',
+                        'updated_at'       => now(),
+                    ]);
+                }
+
+                // ─────────────── REPLACEMENT ───────────────
+                if ($requestType === 'replacement') {
+                    $exists = DB::table('replacements')
+                        ->where('Request_id', $requestRecord->id)
+                        ->where('old_assets_id', $assetId)
+                        ->exists();
+
+                    if (!$exists) {
+                        DB::table('replacements')->insert([
+                            'Request_id'         => $requestRecord->id,
+                            'old_assets_id'      => $assetId,
+                            'new_assets_id'      => $assetId, // temporary placeholder
+                            'Approve_by'         => $approvedBy,
+                            'reason'             => 'Approved replacement request',
+                            'notes'              => $requestRecord->Note,
+                            'Replacement_Date'   => now(),
+                            'replacement_reason' => 'Obsolete',
+                            'status'             => 'Approved',
+                            'created_at'         => now(),
+                            'updated_at'         => now(),
+                        ]);
+                    }
+
+                    DB::table('assets')->where('id', $assetId)->update([
+                        'Lifecycle_Status' => 'For Replacement',
+                        'updated_at'       => now(),
+                    ]);
+                }
+
+                // ─────────────── TRANSFER ───────────────
+                if ($requestType === 'transfer') {
+                    $targetUserId = $requestRecord->assign_to_user_id ?? null;
+
+                    if ($targetUserId) {
+                        DB::table('assets')->where('id', $assetId)->update([
+                            'user_id'          => $targetUserId,
+                            'Lifecycle_Status' => 'Active',
+                            'updated_at'       => now(),
+                        ]);
+
+                        $assigneeName = DB::table('users')
+                            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+                            ->where('users.id', $targetUserId)
+                            ->value('employee_numbers.Full_Name');
+
+                        DB::table('audit_logs')->insert([
+                            'user_id'            => Auth::id(),
+                            'request_id'         => $requestRecord->id,
+                            'asset_id'           => $assetId,
+                            'action_type'        => 'TRANSFER',
+                            'notes'              => 'Transferred asset to ' . ($assigneeName ?? 'User #' . $targetUserId),
+                            'action_description' => 'Asset ownership transferred via approved bulk transfer request #' . $requestRecord->id,
+                            'created_at'         => now(),
+                            'updated_at'         => now(),
+                        ]);
+                    }
+                }
+            }
+
+            // ─────────────── PULLOUT (one transaction for all assets) ───────────────
+            if ($requestType === 'pullout') {
+                $exists = DB::table('pullouts')
+                    ->where('request_id', $requestRecord->id)
+                    ->exists();
+
+                if (!$exists) {
+                    $pulloutId = createPulloutTransaction([
+                        'request_id'   => $requestRecord->id,
+                        'Approve_by'   => $approvedBy,
+                        'Description'  => 'Approved pullout request',
+                        'notes'        => $requestRecord->Note,
+                        'pullout_date' => now()->toDateString(),
+                        'status'       => 'approved',
+                    ], $assetIds);
+
+                    // Update lifecycle of all assets
+                    DB::table('assets')->whereIn('id', $assetIds)->update([
+                        'Lifecycle_Status' => 'Pullout',
+                        'updated_at'       => now(),
+                    ]);
+                }
+            }
+
+            // 3. Audit log
             DB::table('audit_logs')->insert([
                 'user_id'            => Auth::id(),
                 'request_id'         => $requestRecord->id,
-                'asset_id'           => $requestRecord->asset_id,
-                'action_type'        => 'TRANSFER',
-                'notes'              => 'Transferred asset to ' . ($assigneeName ?? 'User #' . $targetUserId),
-                'action_description' => 'Asset ownership transferred via approved transfer request #' . $requestRecord->id,
+                'asset_id'           => null,
+                'action_type'        => 'APPROVAL',
+                'notes'              => 'Approved bulk ' . ($requestRecord->request_type ?? '') . ' request with ' . count($assetIds) . ' asset(s)',
+                'action_description' => ucfirst($requestRecord->request_type ?? 'Unknown') . ' request #' . $requestRecord->id . ' approved',
                 'created_at'         => now(),
                 'updated_at'         => now(),
             ]);
-        }
-    } catch (\Exception $e) {
-        Log::error('Transfer ownership failed for request ' . $requestRecord->id . ': ' . $e->getMessage());
-        // Optional: you can force the approval to fail if transfer is critical
-        // throw $e;
-    }
-}
-    });
+        });
 
-    // Audit: approved
-    try {
-        $requestTypeMap = [
-            'repair' => 'REPAIR',
-            'replacement' => 'REPLACEMENT',
-            'disposal' => 'DISPOSAL',
-            'pullout' => 'TRANSFER',
-            'transfer' => 'TRANSFER'
-        ];
-        $auditActionType = $requestTypeMap[strtolower($requestRecord->request_type ?? '')] ?? 'APPROVAL';
-        
-        DB::table('audit_logs')->insert([
-            'user_id' => Auth::id(),
-            'request_id' => $requestRecord->id,
-            'asset_id' => $requestRecord->asset_id,
-            'action_type' => 'APPROVAL',
-            'notes' => 'Approved request (' . ($requestRecord->request_type ?? '') . ') by ' . $approvedBy,
-            'action_description' => ucfirst($requestRecord->request_type ?? 'Unknown') . ' request #' . $requestRecord->id . ' approved and processing initiated',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-    } catch (\Exception $e) {
-        // ignore
+        return response()->json(['message' => 'Request approved successfully.']);
+    } catch (\Throwable $e) {
+        \Log::error('Approve request failed: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Failed to approve request: ' . $e->getMessage()
+        ], 500);
     }
-
-    return response()->json(['message' => 'Request approved successfully.']);
 })->name('admin.requests.approve');
 
 Route::post('/admin/requests/{id}/reject', function ($id) {
@@ -2887,57 +3684,514 @@ Route::post('/admin/disposal/record', function (Request $request) {
 
 // Record pullout (called by scanner auto-submit or manual form)
 Route::post('/admin/pullout/record', function (Request $request) {
-    $data = $request->only(['asset_id', 'pullout_date', 'reason', 'pulled_by', 'notes']);
+    $assetIds = normalizePulloutAssetIds($request->input('asset_ids', $request->input('asset_id')));
 
-    if (empty($data['asset_id'])) {
-        return response()->json(['message' => 'asset_id required'], 422);
+    if (empty($assetIds)) {
+        return response()->json(['success' => false, 'message' => 'At least one asset is required.'], 422);
     }
 
-    $asset = DB::table('assets')->where('id', $data['asset_id'])->first();
-    if (!$asset) {
-        return response()->json(['message' => 'asset not found'], 404);
+    $reason = trim((string) $request->input('reason', ''));
+    if ($reason === '') {
+        return response()->json(['success' => false, 'message' => 'Reason is required.'], 422);
     }
 
-    // Check if asset is already pulled out
-    $assetStatus = $asset->Lifecycle_Status ?? null;
-    if ($assetStatus === 'Pullout' || $assetStatus === 'pulled_out') {
-        return response()->json(['message' => 'This asset is already pulled out and cannot be recorded again.'], 422);
+    $assets = DB::table('assets')->whereIn('id', $assetIds)->get()->keyBy('id');
+    if ($assets->count() !== count($assetIds)) {
+        return response()->json(['success' => false, 'message' => 'One or more assets were not found.'], 404);
     }
 
-    // Check if a pullout record already exists for this asset
-    $existing = DB::table('pullouts')->where('asset_id', $data['asset_id'])->exists();
-    if ($existing) {
-        return response()->json(['message' => 'A pullout record already exists for this asset.'], 422);
-    }
+    foreach ($assetIds as $assetId) {
+        $asset = $assets->get($assetId);
+        $assetStatus = $asset->Lifecycle_Status ?? null;
 
-    $pulloutDate = $data['pullout_date'] ?: date('Y-m-d');
+        if (in_array($assetStatus, ['Pullout', 'pulled_out', 'Disposal', 'For Repair'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'One or more selected assets are not available for pullout.'
+            ], 422);
+        }
+    }
 
     try {
-        $id = DB::table('pullouts')->insertGetId([
-            'asset_id' => $asset->id,
-            'pullout_date' => $pulloutDate,
-            'Description' => $data['reason'] ?? 'Scanned Pullout',
-            'Approve_by' => $data['pulled_by'] ?? (Auth::user()?->full_name ?? Auth::user()?->email ?? 'Admin'),
-            'notes' => $data['notes'] ?? null,
-            'status' => 'approved',
-            'created_at' => now(),
-            'updated_at' => now(),
+        $id = createPulloutTransaction([
+            'pullout_date'         => $request->input('pullout_date') ?: date('Y-m-d'),
+            'Description'          => $reason,
+            'Approve_by'           => $request->input('pulled_by') ?? (Auth::user()?->email ?? 'Admin'),
+            'notes'                => $request->input('notes'),
+            'destination'          => $request->input('destination'),
+            'expected_return_date' => $request->input('expected_return_date') ?: null,
+            'status'               => 'pending',
+        ], $assetIds);
+
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'action_type'        => 'CREATE',
+            'action_description' => 'Created bulk pullout #' . $id . ' for ' . count($assetIds) . ' asset(s). Reason: ' . $reason,
+            'notes'              => $request->input('notes'),
+            'created_at'         => now(),
+            'updated_at'         => now(),
         ]);
 
-        // mark asset lifecycle as pullout
-        try {
-            DB::table('assets')->where('id', $asset->id)->update([
-                'Lifecycle_Status' => 'Pullout',
-                'updated_at' => now(),
+        return response()->json([
+            'success' => true,
+            'message' => 'Pullout recorded successfully.',
+            'id'      => $id,
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('Bulk pullout failed: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to record pullout',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+})->middleware('auth');
+
+Route::post('/admin/pullout/approve/{id}', function ($id) {
+    $pullout = DB::table('pullouts')->where('id', $id)->first();
+
+    if (!$pullout) {
+        return response()->json(['message' => 'Pullout record not found.'], 404);
+    }
+
+    $items = DB::table('pullout_items')->where('pullout_id', $id)->pluck('asset_id')->all();
+
+    if (empty($items) && !empty($pullout->asset_id)) {
+        $items = [$pullout->asset_id];
+    }
+
+    DB::table('pullouts')->where('id', $id)->update([
+        'status' => 'approved',
+        'Approve_by' => Auth::user()?->name ?? Auth::user()?->email ?? 'Admin',
+        'updated_at' => now(),
+    ]);
+
+    if (!empty($items)) {
+        DB::table('assets')->whereIn('id', $items)->update([
+            'Lifecycle_Status' => 'Pullout',
+            'updated_at' => now(),
+        ]);
+    }
+
+    DB::table('audit_logs')->insert([
+        'user_id' => Auth::id(),
+        'action_type' => 'APPROVAL',
+        'action_description' => 'Approved pullout request #' . $id . ' for ' . count($items) . ' asset(s).',
+        'notes' => 'Pullout request approved.',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return response()->json(['message' => 'Pullout approved.']);
+})->middleware('auth');
+
+Route::delete('/admin/pullout/delete/{id}', function ($id) {
+    $pullout = DB::table('pullouts')->where('id', $id)->first();
+
+    if (!$pullout) {
+        return response()->json(['message' => 'Pullout record not found.'], 404);
+    }
+
+    DB::table('pullouts')->where('id', $id)->delete();
+
+    DB::table('audit_logs')->insert([
+        'user_id' => Auth::id(),
+        'action_type' => 'UPDATE',
+        'action_description' => 'Deleted pullout request #' . $id . '.',
+        'notes' => 'Pullout record deleted.',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return response()->json(['message' => 'Pullout deleted.']);
+})->middleware('auth');
+
+Route::post('/admin/pullout/{id}/resolve', function (Request $request, $id) {
+    $pullout = DB::table('pullouts')->where('id', $id)->first();
+    if (!$pullout) {
+        return response()->json(['success' => false, 'message' => 'Pullout not found'], 404);
+    }
+
+    $action          = $request->input('action');
+    $assignToUserId  = $request->input('assign_to_user_id');
+    $repairNotes     = trim((string) $request->input('repair_notes', ''));
+    $notes           = $request->input('notes');
+    $selectedAssetIds = $request->input('asset_ids', []);   // ← new
+
+    if (!is_array($selectedAssetIds)) {
+        $selectedAssetIds = [];
+    }
+    $selectedAssetIds = array_map('intval', $selectedAssetIds);
+
+    // Get all assets currently linked to this pullout
+    $allAssetIds = DB::table('pullout_items')
+        ->where('pullout_id', $id)
+        ->pluck('asset_id')
+        ->all();
+
+    // Fallback for old single-asset pullouts
+    if (empty($allAssetIds) && !empty($pullout->asset_id)) {
+        $allAssetIds = [(int) $pullout->asset_id];
+    }
+
+    if (empty($allAssetIds)) {
+        return response()->json(['success' => false, 'message' => 'No assets linked to this pullout'], 422);
+    }
+
+    // Only process the ones the user selected (if any were sent)
+    $assetIds = !empty($selectedAssetIds)
+        ? array_values(array_intersect($allAssetIds, $selectedAssetIds))
+        : $allAssetIds;
+
+    if (empty($assetIds)) {
+        return response()->json(['success' => false, 'message' => 'No valid assets selected'], 422);
+    }
+
+    try {
+        DB::beginTransaction();
+
+        // ─────────────────────────────────────────────
+        // ASSIGN
+        // ─────────────────────────────────────────────
+        if ($action === 'assign') {
+            if (empty($assignToUserId)) {
+                return response()->json(['success' => false, 'message' => 'User is required'], 422);
+            }
+
+            $newLocation = trim((string) $request->input('new_location', ''));
+            if ($newLocation === '') {
+                return response()->json(['success' => false, 'message' => 'New location is required'], 422);
+            }
+
+            $ownerName = DB::table('users')
+                ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+                ->where('users.id', $assignToUserId)
+                ->value('employee_numbers.Full_Name') ?? ('User #' . $assignToUserId);
+
+            foreach ($assetIds as $assetId) {
+                DB::table('assets')->where('id', $assetId)->update([
+                    'user_id'          => $assignToUserId,
+                    'Lifecycle_Status' => 'Active',
+                    'asset_location'   => $newLocation,
+                    'updated_at'       => now(),
+                ]);
+
+                DB::table('audit_logs')->insert([
+                    'user_id'            => Auth::id(),
+                    'asset_id'           => $assetId,
+                    'action_type'        => 'TRANSFER',
+                    'notes'              => 'Assigned from pullout to ' . $ownerName . ' at ' . $newLocation,
+                    'action_description' => 'Pullout #' . $id . ' resolved: assigned to ' . $ownerName,
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+            }
+
+            // Remove the processed assets from this pullout
+            DB::table('pullout_items')
+                ->where('pullout_id', $id)
+                ->whereIn('asset_id', $assetIds)
+                ->delete();
+
+            // If no assets left → mark the whole pullout as completed
+            $remaining = DB::table('pullout_items')->where('pullout_id', $id)->count();
+            if ($remaining === 0) {
+                DB::table('pullouts')->where('id', $id)->update([
+                    'status'     => 'completed',
+                    'notes'      => trim(($pullout->notes ? $pullout->notes . ' | ' : '') . ($notes ?: 'Assigned to ' . $ownerName)),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                // Still has assets → keep it open, just add a note
+                DB::table('pullouts')->where('id', $id)->update([
+                    'notes'      => trim(($pullout->notes ? $pullout->notes . ' | ' : '') . 'Partially assigned (' . count($assetIds) . ' asset(s)). ' . ($notes ?? '')),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => count($assetIds) . ' asset(s) assigned to ' . $ownerName . ' and released from pullout.',
             ]);
-        } catch (\Throwable $e) {
-            // ignore
         }
 
-        return response()->json(['message' => 'pullout recorded', 'id' => $id]);
+        // ─────────────────────────────────────────────
+        // REPAIR
+        // ─────────────────────────────────────────────
+        if ($action === 'repair') {
+            foreach ($assetIds as $assetId) {
+                DB::table('assets')->where('id', $assetId)->update([
+                    'Lifecycle_Status' => 'For Repair',
+                    'updated_at'       => now(),
+                ]);
+
+                $requestId = DB::table('requests')->insertGetId([
+                    'user_id'      => Auth::id(),
+                    'asset_id'     => $assetId,
+                    'request_type' => 'Repair',
+                    'status'       => 'Approved',
+                    'Note'         => $repairNotes !== '' ? $repairNotes : 'Sent from pullout #' . $id,
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
+                ]);
+
+                DB::table('repairs')->insert([
+                    'Assets_id'          => $assetId,
+                    'Request_id'         => $requestId,
+                    'Repair_Description' => $repairNotes !== '' ? $repairNotes : 'Repair from pullout',
+                    'Repair_Date'        => now(),
+                    'Approve_by'         => Auth::user()?->email ?? 'Admin',
+                    'Repair_Cost'        => 0,
+                    'status'             => 'Pending',
+                    'notes'              => 'From pullout #' . $id,
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+
+                DB::table('audit_logs')->insert([
+                    'user_id'            => Auth::id(),
+                    'asset_id'           => $assetId,
+                    'request_id'         => $requestId,
+                    'action_type'        => 'REPAIR',
+                    'notes'              => 'Sent to repair from pullout #' . $id,
+                    'action_description' => 'Asset sent to repair via pullout resolve',
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+            }
+
+            // Remove the processed assets from this pullout
+            DB::table('pullout_items')
+                ->where('pullout_id', $id)
+                ->whereIn('asset_id', $assetIds)
+                ->delete();
+
+            $remaining = DB::table('pullout_items')->where('pullout_id', $id)->count();
+            if ($remaining === 0) {
+                DB::table('pullouts')->where('id', $id)->update([
+                    'status'     => 'completed',
+                    'notes'      => trim(($pullout->notes ? $pullout->notes . ' | ' : '') . 'All assets sent to repair. ' . ($notes ?? '')),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                DB::table('pullouts')->where('id', $id)->update([
+                    'status'     => $pullout->status === 'pending' ? 'approved' : $pullout->status,
+                    'notes'      => trim(($pullout->notes ? $pullout->notes . ' | ' : '') . 'Partially sent to repair (' . count($assetIds) . ' asset(s)). ' . ($notes ?? '')),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => count($assetIds) . ' asset(s) sent to repair.',
+            ]);
+        }
+
+        DB::rollBack();
+        return response()->json(['success' => false, 'message' => 'Invalid action'], 422);
+
     } catch (\Throwable $e) {
-        return response()->json(['message' => 'failed to record pullout', 'error' => $e->getMessage()], 500);
+        DB::rollBack();
+        \Log::error('Pullout resolve failed: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to resolve pullout',
+            'error'   => $e->getMessage(),
+        ], 500);
     }
+})->middleware('auth');
+
+Route::post('/admin/pullout/{id}/dispose', function (Request $request, $id) {
+    $pullout = DB::table('pullouts')->where('id', $id)->first();
+    if (!$pullout) {
+        return response()->json(['success' => false, 'message' => 'Pullout not found'], 404);
+    }
+
+    $selectedAssetIds = $request->input('asset_ids', []);
+    if (!is_array($selectedAssetIds)) {
+        $selectedAssetIds = [];
+    }
+    $selectedAssetIds = array_map('intval', array_filter($selectedAssetIds));
+
+    // All assets currently in this pullout
+    $allAssetIds = DB::table('pullout_items')
+        ->where('pullout_id', $id)
+        ->pluck('asset_id')
+        ->all();
+
+    // Fallback for old single-asset pullouts
+    if (empty($allAssetIds) && !empty($pullout->asset_id)) {
+        $allAssetIds = [(int) $pullout->asset_id];
+    }
+
+    if (empty($allAssetIds)) {
+        return response()->json(['success' => false, 'message' => 'No assets linked to this pullout'], 422);
+    }
+
+    // If nothing selected → dispose everything
+    $assetIds = !empty($selectedAssetIds)
+        ? array_values(array_intersect($allAssetIds, $selectedAssetIds))
+        : $allAssetIds;
+
+    if (empty($assetIds)) {
+        return response()->json(['success' => false, 'message' => 'No valid assets selected'], 422);
+    }
+
+    $reason        = trim((string) $request->input('reason', 'Disposed from pullout'));
+    $notes         = $request->input('notes');
+    $disposalDate  = $request->input('disposal_date') ?: date('Y-m-d');
+    $disposedBy    = $request->input('disposed_by') ?? (Auth::user()?->email ?? 'Admin');
+
+    // Map free-text reason → valid enum (same as your existing disposal route)
+    $reasonMap = [
+        'damaged'          => 'Damage',
+        'beyond repair'    => 'Beyond Repair',
+        'obsolete'         => 'Obsolete',
+        'lost'             => 'Lost',
+        'stolen'           => 'Lost',
+        'upgraded'         => 'Replace',
+        'replace'          => 'Replace',
+        'scanned disposal' => 'Obsolete',
+        'other'            => 'Obsolete',
+        'disposed from pullout' => 'Obsolete',
+    ];
+    $rawReason = strtolower(trim($reason));
+    $disposalReason = $reasonMap[$rawReason] ?? 'Obsolete';
+
+    try {
+        DB::beginTransaction();
+
+        foreach ($assetIds as $assetId) {
+            $asset = DB::table('assets')->where('id', $assetId)->first();
+            if (!$asset) continue;
+
+            // Skip if already disposed
+            if (in_array($asset->Lifecycle_Status ?? '', ['Disposal', 'Disposed'], true)) {
+                continue;
+            }
+
+            // Already has a disposal record?
+            $existing = DB::table('disposals')->where('Asset_id', $assetId)->exists();
+            if ($existing) continue;
+
+            // Create disposal record
+            DB::table('disposals')->insert([
+                'Asset_id'        => $assetId,
+                'Request_id'      => null,
+                'Approve_by'      => $disposedBy,
+                'Description'     => $reason,
+                'disposal_date'   => $disposalDate,
+                'disposal_reason' => $disposalReason,
+                'notes'           => $notes ?: ('Disposed from pullout #' . $id),
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ]);
+
+            // Update asset status
+            DB::table('assets')->where('id', $assetId)->update([
+                'Lifecycle_Status' => 'Disposal',
+                'updated_at'       => now(),
+            ]);
+
+            // Audit log
+            DB::table('audit_logs')->insert([
+                'user_id'            => Auth::id(),
+                'asset_id'           => $assetId,
+                'action_type'        => 'DISPOSAL',
+                'notes'              => 'Disposed from pullout #' . $id,
+                'action_description' => 'Asset disposed via pullout trash action',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        }
+
+        // Remove disposed assets from this pullout
+        DB::table('pullout_items')
+            ->where('pullout_id', $id)
+            ->whereIn('asset_id', $assetIds)
+            ->delete();
+
+        // If no assets left → mark pullout completed
+        $remaining = DB::table('pullout_items')->where('pullout_id', $id)->count();
+        if ($remaining === 0) {
+            DB::table('pullouts')->where('id', $id)->update([
+                'status'     => 'completed',
+                'notes'      => trim(($pullout->notes ? $pullout->notes . ' | ' : '') . 'All assets disposed. ' . ($notes ?? '')),
+                'updated_at' => now(),
+            ]);
+        } else {
+            DB::table('pullouts')->where('id', $id)->update([
+                'notes'      => trim(($pullout->notes ? $pullout->notes . ' | ' : '') . 'Partially disposed (' . count($assetIds) . ' asset(s)). ' . ($notes ?? '')),
+                'updated_at' => now(),
+            ]);
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => count($assetIds) . ' asset(s) disposed successfully.',
+        ]);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        \Log::error('Pullout dispose failed: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to dispose assets',
+            'error'   => $e->getMessage(),
+        ], 500);
+    }
+})->middleware('auth');
+
+Route::get('/admin/pullout/{id}/details', function ($id) {
+    $pullout = DB::table('pullouts')->where('id', $id)->first();
+
+    if (!$pullout) {
+        return response()->json(['success' => false, 'message' => 'Pullout not found'], 404);
+    }
+
+    // Get assets linked to this pullout
+    $assets = DB::table('pullout_items')
+        ->join('assets', 'pullout_items.asset_id', '=', 'assets.id')
+        ->where('pullout_items.pullout_id', $id)
+        ->select(
+            'assets.id',
+            'assets.Asset_name as name',
+            'assets.Asset_code as code',
+            'assets.Lifecycle_Status as status'
+        )
+        ->get();
+
+    // Fallback for old single-asset records
+    if ($assets->isEmpty() && !empty($pullout->asset_id)) {
+        $asset = DB::table('assets')->where('id', $pullout->asset_id)->first();
+        if ($asset) {
+            $assets = collect([(object)[
+                'id'     => $asset->id,
+                'name'   => $asset->Asset_name,
+                'code'   => $asset->Asset_code,
+                'status' => $asset->Lifecycle_Status,
+            ]]);
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'pullout' => [
+            'id'            => $pullout->id,
+            'pullout_date'  => $pullout->pullout_date,
+            'status'        => $pullout->status,
+            'reason'        => $pullout->Description ?? $pullout->notes,
+            'Description'   => $pullout->Description,
+            'pulled_by'     => $pullout->Approve_by,
+            'Approve_by'    => $pullout->Approve_by,
+            'destination'   => $pullout->destination,
+            'notes'         => $pullout->notes,
+        ],
+        'assets' => $assets,
+    ]);
 })->middleware('auth');
 
 // Logout route - logs out user and redirects to welcome page
@@ -2960,142 +4214,278 @@ Route::post('/logout', function (Request $request) {
 Route::middleware(['auth'])->group(function () {
     // AJAX: validate asset code belongs to authenticated user
     Route::get('/user/assets/check-code', function (Request $request) {
-        $code = trim((string) $request->query('code', ''));
-        $user = Auth::user();
+    $code = trim((string) $request->query('code', ''));
+    $user = Auth::user();
 
-        if (!$user || $code === '') {
-            return response()->json(['exists' => false]);
-        }
-
-        $asset = DB::table('assets')
-            ->where('Asset_code', $code)
-            ->where('user_id', $user->id)
-            ->first();
-
-        if ($asset) {
-            return response()->json([
-                'exists' => true,
-                'asset' => [
-                    'id' => $asset->id,
-                    'name' => $asset->Asset_name ?? null,
-                ],
-            ]);
-        }
-
+    if (!$user || $code === '') {
         return response()->json(['exists' => false]);
-    })->name('user.assets.check');
-    Route::get('/user/requests', function () {
-        try {
-            $user = Auth::user();
-            
-            if (!$user) {
-                return redirect('/login');
+    }
+
+    $asset = DB::table('assets')
+        ->where('Asset_code', $code)
+        ->where('user_id', $user->id)
+        ->select('id', 'Asset_code', 'Asset_name', 'Category', 'Lifecycle_Status', 'Condition')
+        ->first();
+
+    if ($asset) {
+        return response()->json([
+            'exists' => true,
+            'asset'  => [
+                'id'               => $asset->id,
+                'code'             => $asset->Asset_code,
+                'name'             => $asset->Asset_name,
+                'category'         => $asset->Category,
+                'lifecycle_status' => $asset->Lifecycle_Status,
+                'condition'        => $asset->Condition,
+            ],
+        ]);
+    }
+
+    return response()->json(['exists' => false]);
+})->name('user.assets.check');
+
+// AJAX: validate asset code for Department Head (own + department employees)
+Route::get('/department-head/assets/check-code', function (Request $request) {
+    $code = trim((string) $request->query('code', ''));
+    $user = Auth::user();
+
+    if (!$user || ($user->role ?? '') !== 'Department Head' || $code === '') {
+        return response()->json(['exists' => false]);
+    }
+
+    $asset = DB::table('assets')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->where('assets.Asset_code', $code)
+        ->where('users.department_id', $user->department_id)
+        ->select(
+            'assets.id',
+            'assets.Asset_code',
+            'assets.Asset_name',
+            'assets.Category',
+            'assets.Lifecycle_Status',
+            'assets.Condition'
+        )
+        ->first();
+
+    if ($asset) {
+        return response()->json([
+            'exists' => true,
+            'asset'  => [
+                'id'               => $asset->id,
+                'code'             => $asset->Asset_code,
+                'name'             => $asset->Asset_name,
+                'category'         => $asset->Category,
+                'lifecycle_status' => $asset->Lifecycle_Status,
+                'condition'        => $asset->Condition,
+            ],
+        ]);
+    }
+
+    return response()->json(['exists' => false]);
+})->name('department_head.assets.check');
+
+Route::get('/user/requests', function () {
+    try {
+        $user = Auth::user();
+        if (!$user) {
+            return redirect('/login');
+        }
+
+        $requests = DB::table('requests')
+            ->where('requests.user_id', $user->id)
+            ->orderByDesc('requests.created_at')
+            ->paginate(10);
+
+        // Load assets from request_items
+        $requestIds = $requests->pluck('id')->all();
+        $itemsByRequest = collect();
+
+        if (!empty($requestIds)) {
+            $itemsByRequest = DB::table('request_items')
+                ->join('assets', 'request_items.asset_id', '=', 'assets.id')
+                ->whereIn('request_items.request_id', $requestIds)
+                ->select(
+                    'request_items.request_id',
+                    'assets.id as asset_id',
+                    'assets.Asset_name',
+                    'assets.Asset_code'
+                )
+                ->get()
+                ->groupBy('request_id');
+        }
+
+        $requests->getCollection()->transform(function ($r) use ($itemsByRequest) {
+            $related = $itemsByRequest->get($r->id, collect());
+
+            $assetList = $related->map(fn($a) => (object)[
+                'Asset_name' => $a->Asset_name,
+                'Asset_code' => $a->Asset_code,
+            ])->values();
+
+            // Fallback for old single-asset requests
+            if ($assetList->isEmpty() && $r->asset_id) {
+                $old = DB::table('assets')->where('id', $r->asset_id)->first();
+                if ($old) {
+                    $assetList = collect([(object)[
+                        'Asset_name' => $old->Asset_name,
+                        'Asset_code' => $old->Asset_code,
+                    ]]);
+                }
             }
 
-            // Use a paginator so the view's pagination helpers work correctly
-            $requests = DB::table('requests')
-                ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-                ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code')
-                ->where('requests.user_id', $user->id)
-                ->orderByDesc('requests.created_at')
-                ->paginate(10);
+            $count = $assetList->count();
+            $displayName = $count === 0
+                ? '—'
+                : ($count === 1
+                    ? $assetList->first()->Asset_name
+                    : $assetList->first()->Asset_name . ' +' . ($count - 1) . ' more');
 
-            // Transform paginator items to match view expectations (attach asset object, parse dates)
-            $requests->getCollection()->transform(function ($r) {
-                return (object) [
-                    'id' => $r->id,
-                    'request_type' => $r->request_type,
-                    'status' => $r->status,
-                    'Note' => $r->Note,
-                    'file_path' => $r->file_path ?? null,
-                    'file_name' => $r->file_name ?? null,
-                    'created_at' => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
-                    'updated_at' => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),
-                    'asset' => (object) [
-                        'Asset_name' => $r->asset_name,
-                        'Asset_code' => $r->asset_code,
-                    ],
-                ];
-            });
+            return (object) [
+                'id'           => $r->id,
+                'request_type' => $r->request_type,
+                'status'       => $r->status,
+                'Note'         => $r->Note,
+                'file_path'    => $r->file_path ?? null,
+                'file_name'    => $r->file_name ?? null,
+                'created_at'   => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
+                'updated_at'   => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),
+                'asset'        => (object)[          // for backward compatibility
+                    'Asset_name' => $displayName,
+                    'Asset_code' => $count === 1 ? $assetList->first()->Asset_code : '',
+                ],
+                'assets'       => $assetList,        // full list for modal
+                'asset_count'  => $count,
+            ];
+        });
 
-            // Totals (global counts) for the user's requests
-            $totalRequests = DB::table('requests')->where('user_id', $user->id)->count();
-            $pendingRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Pending')->count();
-            $approvedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Approved')->count();
-            $rejectedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Rejected')->count();
+        $totalRequests    = DB::table('requests')->where('user_id', $user->id)->count();
+        $pendingRequests  = DB::table('requests')->where('user_id', $user->id)->where('status', 'Pending')->count();
+        $approvedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Approved')->count();
+        $rejectedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Rejected')->count();
 
-            return view('users.request.request', compact('requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'));
-        } catch (\Throwable $e) {
-            return redirect('/users')->withErrors(['error' => 'Unable to load requests. Please try again later.']);
-        }
-    })->name('user.requests.index');
+        return view('users.request.request', compact(
+            'requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'
+        ));
+    } catch (\Throwable $e) {
+        return redirect('/users')->withErrors(['error' => 'Unable to load requests.']);
+    }
+})->name('user.requests.index');
     Route::get('/user/request-asset', [UserRequestController::class, 'create'])->name('user.request-asset');
     Route::post('/user/requests/store', [UserRequestController::class, 'store'])->name('user.requests.store');
 
     // Department Head: view requests submitted by users in the head's department
-    Route::get('/department-head/requests', function () {
-        $user = Auth::user();
-        if (!$user) return redirect('/login');
-        if (($user->role ?? '') !== 'Department Head') return abort(403);
+Route::get('/department-head/requests', function () {
+    $user = Auth::user();
+    if (!$user) return redirect('/login');
+    if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-        $requests = DB::table('requests')
-            ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-            ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-            ->select('requests.*', 'assets.Asset_name as asset_name', 'assets.Asset_code as asset_code', 'employee_numbers.Full_Name as requester_name')
-            ->where('users.department_id', $user->department_id)
-            ->orderByDesc('requests.created_at')
-            ->paginate(10);
+    $requests = DB::table('requests')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->where('users.department_id', $user->department_id)
+        ->select(
+            'requests.*',
+            'employee_numbers.Full_Name as requester_name'
+        )
+        ->orderByDesc('requests.created_at')
+        ->paginate(10);
 
-        $requests->getCollection()->transform(function ($r) {
-            return (object) [
-                'id' => $r->id,
-                'request_type' => $r->request_type,
-                'status' => $r->status,
-                'Note' => $r->Note,
-                'file_path' => $r->file_path ?? null,
-                'file_name' => $r->file_name ?? null,
-                'created_at' => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
-                'updated_at' => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),
-                'asset' => (object) [
-                    'Asset_name' => $r->asset_name,
-                    'Asset_code' => $r->asset_code,
-                ],
-                'requester_name' => $r->requester_name ?? null,
-            ];
-        });
+    // Load assets from request_items
+    $requestIds = $requests->pluck('id')->all();
+    $itemsByRequest = collect();
 
-        // Totals for department
-        $totalRequests = DB::table('requests')
-            ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-            ->where('users.department_id', $user->department_id)
-            ->count();
-        $pendingRequests = DB::table('requests')
-            ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-            ->where('users.department_id', $user->department_id)
-            ->where('requests.status', 'Pending')
-            ->count();
-        $approvedRequests = DB::table('requests')
-            ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-            ->where('users.department_id', $user->department_id)
-            ->where('requests.status', 'Approved')
-            ->count();
-        $rejectedRequests = DB::table('requests')
-            ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-            ->where('users.department_id', $user->department_id)
-            ->where('requests.status', 'Rejected')
-            ->count();
+    if (!empty($requestIds)) {
+        $itemsByRequest = DB::table('request_items')
+            ->join('assets', 'request_items.asset_id', '=', 'assets.id')
+            ->whereIn('request_items.request_id', $requestIds)
+            ->select(
+                'request_items.request_id',
+                'assets.id as asset_id',
+                'assets.Asset_name',
+                'assets.Asset_code'
+            )
+            ->get()
+            ->groupBy('request_id');
+    }
 
-        return view('department_head.request.request', [
-            'requests' => $requests,
-            'totalRequests' => $totalRequests,
-            'pendingRequests' => $pendingRequests,
-            'approvedRequests' => $approvedRequests,
-            'rejectedRequests' => $rejectedRequests,
-            'user' => $user,
-            'currentUser' => $user,
-        ]);
-    })->name('department_head.requests.index');
+    $requests->getCollection()->transform(function ($r) use ($itemsByRequest) {
+        $related = $itemsByRequest->get($r->id, collect());
+
+        $assetList = $related->map(fn($a) => (object)[
+            'Asset_name' => $a->Asset_name,
+            'Asset_code' => $a->Asset_code,
+        ])->values();
+
+        // Fallback for old single-asset
+        if ($assetList->isEmpty() && $r->asset_id) {
+            $old = DB::table('assets')->where('id', $r->asset_id)->first();
+            if ($old) {
+                $assetList = collect([(object)[
+                    'Asset_name' => $old->Asset_name,
+                    'Asset_code' => $old->Asset_code,
+                ]]);
+            }
+        }
+
+        $count = $assetList->count();
+        $displayName = $count === 0
+            ? '—'
+            : ($count === 1
+                ? $assetList->first()->Asset_name
+                : $assetList->first()->Asset_name . ' +' . ($count - 1) . ' more');
+
+        return (object) [
+            'id'             => $r->id,
+            'request_type'   => $r->request_type,
+            'status'         => $r->status,
+            'Note'           => $r->Note,
+            'file_path'      => $r->file_path ?? null,
+            'file_name'      => $r->file_name ?? null,
+            'created_at'     => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
+            'updated_at'     => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),
+            'requester_name' => $r->requester_name ?? null,
+            'asset'          => (object)[
+                'Asset_name' => $displayName,
+                'Asset_code' => $count === 1 ? $assetList->first()->Asset_code : '',
+            ],
+            'assets'         => $assetList,
+            'asset_count'    => $count,
+        ];
+    });
+
+    $totalRequests = DB::table('requests')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->where('users.department_id', $user->department_id)
+        ->count();
+
+    $pendingRequests = DB::table('requests')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->where('users.department_id', $user->department_id)
+        ->where('requests.status', 'Pending')
+        ->count();
+
+    $approvedRequests = DB::table('requests')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->where('users.department_id', $user->department_id)
+        ->where('requests.status', 'Approved')
+        ->count();
+
+    $rejectedRequests = DB::table('requests')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->where('users.department_id', $user->department_id)
+        ->where('requests.status', 'Rejected')
+        ->count();
+
+    return view('department_head.request.request', [
+        'requests'         => $requests,
+        'totalRequests'    => $totalRequests,
+        'pendingRequests'  => $pendingRequests,
+        'approvedRequests' => $approvedRequests,
+        'rejectedRequests' => $rejectedRequests,
+        'user'             => $user,
+        'currentUser'      => $user,
+    ]);
+})->name('department_head.requests.index');
 
     // Department Head: request form (uses department_head view)
     Route::get('/department-head/request-asset', function () {

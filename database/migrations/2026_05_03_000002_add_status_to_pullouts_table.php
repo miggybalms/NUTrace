@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('pullouts', function (Blueprint $table) {
-            $table->string('status')->default('approved')->after('pullout_date');
+            $table->string('status')->default('pending')->after('pullout_date');
         });
     }
 

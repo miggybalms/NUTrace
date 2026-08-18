@@ -3,12 +3,36 @@
     $initial = $user ? strtoupper(substr($user->full_name ?? 'U', 0, 1)) : 'U';
 @endphp
 
-<div class="w-64 bg-gray-900 text-white flex flex-col overflow-y-auto flex-shrink-0">
-    <div class="p-6 pb-6">
+<!-- Mobile top bar with hamburger toggle (hidden on lg+) -->
+<div class="lg:hidden fixed top-0 left-0 right-0 h-14 bg-gray-900 text-white flex items-center px-4 z-40 shadow-md">
+    <button id="sidebarOpenBtn" class="text-2xl mr-3 focus:outline-none" aria-label="Open menu">
+        <i class="ri-menu-line"></i>
+    </button>
+    <h1 class="text-lg font-bold flex items-center text-white">
+        <i class="ri-dashboard-line mr-2 text-blue-400"></i>
+        Dashboard
+    </h1>
+</div>
+
+<!-- Spacer so page content isn't hidden under the fixed mobile top bar -->
+<div class="lg:hidden h-14"></div>
+
+<!-- Overlay (mobile only, shown when sidebar is open) -->
+<div id="sidebarOverlay" class="hidden lg:hidden fixed inset-0 bg-black/50 z-40"></div>
+
+<div id="sidebar"
+     class="w-64 bg-gray-900 text-white flex flex-col overflow-y-auto flex-shrink-0
+            fixed inset-y-0 left-0 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out
+            lg:static lg:translate-x-0 lg:transition-none lg:z-auto">
+
+    <div class="p-6 pb-6 flex items-center justify-between">
         <h1 class="text-2xl font-bold flex items-center text-white">
             <i class="ri-dashboard-line mr-2 text-blue-400"></i>
             Dashboard
         </h1>
+        <button id="sidebarCloseBtn" class="lg:hidden text-gray-400 hover:text-white text-2xl focus:outline-none" aria-label="Close menu">
+            <i class="ri-close-line"></i>
+        </button>
     </div>
 
     <nav class="flex-1 px-4">
@@ -54,3 +78,35 @@
         </a>
     </div>
 </div>
+
+<script>
+    (function () {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const openBtn = document.getElementById('sidebarOpenBtn');
+        const closeBtn = document.getElementById('sidebarCloseBtn');
+
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        if (openBtn) openBtn.addEventListener('click', openSidebar);
+        if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+        if (overlay) overlay.addEventListener('click', closeSidebar);
+
+        // Close the drawer automatically if the viewport is resized up to desktop size
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 1024) {
+                closeSidebar();
+            }
+        });
+    })();
+</script>
