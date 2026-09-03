@@ -20,18 +20,18 @@
         }
 
         .sidebar-item:hover {
-            background-color: #1f2937;
+            background-color: #142B4D;
             color: #ffffff;
         }
 
         .sidebar-item.active {
-            background-color: #1f2937;
-            color: #3b82f6;
-            border-right: 3px solid #3b82f6;
+            background-color: #142B4D;
+            color: #E8C874;
+            border-right: 3px solid #C9A227;
         }
 
         .sidebar-item.active i {
-            color: #3b82f6;
+            color: #E8C874;
         }
     </style>
 </head>
@@ -44,12 +44,12 @@
     @endphp
 
     <!-- Mobile top bar with hamburger toggle (hidden on lg+) -->
-    <div class="lg:hidden fixed top-0 left-0 right-0 h-14 bg-gray-900 text-white flex items-center px-4 z-40 shadow-md">
+    <div class="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#0B1B33] text-white flex items-center px-4 z-40 shadow-md">
         <button id="sidebarOpenBtn" class="text-2xl mr-3 focus:outline-none" aria-label="Open menu">
             <i class="ri-menu-line"></i>
         </button>
         <h1 class="text-lg font-bold flex items-center text-white">
-            <i class="ri-dashboard-line mr-2 text-blue-400"></i>
+            <i class="ri-dashboard-line mr-2 text-[#E8C874]"></i>
             Dashboard
         </h1>
     </div>
@@ -61,14 +61,14 @@
 
         <!-- SIDEBAR -->
         <div id="sidebar"
-             class="w-64 bg-gray-900 text-white flex flex-col overflow-y-auto flex-shrink-0
+             class="w-64 bg-[#0B1B33] text-white flex flex-col overflow-y-auto flex-shrink-0
                     fixed inset-y-0 left-0 z-50 transform -translate-x-full transition-transform duration-300 ease-in-out
                     lg:static lg:translate-x-0 lg:transition-none lg:z-auto">
 
             <!-- Logo / Title -->
             <div class="p-6 pb-6 flex items-center justify-between">
                 <h1 class="text-2xl font-bold flex items-center text-white">
-                    <i class="ri-dashboard-line mr-2 text-blue-400"></i>
+                    <i class="ri-dashboard-line mr-2 text-[#E8C874]"></i>
                     Dashboard
                 </h1>
                 <button id="sidebarCloseBtn" class="lg:hidden text-gray-400 hover:text-white text-2xl focus:outline-none" aria-label="Close menu">
@@ -98,15 +98,15 @@
             </nav>
 
             <!-- User Info + Logout -->
-            <div class="border-t border-gray-800 p-4 mt-auto">
-                <div class="flex items-center mb-3 p-2 rounded-lg bg-gray-800">
-                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+            <div class="border-t border-white/10 p-4 mt-auto">
+                <div class="flex items-center mb-3 p-2 rounded-lg bg-white/5">
+                    <div class="w-10 h-10 bg-[#C9A227] rounded-full flex items-center justify-center flex-shrink-0">
                         @if($user && $user->profile_photo_url)
                             <img src="{{ $user->profile_photo_url }}"
                                  class="w-10 h-10 rounded-full object-cover"
                                  alt="Profile"/>
                         @else
-                            <span class="text-white font-semibold text-sm">{{ $initial }}</span>
+                            <span class="text-[#0B1B33] font-semibold text-sm">{{ $initial }}</span>
                         @endif
                     </div>
                     <div class="ml-3 flex-1 min-w-0">
@@ -114,10 +114,10 @@
                         <p class="text-xs text-gray-400 truncate">{{ $user?->email ?? 'user@user.com' }}</p>
                     </div>
                     <a href="/user/settings">
-                        <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-white text-sm"></i>
+                        <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-[#E8C874] text-sm"></i>
                     </a>
                 </div>
-                <a href="/logout" class="w-full flex items-center px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-gray-800 transition">
+                <a href="/logout" class="w-full flex items-center px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-white/5 transition">
                     <i class="ri-logout-box-line mr-3 text-lg"></i>
                     <span>Logout</span>
                 </a>

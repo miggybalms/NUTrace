@@ -1097,7 +1097,7 @@ function toggleEditActionFields() {
                 reason: 'Scanned Pullout',
                 pulled_by: adminName,
                 notes: 'Recorded by admin via QR scan.',
-                status: 'pending'
+                status: 'approved'
             };
 
             try {
@@ -1428,7 +1428,7 @@ document.getElementById('disposeFromPulloutForm')?.addEventListener('submit', as
             data.asset_ids = formData.getAll('asset_ids[]').filter(Boolean);
             delete data['asset_ids[]'];
             delete data.asset_id;
-            data.status = 'pending';
+            data.status = 'approved';
 
             if (!data.asset_ids.length) {
                 showToast('Please select at least one asset.', 'error');

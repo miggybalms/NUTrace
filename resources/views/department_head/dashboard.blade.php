@@ -24,13 +24,13 @@
         }
         
         .sidebar-item:hover {
-            background-color: #374151;
+            background-color: #142B4D;
         }
         
         .sidebar-item.active {
-            background-color: #1f2937;
-            color: #3b82f6;
-            border-right: 3px solid #3b82f6;
+            background-color: #0B1B33;
+            color: #E8C874;
+            border-right: 3px solid #C9A227;
         }
         
         .stat-card {
@@ -39,7 +39,8 @@
         
         .stat-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 25px -5px rgba(11, 27, 51, 0.14);
+            border-color: rgba(201, 162, 39, 0.35);
         }
         
         .request-item {
@@ -49,6 +50,7 @@
         .request-item:hover {
             background-color: #f9fafb;
             transform: translateX(4px);
+            border-color: rgba(201, 162, 39, 0.35);
         }
         
         .submit-btn {
@@ -57,7 +59,7 @@
         
         .submit-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 4px 12px rgba(201, 162, 39, 0.35);
         }
     </style>
 </head>
@@ -68,57 +70,34 @@
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto bg-gray-50">
             <!-- Header -->
-            <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div class="px-8 py-5">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <div class="flex items-center">
-                                <h2 class="text-2xl font-bold text-gray-900">Welcome, {{ $user?->full_name ?? 'User' }}</h2>
-                            </div>
-                            <div class="flex items-center mt-1">
-                                <span class="text-sm font-semibold text-gray-900">{{ $user?->unit_heads_number }} - {{ $user?->role ?? 'Employee' }}</span>
-                                <span class="mx-2 text-gray-300">•</span>
-                                @php
-                                    $deptName = $user && $user->department_id ? \Illuminate\Support\Facades\DB::table('departments')->where('id', $user->department_id)->value('Name') : 'N/A';
-                                @endphp
-                                <span class="text-sm text-blue-600 font-medium">{{ $deptName }}</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <div class="relative cursor-pointer">
-                                <i class="ri-notification-3-line text-xl text-gray-600"></i>
-                                <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
-                            </div>
-                            <div class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1">
-                                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                                    <span class="text-white text-xs font-semibold">U</span>
-                                </div>
-                                <i class="ri-arrow-down-s-line text-gray-500"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            @include('layouts.department_head_header', [
+                'title'    => 'Welcome, ' . (
+                    $user?->full_name
+                    ?? optional($user?->employee_numbers)->Full_Name
+                    ?? 'User'
+                ),
+                'subtitle' => 'Overview of your department assets and requests',
+            ])
 
             <!-- Content -->
             <div class="p-8">
                 <!-- Total Assets Section -->
                 <div class="mb-8">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="bg-gradient-to-br from-[#0B1B33] to-[#1C3A63] rounded-xl shadow-lg p-6 text-white">
                         <div class="flex justify-between items-center mb-4">
                             <div>
-                                <h3 class="text-lg font-semibold text-gray-900">Total Assets</h3>
-                                <p class="text-sm text-gray-500 mt-1">Your assigned equipment and devices</p>
+                                <h3 class="text-lg font-semibold">Total Assets</h3>
+                                <p class="text-sm text-white/70 mt-1">Your assigned equipment and devices</p>
                             </div>
-                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-computer-line text-blue-600 text-xl"></i>
+                            <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center">
+                                <i class="ri-computer-line text-[#E8C874] text-xl"></i>
                             </div>
                         </div>
-                        <p class="text-4xl font-bold text-gray-900">{{ $totalAssets ?? 0 }}</p>
+                        <p class="text-4xl font-bold">{{ $totalAssets ?? 0 }}</p>
                     </div>
                 </div>
 
-                <!-- Stats Cards -->
+                <!-- Stats Cards (lifecycle status colors — unchanged) -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                     <!-- Acquired -->
                     <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-200 p-4">
@@ -183,7 +162,7 @@
 
                 <!-- Quick Actions -->
                 <div class="mb-8">
-                    <a href="{{ route('user.request-asset') }}" class="submit-btn bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all inline-flex items-center shadow-md">
+                    <a href="{{ route('department_head.request-asset') }}" class="submit-btn bg-[#C9A227] text-[#0B1B33] px-6 py-3 rounded-lg hover:bg-[#E8C874] transition-all inline-flex items-center shadow-md font-semibold">
                         <i class="ri-add-line mr-2 text-lg"></i>
                         Submit Request
                     </a>
@@ -195,13 +174,14 @@
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                     <div class="flex justify-between items-center p-6 border-b border-gray-200">
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900">Recent Requests</h3>
+                            <h3 class="text-lg font-semibold text-[#0B1B33]">Recent Requests</h3>
                             <p class="text-sm text-gray-500 mt-1">Your latest request activities</p>
                         </div>
-                        <a href="#" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center">
-                            View All
-                            <i class="ri-arrow-right-line ml-1"></i>
-                        </a>
+                            <a href="{{ route('department_head.requests.index') }}"
+                            class="text-[#0B1B33] hover:text-[#C9A227] text-sm font-medium flex items-center transition">
+                                View All
+                                <i class="ri-arrow-right-line ml-1"></i>
+                            </a>
                     </div>
                     <div class="p-6">
                         @if(isset($recentRequests) && count($recentRequests) > 0)
@@ -221,7 +201,7 @@
                                                 @endif"></i>
                                         </div>
                                         <div>
-                                            <p class="font-medium text-gray-900">{{ ucfirst(str_replace('_', ' ', $request->type)) }}</p>
+                                            <p class="font-medium text-[#0B1B33]">{{ ucfirst(str_replace('_', ' ', $request->type)) }}</p>
                                             <p class="text-sm text-gray-500">{{ $request->description }}</p>
                                         </div>
                                     </div>
@@ -242,8 +222,8 @@
                             </div>
                         @else
                             <div class="text-center py-12">
-                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <i class="ri-inbox-line text-2xl text-gray-400"></i>
+                                <div class="w-16 h-16 bg-[#0B1B33]/5 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <i class="ri-inbox-line text-2xl text-[#C9A227]"></i>
                                 </div>
                                 <p class="text-gray-500">No recent requests</p>
                                 <p class="text-xs text-gray-400 mt-1">Submit a request to get started</p>
@@ -259,47 +239,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Department Notifications Polling + Toast -->
-    <script>
-        (function () {
-            const endpoint = '/api/notifications/department';
-            const storageKey = 'repairStatuses_dept';
-
-            function showToast(message, type = 'info') {
-                const toast = document.createElement('div');
-                toast.className = `toast fixed bottom-6 right-6 px-5 py-3 rounded-lg text-white shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`;
-                toast.textContent = message;
-                document.body.appendChild(toast);
-                setTimeout(() => { toast.remove(); }, 7000);
-            }
-
-            async function fetchNotifications() {
-                try {
-                    const res = await fetch(endpoint, { credentials: 'same-origin' });
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    const repairs = data.repairs || [];
-                    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
-
-                    repairs.forEach(r => {
-                        const prev = stored[r.id];
-                        if (prev && prev !== r.status) {
-                            showToast(`Request #REQ-${String(r.id).padStart(4,'0')} (${r.Asset_name || 'asset'}) by ${r.submitted_by || 'user'}: status changed to ${r.status}`);
-                        }
-                        stored[r.id] = r.status;
-                    });
-
-                    localStorage.setItem(storageKey, JSON.stringify(stored));
-                } catch (e) {
-                    // ignore
-                }
-            }
-
-            fetchNotifications();
-            setInterval(fetchNotifications, 30000);
-        })();
-    </script>
 
 </body>
 </html>

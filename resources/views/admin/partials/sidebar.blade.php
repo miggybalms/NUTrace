@@ -10,7 +10,7 @@
 <div id="sidebar"
      class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col overflow-y-auto
             transform -translate-x-full transition-transform duration-300 ease-in-out
-            lg:translate-x-0 lg:static lg:z-auto">
+            lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:z-auto">
 
     <div class="p-6 border-b border-gray-800 flex items-center justify-between">
         <h1 class="text-2xl font-bold flex items-center">
@@ -23,13 +23,6 @@
         </button>
     </div>
 
-    <div class="p-4 border-b border-gray-800">
-        <div class="relative">
-            <i class="ri-search-line absolute left-3 top-2.5 text-gray-400 text-sm"></i>
-            <input type="text" placeholder="Search assets..." 
-                   class="w-full pl-9 pr-3 py-2 bg-gray-800 rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-    </div>
 
     <nav class="flex-1 py-4">
         <div class="px-4 mb-4">

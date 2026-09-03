@@ -15,11 +15,12 @@
         <div class="flex-1 overflow-y-auto bg-gray-50">
     <div class="max-w-4xl mx-auto p-8">
 
-        {{-- Back Button --}}
-        <a href="/department-head/assets" class="inline-flex items-center gap-1.5 text-sm text-gray-500 px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-100 hover:bg-gray-200 transition mb-5">
-            <i class="ri-arrow-left-line"></i> Back to my assets
-        </a>
-
+            {{-- Back Button --}}
+            <a href="{{ url()->previous() }}"
+            class="inline-flex items-center gap-1.5 text-sm text-gray-500 px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-100 hover:bg-gray-200 transition mb-5">
+                <i class="ri-arrow-left-line"></i> Back to my assets
+            </a>
+            
         {{-- Main Card --}}
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
 

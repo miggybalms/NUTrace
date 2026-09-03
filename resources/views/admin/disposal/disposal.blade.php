@@ -8,17 +8,37 @@
     <title>Disposal Management - Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
-        body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+        :root{
+            --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --paper:#F3EEE0; --paper-2:#EAE2C9;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --line:#DED2AE;
+            --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
+            --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
+            --steel:#2E5C8A; --steel-dark:#234869; --steel-tint:#E9F0F7;
+            --brick:#A23B32; --brick-dark:#7E2E27; --brick-tint:#F7E9E6;
         }
-        
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--paper);
+            color: var(--ink-900);
+        }
+
+        .font-display{ font-family:'Fraunces',serif; }
+        .font-mono{ font-family:'IBM Plex Mono',monospace; }
+        .eyebrow{ font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-400); }
+
         .sidebar-item {
             transition: all 0.2s ease;
             cursor: pointer;
@@ -33,14 +53,28 @@
             color: #3b82f6;
             border-right: 3px solid #3b82f6;
         }
-        
+
+        .topbar{ background:#fff; border-bottom:1px solid var(--line); position:relative; }
+        .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500) 20%, var(--gold-500) 80%, transparent); opacity:.7; }
+
+        .btn-gold{ font-family:'Inter',sans-serif; font-weight:600; border-radius:9px; padding:.55rem 1.1rem; background:var(--gold-500); color:var(--navy-950); display:inline-flex; align-items:center; transition:filter .15s ease; }
+        .btn-gold:hover{ filter:brightness(1.06); }
+        .btn-ghost{ font-family:'Inter',sans-serif; font-weight:500; border-radius:9px; padding:.55rem 1.1rem; color:var(--navy-800); border:1px solid var(--line); background:#fff; transition:background .15s; }
+        .btn-ghost:hover{ background:var(--paper-2); }
+
+        .hero-card{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); border-radius:14px; position:relative; overflow:hidden; }
+        .hero-card::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:linear-gradient(90deg,transparent, var(--gold-500), transparent); }
+
         .disposal-card {
+            background:#fff; border:1px solid var(--line); border-radius:14px;
+            box-shadow: 0 1px 2px rgba(10,24,48,.05), 0 10px 26px -18px rgba(10,24,48,.28);
             transition: all 0.3s ease;
         }
         
         .disposal-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border-color: var(--gold-500);
+            box-shadow: 0 2px 4px rgba(10,24,48,.06), 0 16px 32px -16px rgba(10, 24, 48, 0.3);
         }
         
         .modal {
@@ -67,13 +101,13 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            background-color: #10b981;
             color: white;
             padding: 12px 24px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             z-index: 10000;
             animation: slideIn 0.3s ease;
+            font-family: 'Inter', sans-serif;
         }
 
         @keyframes slideIn {
@@ -86,6 +120,11 @@
                 opacity: 1;
             }
         }
+
+        .modal-head{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); position:relative; }
+        .modal-head::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--gold-500); }
+        .form-input{ width:100%; border:1px solid var(--line); border-radius:9px; padding:.55rem .9rem; font-size:.9rem; outline:none; transition:border-color .15s, box-shadow .15s; }
+        .form-input:focus{ border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
 
         /* Fixed scanner styles */
         #qrScanner {
@@ -140,7 +179,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body>
     @php
     $disposalRecords = $disposalRecords ?? collect();
     $availableAssets = $availableAssets ?? collect();
@@ -152,25 +191,25 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <!-- Header -->
-            <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+            <div class="topbar sticky top-0 z-10">
                 <div class="px-4 sm:px-8 py-5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center">
                             <!-- Hamburger, mobile only -->
-                            <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-gray-600 hover:text-gray-900">
+                            <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
                                 <i class="ri-menu-line text-2xl"></i>
                             </button>
-                            <a href="#" onclick="window.history.back(); return false;" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
+                            <a href="#" onclick="window.history.back(); return false;" class="mr-4 transition-transform hover:translate-x-[-2px]" style="color:var(--ink-400);">
                                 <i class="ri-arrow-left-line text-xl"></i>
                             </a>
                             <div>
-                                <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Disposal</h2>
-                                <p class="text-sm text-gray-500 mt-1 hidden sm:block">Manage disposed assets</p>
+                                <h2 class="font-display text-xl sm:text-2xl font-semibold" style="color:var(--navy-900);">Disposal</h2>
+                                <p class="text-sm mt-1 hidden sm:block" style="color:var(--ink-600);">Manage disposed assets</p>
                             </div>
                         </div>
-                        <button onclick="openScannerAuto()" class="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-700 transition-all hover:scale-105 flex items-center shadow-md">
+                        <button onclick="openScannerAuto()" class="btn-gold">
                             <i class="ri-add-line sm:mr-2"></i>
                             <span class="hidden sm:inline">Record Disposal</span>
                         </button>
@@ -181,15 +220,15 @@
             <!-- Content -->
             <div class="p-8">
                 <!-- Stats Card -->
-                <div class="bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg p-6 mb-8 text-white" id="statsCard">
+                <div class="hero-card p-6 mb-8 text-white" id="statsCard">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium opacity-90">Total Disposed Assets</p>
-                            <p class="text-4xl font-bold mt-2" id="totalDisposedCount">{{ $totalDisposed }}</p>
-                            <p class="text-xs opacity-80 mt-2">Complete log of all disposed institutional assets</p>
+                            <p class="eyebrow" style="color:var(--gold-500);">Total Disposed Assets</p>
+                            <p class="font-display text-4xl font-bold mt-2" id="totalDisposedCount">{{ $totalDisposed }}</p>
+                            <p class="text-xs mt-2" style="color:#C7D2E3;">Complete log of all disposed institutional assets</p>
                         </div>
-                        <div class="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
-                            <i class="ri-delete-bin-line text-4xl"></i>
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(162,59,50,.35); border:1px solid rgba(255,255,255,.15);">
+                            <i class="ri-delete-bin-line text-4xl" style="color:#F0C4BE;"></i>
                         </div>
                     </div>
                 </div>
@@ -199,52 +238,55 @@
                     @if(isset($disposalRecords) && count($disposalRecords) > 0)
                         <div class="grid grid-cols-1 gap-4" id="disposalRecordsList">
                             @foreach($disposalRecords as $record)
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 disposal-card" data-id="{{ $record->id }}">
+                            <div class="disposal-card p-6" data-id="{{ $record->id }}">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1">
                                         <div class="flex items-center mb-3">
-                                            <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
-                                                <i class="ri-delete-bin-line text-red-600 text-xl"></i>
+                                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style="background:var(--brick-tint);">
+                                                <i class="ri-delete-bin-line text-xl" style="color:var(--brick);"></i>
                                             </div>
                                             <div>
-                                                <h3 class="font-semibold text-gray-900">{{ $record->asset_name ?? 'Asset' }}</h3>
-                                                <p class="text-xs text-gray-500 font-mono">{{ $record->asset_code ?? 'N/A' }}</p>
+                                                <h3 class="font-semibold" style="color:var(--navy-900);">{{ $record->asset_name ?? 'Asset' }}</h3>
+                                                <p class="text-xs font-mono" style="color:var(--ink-400);">{{ $record->asset_code ?? 'N/A' }}</p>
                                             </div>
                                         </div>
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                                             <div>
-                                                <p class="text-xs text-gray-500">Disposal Date</p>
-                                                <p class="text-sm font-medium text-gray-900">{{ $record->disposal_date ?? date('Y-m-d') }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Disposal Date</p>
+                                                <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $record->disposal_date ?? date('Y-m-d') }}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs text-gray-500">Reason</p>
-                                                <p class="text-sm font-medium text-gray-900">{{ $record->reason ?? $record->Description ?? $record->notes ?? '-' }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Reason</p>
+                                                <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $record->reason ?? $record->Description ?? $record->notes ?? '-' }}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs text-gray-500">Disposed By</p>
-                                                <p class="text-sm font-medium text-gray-900">{{ $record->disposed_by ?? $record->Approve_by ?? '-' }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Disposed By</p>
+                                                <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $record->disposed_by ?? $record->Approve_by ?? '-' }}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs text-gray-500">Original Value</p>
-                                                <p class="text-sm font-medium text-gray-900">₱{{ number_format($record->original_value ?? 0, 2) }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Original Value</p>
+                                                <p class="text-sm font-medium font-mono" style="color:var(--navy-900);">₱{{ number_format($record->original_value ?? 0, 2) }}</p>
                                             </div>
                                         </div>
                                     </div>
-                                        <div class="flex space-x-2">
+                                        <div class="flex space-x-1">
                                             @if($record->asset_still_exists ?? true)
                                                 {{-- Asset still in database → show view + permanent delete --}}
-                                                <button onclick="viewDisposalDetails({{ $record->id }})" 
-                                                        class="text-blue-600 hover:text-blue-700" title="View">
+                                                <button onclick="viewDisposalDetails({{ $record->id }})"
+                                                        class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--steel);"
+                                                        onmouseover="this.style.background='var(--steel-tint)'" onmouseout="this.style.background='transparent'"
+                                                        title="View">
                                                     <i class="ri-eye-line text-xl"></i>
                                                 </button>
-                                                <button onclick="permanentDeleteAsset({{ $record->id }})" 
-                                                        class="text-red-600 hover:text-red-700" 
+                                                <button onclick="permanentDeleteAsset({{ $record->id }})"
+                                                        class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--brick);"
+                                                        onmouseover="this.style.background='var(--brick-tint)'" onmouseout="this.style.background='transparent'"
                                                         title="Permanently delete asset from system">
                                                     <i class="ri-delete-bin-line text-xl"></i>
                                                 </button>
                                             @else
                                                 {{-- Asset already gone → just a historical record --}}
-                                                <span class="text-xs text-gray-400 italic self-center">Archived</span>
+                                                <span class="text-xs italic self-center" style="color:var(--ink-400);">Archived</span>
                                             @endif
                                         </div>
                                 </div>
@@ -252,13 +294,13 @@
                             @endforeach
                         </div>
                     @else
-                        <div id="emptyState" class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-                            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="ri-inbox-line text-4xl text-gray-400"></i>
+                        <div id="emptyState" class="p-12 text-center" style="background:#fff; border-radius:14px; border:1px solid var(--line);">
+                            <div class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--paper-2);">
+                                <i class="ri-inbox-line text-4xl" style="color:var(--ink-400);"></i>
                             </div>
-                            <h3 class="text-lg font-semibold text-gray-900 mb-2">No disposal records yet</h3>
-                            <p class="text-gray-500">There are currently no disposal reports to show.</p>
-                            <button onclick="openNewDisposalModal()" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                            <h3 class="text-lg font-semibold mb-2" style="color:var(--navy-900);">No disposal records yet</h3>
+                            <p style="color:var(--ink-400);">There are currently no disposal reports to show.</p>
+                            <button onclick="openNewDisposalModal()" class="btn-gold mt-4">
                                 <i class="ri-add-line mr-2"></i>
                                 Record First Disposal
                             </button>
@@ -267,7 +309,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm text-gray-500 mt-8 pt-6 border-t border-gray-200">
+                <div class="text-center text-sm mt-8 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -275,12 +317,12 @@
     </div>
 
     <!-- New Disposal Modal -->
-    <div id="disposalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center modal">
-        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="p-6 border-b border-gray-200">
+    <div id="disposalModal" class="hidden fixed inset-0 z-50 items-center justify-center modal" style="background:rgba(10,24,48,.55);">
+        <div class="rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
+            <div class="modal-head p-6">
                 <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-bold text-gray-900">Record Asset Disposal</h3>
-                    <button onclick="closeDisposalModal()" class="text-gray-400 hover:text-gray-600">
+                    <h3 class="font-display text-xl font-semibold text-white">Record Asset Disposal</h3>
+                    <button onclick="closeDisposalModal()" class="text-white/60 hover:text-white">
                         <i class="ri-close-line text-2xl"></i>
                     </button>
                 </div>
@@ -289,13 +331,13 @@
                 @csrf
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Asset *
-                            <button type="button" onclick="openScanner('disposal_asset_select')" title="Scan asset QR" class="ml-3 inline-flex items-center px-2 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Select Asset *
+                            <button type="button" onclick="openScanner('disposal_asset_select')" title="Scan asset QR" class="ml-3 inline-flex items-center px-2 py-1 rounded text-sm transition-colors" style="border:1px solid var(--line); color:var(--ink-600);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                                 <i class="ri-camera-line"></i>
                                 <span class="sr-only">Scan</span>
                             </button>
                         </label>
-                        <select id="disposal_asset_select" name="asset_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-red-500 focus:ring focus:ring-red-200">
+                        <select id="disposal_asset_select" name="asset_id" required class="form-input">
                             <option value="">Search or select asset...</option>
                             @foreach($availableAssets ?? [] as $asset)
                             <option value="{{ $asset->id }}" data-code="{{ $asset->asset_code }}" data-status="{{ $asset->Lifecycle_Status }}">{{ $asset->name }} ({{ $asset->asset_code }})</option>
@@ -303,12 +345,12 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Disposal Date *</label>
-                        <input type="date" name="disposal_date" required value="{{ date('Y-m-d') }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-red-500 focus:ring focus:ring-red-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Disposal Date *</label>
+                        <input type="date" name="disposal_date" required value="{{ date('Y-m-d') }}" class="form-input">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Reason for Disposal *</label>
-                        <select name="reason" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-red-500 focus:ring focus:ring-red-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Reason for Disposal *</label>
+                        <select name="reason" required class="form-input">
                             <option value="">Select reason...</option>
                             <option value="Damaged">Damaged - Beyond Repair</option>
                             <option value="Obsolete">Obsolete - No longer needed</option>
@@ -319,28 +361,47 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Disposed By *</label>
-                        <input type="text" name="disposed_by" required placeholder="Name of person authorizing disposal" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-red-500 focus:ring focus:ring-red-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Disposed By *</label>
+                        <input type="text" name="disposed_by" required placeholder="Name of person authorizing disposal" class="form-input">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
-                        <textarea name="notes" rows="3" placeholder="Any additional information about the disposal..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-red-500 focus:ring focus:ring-red-200"></textarea>
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Additional Notes</label>
+                        <textarea name="notes" rows="3" placeholder="Any additional information about the disposal..." class="form-input"></textarea>
                     </div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeDisposalModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Record Disposal</button>
+                <div class="flex justify-end space-x-3 mt-6 pt-4" style="border-top:1px solid var(--line);">
+                    <button type="button" onclick="closeDisposalModal()" class="btn-ghost">Cancel</button>
+                    <button type="submit" class="btn-gold">Record Disposal</button>
                 </div>
             </form>
         </div>
     </div>
 
+
+    <!-- View Disposal Details Modal -->
+<div id="viewDisposalModal" class="hidden fixed inset-0 z-50 items-center justify-center modal" style="background:rgba(10,24,48,.55);">
+    <div class="rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
+        <div class="modal-head p-6 sticky top-0 z-10 flex justify-between items-center">
+            <h3 class="font-display text-xl font-semibold text-white">Disposal Details</h3>
+            <button onclick="closeViewDisposalModal()" class="text-white/60 hover:text-white">
+                <i class="ri-close-line text-2xl"></i>
+            </button>
+        </div>
+        <div class="p-6" id="viewDisposalContent">
+            <!-- filled by JS -->
+        </div>
+        <div class="p-6 flex justify-end" style="border-top:1px solid var(--line);">
+            <button onclick="closeViewDisposalModal()" class="btn-ghost">Close</button>
+        </div>
+    </div>
+</div>
+
     <!-- Scanner Modal -->
-    <div id="scannerModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 items-center justify-center modal">
-        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6">
+    <div id="scannerModal" class="hidden fixed inset-0 z-50 items-center justify-center modal" style="background:rgba(10,24,48,.75);">
+        <div class="rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6" style="background:#fff;">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-semibold text-gray-900">Scan Asset QR</h3>
-                <button onclick="manualCloseScanner()" class="text-gray-400 hover:text-gray-600 transition">
+                <h3 class="font-display text-xl font-semibold" style="color:var(--navy-900);">Scan Asset QR</h3>
+                <button onclick="manualCloseScanner()" class="transition" style="color:var(--ink-400);">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -354,16 +415,16 @@
             </div>
 
             <!-- Status and Controls -->
-            <p id="qr-reader-status" class="text-sm text-gray-600 text-center mb-3">Initializing camera...</p>
+            <p id="qr-reader-status" class="text-sm text-center mb-3" style="color:var(--ink-600);">Initializing camera...</p>
             
             <div class="flex justify-center">
-                <button onclick="manualCloseScanner()" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center">
+                <button onclick="manualCloseScanner()" class="px-6 py-2 text-white rounded-lg transition flex items-center" style="background:var(--brick);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                     <i class="ri-close-line mr-2"></i>
                     Close Camera
                 </button>
             </div>
 
-            <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-sm text-blue-800 rounded">
+            <div class="mt-4 p-3 rounded text-sm" style="background:var(--steel-tint); border-left:4px solid var(--steel); color:var(--steel-dark);">
                 <strong class="font-medium">💡 Camera Tips:</strong>
                 <ul class="mt-1 list-disc list-inside space-y-1">
                     <li>Camera stays open - click "Close Camera" when done</li>
@@ -728,7 +789,7 @@ async function handleAutoDispose(code) {
             
             const toast = document.createElement('div');
             toast.className = 'toast-notification';
-            toast.style.backgroundColor = type === 'error' ? '#ef4444' : '#10b981';
+            toast.style.backgroundColor = type === 'error' ? '#A23B32' : '#2F7A4D';
             toast.textContent = message;
             document.body.appendChild(toast);
             
@@ -748,8 +809,106 @@ async function handleAutoDispose(code) {
             document.getElementById('disposalModal').classList.remove('flex');
         }
         
-function viewDisposalDetails(id) {
-    showToast('Viewing details for disposal #' + id);
+function closeViewDisposalModal() {
+    const modal = document.getElementById('viewDisposalModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function viewDisposalDetails(id) {
+    const modal = document.getElementById('viewDisposalModal');
+    const content = document.getElementById('viewDisposalContent');
+    content.innerHTML = '<p class="text-center py-10" style="color:var(--ink-400);">Loading...</p>';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+        const res = await fetch(`/admin/disposal/${id}/details`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!res.ok) throw new Error('Failed to load details');
+        const data = await res.json();
+        renderDisposalDetails(data);
+    } catch (err) {
+        content.innerHTML = `<p class="text-center py-10" style="color:var(--brick);">Failed to load details: ${err.message}</p>`;
+    }
+}
+
+function isEmptyVal(v) {
+    return v === null || v === undefined || v === '' ||
+           String(v).trim() === '' || String(v).trim() === '-' ||
+           String(v).toLowerCase() === 'n/a' || String(v).toLowerCase() === 'null';
+}
+
+function fieldRow(label, value) {
+    if (isEmptyVal(value)) return '';
+    return `
+        <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+            <p class="text-xs mb-1" style="color:var(--ink-400);">${label}</p>
+            <p class="text-sm font-medium" style="color:var(--navy-900);">${value}</p>
+        </div>`;
+}
+
+function money(v) {
+    if (isEmptyVal(v) || isNaN(v)) return null;
+    return '₱' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 });
+}
+
+function renderDisposalDetails(d) {
+    const content = document.getElementById('viewDisposalContent');
+
+    const header = `
+        <div class="flex items-center mb-5">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style="background:var(--brick-tint);">
+                <i class="ri-delete-bin-line text-xl" style="color:var(--brick);"></i>
+            </div>
+            <div>
+                <h4 class="font-semibold" style="color:var(--navy-900);">${d.asset_name || 'Asset'}</h4>
+                ${!isEmptyVal(d.asset_code) ? `<p class="text-xs font-mono" style="color:var(--ink-400);">${d.asset_code}</p>` : ''}
+            </div>
+        </div>`;
+
+    const disposalRows = [
+        fieldRow('Disposal Date', d.disposal_date),
+        fieldRow('Reason', d.reason),
+        fieldRow('Disposed By', d.disposed_by),
+        fieldRow('Original Value', money(d.original_value)),
+    ].filter(Boolean).join('');
+
+    const notesBlock = !isEmptyVal(d.notes) ? `
+        <div class="rounded-lg p-3.5 mt-3" style="background:var(--paper-2);">
+            <p class="text-xs mb-1" style="color:var(--ink-400);">Notes</p>
+            <p class="text-sm" style="color:var(--ink-600);">${d.notes}</p>
+        </div>` : '';
+
+    const assetRows = [
+        fieldRow('Category', d.category),
+        fieldRow('Condition', d.condition),
+        fieldRow('Serial Number', d.serial_number),
+        fieldRow('Location', d.asset_location),
+        fieldRow('Supplier', d.supplier),
+        fieldRow('Model', d.model),
+        fieldRow('Manufacturer', d.manufacture),
+        fieldRow('Purchase Price', money(d.purchase_price)),
+        fieldRow('Warranty (months)', d.warranty_months),
+        fieldRow('Lifespan (months)', d.lifespan_months),
+    ].filter(Boolean).join('');
+
+    const assetSection = assetRows ? `
+        <div class="pt-4 mt-5" style="border-top:1px solid var(--line);">
+            <p class="eyebrow mb-3">Asset Details</p>
+            <div class="grid grid-cols-2 gap-3">${assetRows}</div>
+        </div>` : `
+        <div class="pt-4 mt-5" style="border-top:1px solid var(--line);">
+            <p class="text-xs italic" style="color:var(--ink-400);">Asset record no longer exists — this is a historical entry.</p>
+        </div>`;
+
+    content.innerHTML = `
+        ${header}
+        <div class="grid grid-cols-2 gap-3">${disposalRows}</div>
+        ${notesBlock}
+        ${assetSection}
+    `;
 }
 
 async function permanentDeleteAsset(disposalId) {

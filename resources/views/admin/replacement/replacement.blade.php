@@ -4,37 +4,79 @@
 
 @section('content')
 
+<style>
+    :root{
+        --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
+        --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+        --paper:#F3EEE0; --paper-2:#EAE2C9;
+        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+        --line:#DED2AE;
+        --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
+        --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
+        --steel:#2E5C8A; --steel-dark:#234869; --steel-tint:#E9F0F7;
+        --brick:#A23B32; --brick-dark:#7E2E27; --brick-tint:#F7E9E6;
+        --plum:#6B4C82; --plum-dark:#523A64; --plum-tint:#EFE7F3;
+        --teal:#1E7A72; --teal-dark:#155850; --teal-tint:#E3F3F1;
+    }
+    body{ background:var(--paper) !important; font-family:'Inter',system-ui,-apple-system,sans-serif; color:var(--ink-900); }
+    .font-display{ font-family:'Fraunces',serif; }
+    .font-mono{ font-family:'IBM Plex Mono',monospace; }
+    .eyebrow{ font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-400); }
+    .topbar{ background:#fff; border-bottom:1px solid var(--line); position:relative; }
+    .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500) 20%, var(--gold-500) 80%, transparent); opacity:.7; }
+    .search-input{ border:1px solid var(--line); transition:border-color .15s, box-shadow .15s; }
+    .search-input:focus{ outline:none; border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
+    .avatar-badge{ background:var(--navy-950); color:var(--gold-500); border:1px solid var(--gold-500); }
+    .stat-card{ background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow: 0 1px 2px rgba(10,24,48,.05), 0 10px 26px -18px rgba(10,24,48,.28); }
+    .panel{ background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow: 0 1px 2px rgba(10,24,48,.05), 0 10px 26px -18px rgba(10,24,48,.28); }
+    .filter-tab{ transition: all 0.15s ease; color:var(--ink-400); position:relative; }
+    .filter-tab.active{ color:var(--navy-900) !important; font-weight:600; }
+    .filter-tab.active::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--gold-500); }
+    .replacement-row{ transition: background-color 0.15s ease; }
+    .replacement-row:hover{ background-color: var(--paper-2); }
+    .btn-gold{ background:var(--gold-500); color:var(--navy-950); font-weight:600; transition:filter .15s; }
+    .btn-gold:hover{ filter:brightness(1.06); }
+    .form-input{ border:1px solid var(--line); transition:border-color .15s, box-shadow .15s; }
+    .form-input:focus{ outline:none; border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
+    .modal-head{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); position:relative; }
+    .modal-head::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--gold-500); }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .modal-panel { animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+</style>
+
             <!-- Header -->
-            <div class="bg-white border-b border-slate-200 sticky top-0 z-10">
+            <div class="topbar sticky top-0 z-10">
                 <div class="px-4 sm:px-8 py-5">
                     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                         <div class="flex items-center">
                             <!-- Hamburger, mobile only -->
-                            <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-slate-500 hover:text-slate-900">
+                            <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
                                 <i class="ri-menu-line text-2xl"></i>
                             </button>
                             <div>
-                                <h2 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Replacement Records</h2>
-                                <p class="text-sm text-slate-500 mt-1 hidden sm:block">Manage and track all asset replacement requests</p>
+                                <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900);">Replacement Records</h2>
+                                <p class="text-sm mt-1 hidden sm:block" style="color:var(--ink-600);">Manage and track all asset replacement requests</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
                             <div class="relative flex-1 sm:flex-none">
-                                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400);"></i>
                                 <input type="text" id="searchInput" placeholder="Search replacements..."
-                                    class="pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-shadow w-full sm:w-56"/>
+                                    class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
                             </div>
-                            <div class="relative cursor-pointer flex-shrink-0 text-slate-500 hover:text-slate-700">
+                            <div class="relative cursor-pointer flex-shrink-0" style="color:var(--ink-400);">
                                 <i class="ri-notification-3-line text-xl"></i>
-                                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+                                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white" style="background:var(--brick);"></span>
                             </div>
-                            <div class="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 rounded-lg px-2 py-1 flex-shrink-0">
-                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                                    <span class="text-white text-xs font-semibold">
+                            <div class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1 flex-shrink-0" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
+                                <div class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center">
+                                    <span class="text-xs font-semibold">
                                         {{ strtoupper(substr(Auth::user()->full_name ?? 'A', 0, 1)) }}
                                     </span>
                                 </div>
-                                <i class="ri-arrow-down-s-line text-slate-400 hidden sm:block"></i>
+                                <i class="ri-arrow-down-s-line hidden sm:block" style="color:var(--ink-400);"></i>
                             </div>
                         </div>
                     </div>
@@ -45,87 +87,88 @@
 
         <!-- Summary Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <div class="stat-card p-5">
                 <div class="flex items-center justify-between mb-1">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</p>
-                    <div class="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center">
-                        <i class="ri-refresh-line text-slate-600"></i>
+                    <p class="eyebrow">Total</p>
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--steel-tint);">
+                        <i class="ri-refresh-line" style="color:var(--steel);"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-slate-900 mt-1">{{ $totalReplacements ?? 0 }}</p>
+                <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $totalReplacements ?? 0 }}</p>
             </div>
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <div class="stat-card p-5">
                 <div class="flex items-center justify-between mb-1">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</p>
-                    <div class="w-9 h-9 bg-yellow-50 rounded-lg flex items-center justify-center">
-                        <i class="ri-time-line text-yellow-600"></i>
+                    <p class="eyebrow">Pending</p>
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--bronze-tint);">
+                        <i class="ri-time-line" style="color:var(--bronze);"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-slate-900 mt-1">{{ $pendingReplacements ?? 0 }}</p>
+                <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $pendingReplacements ?? 0 }}</p>
             </div>
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <div class="stat-card p-5">
                 <div class="flex items-center justify-between mb-1">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Approved</p>
-                    <div class="w-9 h-9 bg-orange-50 rounded-lg flex items-center justify-center">
-                        <i class="ri-checkbox-circle-line text-orange-600"></i>
+                    <p class="eyebrow">Approved</p>
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--gold-100);">
+                        <i class="ri-checkbox-circle-line" style="color:var(--gold-600);"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-slate-900 mt-1">{{ $approvedReplacements ?? 0 }}</p>
+                <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $approvedReplacements ?? 0 }}</p>
             </div>
-            <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <div class="stat-card p-5">
                 <div class="flex items-center justify-between mb-1">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Received</p>
-                    <div class="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center">
-                        <i class="ri-check-double-line text-green-600"></i>
+                    <p class="eyebrow">Received</p>
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--forest-tint);">
+                        <i class="ri-check-double-line" style="color:var(--forest);"></i>
                     </div>
                 </div>
-                <p class="text-3xl font-bold text-slate-900 mt-1">{{ $receivedReplacements ?? 0 }}</p>
+                <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $receivedReplacements ?? 0 }}</p>
             </div>
         </div>
 
         <!-- Replacement Table -->
-        <div class="bg-white rounded-xl border border-slate-200">
+        <div class="panel">
 
             <!-- Tabs -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 pt-4 pb-0 border-b border-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 pt-4 pb-0" style="border-bottom:1px solid var(--line);">
             <div class="flex space-x-1 overflow-x-auto scrollbar-hide">
-                <button class="filter-tab active px-4 py-2.5 text-sm font-medium text-blue-700 border-b-2 border-blue-600 whitespace-nowrap" data-filter="all">All</button>
-                <button class="filter-tab px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 whitespace-nowrap" data-filter="Pending">Pending</button>
-                <button class="filter-tab px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 whitespace-nowrap" data-filter="Approved">Approved</button>
-                <button class="filter-tab px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-slate-800 whitespace-nowrap" data-filter="Received">Received</button>
+                <button class="filter-tab active px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="all">All</button>
+                <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Pending">Pending</button>
+                <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Approved">Approved</button>
+                <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Received">Received</button>
             </div>
-            <p class="text-xs text-slate-400 pb-3">{{ $replacements->count() ?? 0 }} records</p>
+            <p class="text-xs pb-3" style="color:var(--ink-400);">{{ $replacements->count() ?? 0 }} records</p>
         </div>
 
                     <div class="overflow-x-auto">
             <table class="w-full text-sm">
                     <thead>
-                        <tr class="bg-slate-50 text-slate-500 uppercase text-[11px] tracking-wider">
-                            <th class="px-6 py-3.5 text-left font-semibold">Old Asset Code</th>
-                            <th class="px-6 py-3.5 text-left font-semibold">New Asset Code</th>
-                            <th class="px-6 py-3.5 text-left font-semibold">Requested By</th>
-                            <th class="px-6 py-3.5 text-left font-semibold">Reason</th>
-                            <th class="px-6 py-3.5 text-left font-semibold">Progress</th>
-                            <th class="px-6 py-3.5 text-left font-semibold">Status</th>
-                            <th class="px-6 py-3.5 text-left font-semibold">Actions</th>
+                        <tr style="background:var(--paper-2);">
+                            <th class="eyebrow px-6 py-3.5 text-left">Old Asset Code</th>
+                            <th class="eyebrow px-6 py-3.5 text-left">New Asset Code</th>
+                            <th class="eyebrow px-6 py-3.5 text-left">Requested By</th>
+                            <th class="eyebrow px-6 py-3.5 text-left">Reason</th>
+                            <th class="eyebrow px-6 py-3.5 text-left">Progress</th>
+                            <th class="eyebrow px-6 py-3.5 text-left">Status</th>
+                            <th class="eyebrow px-6 py-3.5 text-left">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
+                    <tbody style="border-top:1px solid var(--line);">
 
                         @forelse($replacements ?? [] as $replacement)
-                        <tr class="replacement-row hover:bg-slate-50/70 transition-colors"
+                        <tr class="replacement-row"
+                            style="border-bottom:1px solid var(--line);"
                             data-status="{{ $replacement->status }}"
                             data-id="{{ data_get($replacement, 'id') ?? data_get($replacement, 'Replacement_id') }}">
 
                             {{-- Old Asset --}}
                             <td class="px-6 py-4">
                                 <div class="flex items-center space-x-3">
-                                    <div class="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <i class="ri-computer-line text-red-500 text-sm"></i>
+                                    <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background:var(--brick-tint);">
+                                        <i class="ri-computer-line text-sm" style="color:var(--brick);"></i>
                                     </div>
                                     <div>
-                                        <p class="font-medium text-slate-900 font-mono text-[13px]">{{ data_get($replacement, 'old_asset_code') ?? ($replacement->oldAsset->Asset_code ?? '—') }}</p>
-                                        <p class="text-xs text-slate-400 mt-0.5">{{ data_get($replacement, 'old_asset_name') ?? ($replacement->oldAsset->Asset_name ?? '') }}</p>
+                                        <p class="font-medium font-mono text-[13px]" style="color:var(--navy-900);">{{ data_get($replacement, 'old_asset_code') ?? ($replacement->oldAsset->Asset_code ?? '—') }}</p>
+                                        <p class="text-xs mt-0.5" style="color:var(--ink-400);">{{ data_get($replacement, 'old_asset_name') ?? ($replacement->oldAsset->Asset_name ?? '') }}</p>
                                     </div>
                                 </div>
                             </td>
@@ -140,12 +183,12 @@
 
                                         @if($hasRealNewAsset)
                                         <div class="flex items-center space-x-3">
-                                        <div class="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <i class="ri-computer-line text-green-600 text-sm"></i>
+                                        <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background:var(--forest-tint);">
+                                        <i class="ri-computer-line text-sm" style="color:var(--forest);"></i>
                                     </div>
                                     <div>
-                                    <p class="font-medium text-slate-900 font-mono text-[13px]">{{ data_get($replacement, 'new_asset_code') ?? data_get($replacement, 'newAsset.Asset_code') ?? '—' }}</p>
-                                    <p class="text-xs text-slate-400 mt-0.5">{{ data_get($replacement, 'new_asset_name') ?? data_get($replacement, 'newAsset.Asset_name') ?? '' }}</p>
+                                    <p class="font-medium font-mono text-[13px]" style="color:var(--navy-900);">{{ data_get($replacement, 'new_asset_code') ?? data_get($replacement, 'newAsset.Asset_code') ?? '—' }}</p>
+                                    <p class="text-xs mt-0.5" style="color:var(--ink-400);">{{ data_get($replacement, 'new_asset_name') ?? data_get($replacement, 'newAsset.Asset_name') ?? '' }}</p>
                                     </div>
                                     </div>
                                     @else
@@ -158,63 +201,67 @@
                                     @endphp
                                     <button type="button"
                                         onclick='openLinkModal({{ $linkId }}, @json($oldName), @json($oldCat), @json($oldLoc))'
-                                        class="flex items-center space-x-2 px-3 py-1.5 border border-dashed border-slate-300 rounded-lg text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors text-xs font-medium">
+                                        class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                                        style="border:1px dashed var(--line); color:var(--ink-400);"
+                                        onmouseover="this.style.borderColor='var(--gold-500)'; this.style.color='var(--gold-600)'; this.style.background='var(--gold-100)'"
+                                        onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink-400)'; this.style.background='transparent'">
                                         <i class="ri-link mr-1"></i>
                                         Link new asset
                                     </button>
                                 @else
-                            <span class="text-xs text-slate-400">—</span>
+                            <span class="text-xs" style="color:var(--ink-400);">—</span>
                             @endif
                             @endif
                         </td>
 
                             {{-- Requested By --}}
                             <td class="px-6 py-4">
-                                <p class="font-medium text-slate-900">{{ data_get($replacement, 'requested_by') ?? ($replacement->request->user->full_name ?? '—') }}</p>
-                                <p class="text-xs text-slate-400">{{ data_get($replacement, 'department') ?? ($replacement->request->user->department ?? '—') }}</p>
+                                <p class="font-medium" style="color:var(--navy-900);">{{ data_get($replacement, 'requested_by') ?? ($replacement->request->user->full_name ?? '—') }}</p>
+                                <p class="text-xs" style="color:var(--ink-400);">{{ data_get($replacement, 'department') ?? ($replacement->request->user->department ?? '—') }}</p>
                             </td>
 
                             {{-- Reason --}}
                             <td class="px-6 py-4">
-                                <p class="text-slate-600 max-w-xs truncate">{{ $replacement->reason ?? '—' }}</p>
+                                <p class="max-w-xs truncate" style="color:var(--ink-600);">{{ $replacement->reason ?? '—' }}</p>
                             </td>
 
                             {{-- Progress Steps --}}
                             <td class="px-6 py-4">
                                 <div class="flex items-center space-x-1">
                                     <div class="flex flex-col items-center">
-                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold
-                                            {{ in_array($replacement->status, ['Pending','Approved','Received']) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400' }}">
+                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                                            style="{{ in_array($replacement->status, ['Pending','Approved','Received']) ? 'background:var(--navy-900); color:#fff;' : 'background:var(--paper-2); color:var(--ink-400);' }}">
                                             1
                                         </div>
-                                        <span class="text-[10px] text-slate-400 mt-1">Pending</span>
+                                        <span class="text-[10px] mt-1" style="color:var(--ink-400);">Pending</span>
                                     </div>
-                                    <div class="w-6 h-0.5 {{ in_array($replacement->status, ['Approved','Received']) ? 'bg-blue-600' : 'bg-slate-200' }} mb-4"></div>
+                                    <div class="w-6 h-0.5 mb-4" style="background:{{ in_array($replacement->status, ['Approved','Received']) ? 'var(--navy-900)' : 'var(--paper-2)' }};"></div>
                                     <div class="flex flex-col items-center">
-                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold
-                                            {{ in_array($replacement->status, ['Approved','Received']) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400' }}">
+                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                                            style="{{ in_array($replacement->status, ['Approved','Received']) ? 'background:var(--navy-900); color:#fff;' : 'background:var(--paper-2); color:var(--ink-400);' }}">
                                             2
                                         </div>
-                                        <span class="text-[10px] text-slate-400 mt-1">Approved</span>
+                                        <span class="text-[10px] mt-1" style="color:var(--ink-400);">Approved</span>
                                     </div>
-                                    <div class="w-6 h-0.5 {{ $replacement->status === 'Received' ? 'bg-green-500' : 'bg-slate-200' }} mb-4"></div>
+                                    <div class="w-6 h-0.5 mb-4" style="background:{{ $replacement->status === 'Received' ? 'var(--forest)' : 'var(--paper-2)' }};"></div>
                                     <div class="flex flex-col items-center">
-                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold
-                                            {{ $replacement->status === 'Received' ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400' }}">
+                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                                            style="{{ $replacement->status === 'Received' ? 'background:var(--forest); color:#fff;' : 'background:var(--paper-2); color:var(--ink-400);' }}">
                                             3
                                         </div>
-                                        <span class="text-[10px] text-slate-400 mt-1">Received</span>
+                                        <span class="text-[10px] mt-1" style="color:var(--ink-400);">Received</span>
                                     </div>
                                 </div>
                             </td>
 
                             {{-- Status Badge --}}
                             <td class="px-6 py-4">
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
-                                    @if($replacement->status == 'Pending') bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200
-                                    @elseif($replacement->status == 'Approved') bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200
-                                    @elseif($replacement->status == 'Received') bg-green-50 text-green-700 ring-1 ring-inset ring-green-200
-                                    @else bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                                    style="
+                                    @if($replacement->status == 'Pending') background:var(--bronze-tint); color:var(--bronze-dark);
+                                    @elseif($replacement->status == 'Approved') background:var(--gold-100); color:var(--gold-600);
+                                    @elseif($replacement->status == 'Received') background:var(--forest-tint); color:var(--forest-dark);
+                                    @else background:var(--paper-2); color:var(--ink-600);
                                     @endif">
                                     {{ $replacement->status ?? '—' }}
                                 </span>
@@ -224,14 +271,20 @@
                             <td class="px-6 py-4">
                                 <div class="flex flex-row flex-nowrap items-center gap-1.5 whitespace-nowrap">
                                     <button type="button" onclick="openViewModal({{ $replacement->id }})"
-                                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors"
+                                        class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                        style="background:var(--steel-tint); color:var(--steel);"
+                                        onmouseover="this.style.background='var(--steel)'; this.style.color='#fff'"
+                                        onmouseout="this.style.background='var(--steel-tint)'; this.style.color='var(--steel)'"
                                         title="View Details">
                                         <i class="ri-eye-line text-sm"></i>
                                     </button>
 
                                     @if($replacement->status === 'Pending')
                                     <button type="button" onclick="openApproveModal({{ $replacement->id }})"
-                                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-colors"
+                                        class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                        style="background:var(--forest-tint); color:var(--forest);"
+                                        onmouseover="this.style.background='var(--forest)'; this.style.color='#fff'"
+                                        onmouseout="this.style.background='var(--forest-tint)'; this.style.color='var(--forest)'"
                                         title="Approve">
                                         <i class="ri-checkbox-circle-line text-sm"></i>
                                     </button>
@@ -247,7 +300,10 @@
                                         {{-- Mark as Received — only when Approved + real new asset linked --}}
                                         @if($replacement->status === 'Approved' && $hasRealNew)
                                         <button type="button" onclick="openReceivedModal({{ $replacement->id }})"
-                                            class="w-8 h-8 shrink-0 flex items-center justify-center bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-600 hover:text-white transition-colors"
+                                            class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                            style="background:var(--teal-tint); color:var(--teal);"
+                                            onmouseover="this.style.background='var(--teal)'; this.style.color='#fff'"
+                                            onmouseout="this.style.background='var(--teal-tint)'; this.style.color='var(--teal)'"
                                             title="Mark as Received">
                                             <i class="ri-check-double-line text-sm"></i>
                                         </button>
@@ -255,7 +311,10 @@
 
                                         @if($hasRealNew)
                                         <a href="/admin/assets/{{ $newId }}" target="_blank"
-                                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
+                                        class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                        style="background:var(--plum-tint); color:var(--plum);"
+                                        onmouseover="this.style.background='var(--plum)'; this.style.color='#fff'"
+                                        onmouseout="this.style.background='var(--plum-tint)'; this.style.color='var(--plum)'"
                                         title="View New Asset">
                                         <i class="ri-external-link-line text-sm"></i>
                                     </a>
@@ -263,7 +322,10 @@
                                     @if(data_get($replacement, 'new_asset_qr'))
                                         <button type="button"
                                             onclick="downloadUrl('{{ \Illuminate\Support\Facades\Storage::url(data_get($replacement, 'new_asset_qr')) }}', '{{ data_get($replacement, 'new_asset_code') ?? 'qr' }}')"
-                                            class="w-8 h-8 shrink-0 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                                            class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                            style="background:var(--paper-2); color:var(--ink-600);"
+                                            onmouseover="this.style.background='var(--line)'"
+                                            onmouseout="this.style.background='var(--paper-2)'"
                                             title="Download QR">
                                             <i class="ri-download-line text-sm"></i>
                                         </button>
@@ -279,7 +341,10 @@
                                         @endphp
                                         <button type="button"
                                             onclick='printUrl(@json($qrPrintUrl), @json($qrPrintMeta))'
-                                            class="w-8 h-8 shrink-0 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                                            class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                            style="background:var(--paper-2); color:var(--ink-600);"
+                                            onmouseover="this.style.background='var(--line)'"
+                                            onmouseout="this.style.background='var(--paper-2)'"
                                             title="Print QR">
                                             <i class="ri-printer-line text-sm"></i>
                                         </button>
@@ -287,7 +352,10 @@
                                     @endif
 
                                     <button type="button" onclick="confirmDelete({{ $replacement->id }})"
-                                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-colors"
+                                        class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                        style="background:var(--brick-tint); color:var(--brick);"
+                                        onmouseover="this.style.background='var(--brick)'; this.style.color='#fff'"
+                                        onmouseout="this.style.background='var(--brick-tint)'; this.style.color='var(--brick)'"
                                         title="Delete">
                                         <i class="ri-delete-bin-line text-sm"></i>
                                     </button>
@@ -298,11 +366,11 @@
                         <tr>
                             <td colspan="7" class="px-6 py-16 text-center">
                                 <div class="flex flex-col items-center">
-                                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-3">
-                                        <i class="ri-refresh-line text-2xl text-slate-400"></i>
+                                    <div class="w-16 h-16 rounded-full flex items-center justify-center mb-3" style="background:var(--paper-2);">
+                                        <i class="ri-refresh-line text-2xl" style="color:var(--ink-400);"></i>
                                     </div>
-                                    <p class="text-slate-700 font-medium text-sm">No replacement records found</p>
-                                    <p class="text-slate-400 text-xs mt-1">Replacement requests will appear here once submitted</p>
+                                    <p class="font-medium text-sm" style="color:var(--ink-900);">No replacement records found</p>
+                                    <p class="text-xs mt-1" style="color:var(--ink-400);">Replacement requests will appear here once submitted</p>
                                 </div>
                             </td>
                         </tr>
@@ -313,23 +381,23 @@
             </div>
 
             @if(isset($replacements) && method_exists($replacements, 'hasPages') && $replacements->hasPages())
-            <div class="px-6 py-4 border-t border-slate-100">
+            <div class="px-6 py-4" style="border-top:1px solid var(--line);">
                 {{ $replacements->links() }}
             </div>
             @endif
         </div>
 
-        <div class="text-center text-xs text-slate-400 mt-10 pt-6 border-t border-slate-200">
+        <div class="text-center text-xs mt-10 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
             © {{ date('Y') }} University Asset Management. All rights reserved.
         </div>
     </div>
 
     <!-- View Modal -->
-    <div id="viewModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                <h3 class="text-lg font-bold text-slate-900">Replacement Details</h3>
-                <button onclick="closeModal('viewModal')" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+    <div id="viewModal" class="hidden fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="background:rgba(10,24,48,.55);">
+        <div class="modal-panel rounded-2xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
+            <div class="modal-head px-6 py-5 flex justify-between items-center sticky top-0 z-10">
+                <h3 class="font-display text-lg font-semibold text-white">Replacement Details</h3>
+                <button onclick="closeModal('viewModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -339,35 +407,35 @@
                     {{-- Progress bar --}}
                     <div>
                         <div class="flex items-center space-x-2 flex-1 mb-1">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-                                {{ in_array($r->status, ['Pending','Approved','Received']) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500' }}">1</div>
-                            <div class="flex-1 h-1 {{ in_array($r->status, ['Approved','Received']) ? 'bg-blue-600' : 'bg-slate-200' }} rounded"></div>
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-                                {{ in_array($r->status, ['Approved','Received']) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500' }}">2</div>
-                            <div class="flex-1 h-1 {{ $r->status === 'Received' ? 'bg-green-500' : 'bg-slate-200' }} rounded"></div>
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-                                {{ $r->status === 'Received' ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-500' }}">3</div>
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                style="{{ in_array($r->status, ['Pending','Approved','Received']) ? 'background:var(--navy-900); color:#fff;' : 'background:var(--paper-2); color:var(--ink-400);' }}">1</div>
+                            <div class="flex-1 h-1 rounded" style="background:{{ in_array($r->status, ['Approved','Received']) ? 'var(--navy-900)' : 'var(--paper-2)' }};"></div>
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                style="{{ in_array($r->status, ['Approved','Received']) ? 'background:var(--navy-900); color:#fff;' : 'background:var(--paper-2); color:var(--ink-400);' }}">2</div>
+                            <div class="flex-1 h-1 rounded" style="background:{{ $r->status === 'Received' ? 'var(--forest)' : 'var(--paper-2)' }};"></div>
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                style="{{ $r->status === 'Received' ? 'background:var(--forest); color:#fff;' : 'background:var(--paper-2); color:var(--ink-400);' }}">3</div>
                         </div>
-                        <div class="flex justify-between text-xs text-slate-400">
+                        <div class="flex justify-between text-xs" style="color:var(--ink-400);">
                             <span>Pending</span><span>Approved</span><span>Received</span>
                         </div>
                     </div>
 
                     {{-- Old vs New Asset --}}
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-red-50/60 border border-red-100 rounded-xl p-4">
-                            <p class="text-xs font-semibold text-red-600 mb-2 flex items-center">
+                        <div class="rounded-xl p-4" style="background:var(--brick-tint); border:1px solid #E7C9C1;">
+                            <p class="text-xs font-semibold mb-2 flex items-center" style="color:var(--brick-dark);">
                                 <i class="ri-arrow-left-line mr-1"></i> Old Asset
                             </p>
-                            <p class="font-semibold text-slate-900 text-sm">{{ data_get($r, 'old_asset_name') ?? ($r->oldAsset->Asset_name ?? '—') }}</p>
-                            <p class="text-xs text-slate-400 font-mono mt-0.5">{{ data_get($r, 'old_asset_code') ?? ($r->oldAsset->Asset_code ?? '—') }}</p>
-                            <p class="text-xs text-slate-500 mt-1.5">{{ data_get($r, 'old_asset_category') ?? ($r->oldAsset->Category ?? '—') }}</p>
-                            <span class="text-[11px] font-medium px-2 py-0.5 bg-red-100 text-red-700 rounded-full mt-2 inline-block">
+                            <p class="font-semibold text-sm" style="color:var(--navy-900);">{{ data_get($r, 'old_asset_name') ?? ($r->oldAsset->Asset_name ?? '—') }}</p>
+                            <p class="text-xs font-mono mt-0.5" style="color:var(--ink-400);">{{ data_get($r, 'old_asset_code') ?? ($r->oldAsset->Asset_code ?? '—') }}</p>
+                            <p class="text-xs mt-1.5" style="color:var(--ink-600);">{{ data_get($r, 'old_asset_category') ?? ($r->oldAsset->Category ?? '—') }}</p>
+                            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full mt-2 inline-block" style="background:#F0D4CE; color:var(--brick-dark);">
                                 {{ data_get($r, 'old_asset_lifecycle_status') ?? ($r->oldAsset->Lifecycle_Status ?? '—') }}
                             </span>
                         </div>
-                        <div class="bg-green-50/60 border border-green-100 rounded-xl p-4">
-                            <p class="text-xs font-semibold text-green-700 mb-2 flex items-center">
+                        <div class="rounded-xl p-4" style="background:var(--forest-tint); border:1px solid #BFDEC7;">
+                            <p class="text-xs font-semibold mb-2 flex items-center" style="color:var(--forest-dark);">
                                 <i class="ri-arrow-right-line mr-1"></i> New Asset
                             </p>
                             @php
@@ -376,62 +444,62 @@
                             @endphp
 
                             @if($hasRealNewAsset)
-                            <p class="font-semibold text-slate-900 text-sm">{{ data_get($r, 'new_asset_name') ?? data_get($r, 'newAsset.Asset_name') ?? '—' }}</p>
-                            <p class="text-xs text-slate-400 font-mono mt-0.5">{{ data_get($r, 'new_asset_code') ?? data_get($r, 'newAsset.Asset_code') ?? '—' }}</p>
-                            <p class="text-xs text-slate-500 mt-1.5">{{ data_get($r, 'new_asset_category') ?? data_get($r, 'newAsset.Category') ?? '—' }}</p>
-                            <span class="text-[11px] font-medium px-2 py-0.5 bg-green-100 text-green-700 rounded-full mt-2 inline-block">
+                            <p class="font-semibold text-sm" style="color:var(--navy-900);">{{ data_get($r, 'new_asset_name') ?? data_get($r, 'newAsset.Asset_name') ?? '—' }}</p>
+                            <p class="text-xs font-mono mt-0.5" style="color:var(--ink-400);">{{ data_get($r, 'new_asset_code') ?? data_get($r, 'newAsset.Asset_code') ?? '—' }}</p>
+                            <p class="text-xs mt-1.5" style="color:var(--ink-600);">{{ data_get($r, 'new_asset_category') ?? data_get($r, 'newAsset.Category') ?? '—' }}</p>
+                            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full mt-2 inline-block" style="background:#CFE7D6; color:var(--forest-dark);">
                             {{ data_get($r, 'new_asset_lifecycle_status') ?? data_get($r, 'newAsset.Lifecycle_Status') ?? '—' }}
                             </span>
                             @else
-                            <p class="text-xs text-slate-400 italic mt-4">Not yet assigned</p>
+                            <p class="text-xs italic mt-4" style="color:var(--ink-400);">Not yet assigned</p>
                             @endif
                         </div>
                     </div>
 
                     {{-- Details --}}
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-slate-50 rounded-lg p-3.5">
-                            <p class="text-xs text-slate-400 mb-1">Requested By</p>
-                            <p class="text-sm font-medium text-slate-900">{{ data_get($r, 'requested_by') ?? ($r->request->user->full_name ?? '—') }}</p>
-                            <p class="text-xs text-slate-400">{{ data_get($r, 'department') ?? ($r->request->user->department ?? '—') }}</p>
+                        <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+                            <p class="text-xs mb-1" style="color:var(--ink-400);">Requested By</p>
+                            <p class="text-sm font-medium" style="color:var(--navy-900);">{{ data_get($r, 'requested_by') ?? ($r->request->user->full_name ?? '—') }}</p>
+                            <p class="text-xs" style="color:var(--ink-400);">{{ data_get($r, 'department') ?? ($r->request->user->department ?? '—') }}</p>
                         </div>
-                        <div class="bg-slate-50 rounded-lg p-3.5">
-                            <p class="text-xs text-slate-400 mb-1">Approved By</p>
-                            <p class="text-sm font-medium text-slate-900">{{ $r->Approve_by ?? '—' }}</p>
+                        <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+                            <p class="text-xs mb-1" style="color:var(--ink-400);">Approved By</p>
+                            <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $r->Approve_by ?? '—' }}</p>
                         </div>
-                        <div class="bg-slate-50 rounded-lg p-3.5">
-                            <p class="text-xs text-slate-400 mb-1">Replacement Date</p>
-                            <p class="text-sm font-medium text-slate-900">
+                        <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+                            <p class="text-xs mb-1" style="color:var(--ink-400);">Replacement Date</p>
+                            <p class="text-sm font-medium" style="color:var(--navy-900);">
                                 {{ $r->Replacement_Date ? \Carbon\Carbon::parse($r->Replacement_Date)->format('M d, Y') : '—' }}
                             </p>
                         </div>
-                        <div class="bg-slate-50 rounded-lg p-3.5">
-                            <p class="text-xs text-slate-400 mb-1">Submitted On</p>
-                            <p class="text-sm font-medium text-slate-900">
+                        <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+                            <p class="text-xs mb-1" style="color:var(--ink-400);">Submitted On</p>
+                            <p class="text-sm font-medium" style="color:var(--navy-900);">
                                 {{ data_get($r, 'created_at') ? \Carbon\Carbon::parse(data_get($r, 'created_at'))->format('M d, Y') : '—' }}
                             </p>
                         </div>
                     </div>
 
                     @if($r->reason)
-                    <div class="bg-slate-50 rounded-lg p-3.5">
-                        <p class="text-xs text-slate-400 mb-1">Reason</p>
-                        <p class="text-sm text-slate-700">{{ $r->reason }}</p>
+                    <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+                        <p class="text-xs mb-1" style="color:var(--ink-400);">Reason</p>
+                        <p class="text-sm" style="color:var(--ink-600);">{{ $r->reason }}</p>
                     </div>
                     @endif
 
                     @if($r->notes)
-                    <div class="bg-slate-50 rounded-lg p-3.5">
-                        <p class="text-xs text-slate-400 mb-1">Notes</p>
-                        <p class="text-sm text-slate-700">{{ $r->notes }}</p>
+                    <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
+                        <p class="text-xs mb-1" style="color:var(--ink-400);">Notes</p>
+                        <p class="text-sm" style="color:var(--ink-600);">{{ $r->notes }}</p>
                     </div>
                     @endif
                 </div>
                 @endforeach
             </div>
-            <div class="p-6 border-t border-slate-100 flex justify-end">
+            <div class="p-6 flex justify-end" style="border-top:1px solid var(--line);">
                 <button onclick="closeModal('viewModal')"
-                    class="px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium">
+                    class="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style="border:1px solid var(--line); color:var(--navy-800);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                     Close
                 </button>
             </div>
@@ -439,11 +507,11 @@
     </div>
 
     <!-- Approve Modal -->
-    <div id="approveModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4">
-            <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center">
-                <h3 class="text-lg font-bold text-slate-900">Approve Replacement</h3>
-                <button onclick="closeModal('approveModal')" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+    <div id="approveModal" class="hidden fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="background:rgba(10,24,48,.55);">
+        <div class="modal-panel rounded-2xl shadow-xl max-w-sm w-full mx-4" style="background:#fff;">
+            <div class="modal-head px-6 py-5 flex justify-between items-center">
+                <h3 class="font-display text-lg font-semibold text-white">Approve Replacement</h3>
+                <button onclick="closeModal('approveModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -451,25 +519,25 @@
                 @csrf
                 @method('PATCH')
                 <div class="p-6 space-y-4">
-                    <div class="flex items-start space-x-3 p-3.5 bg-green-50 border border-green-100 rounded-lg">
-                        <i class="ri-checkbox-circle-line text-green-600 text-lg mt-0.5"></i>
-                        <p class="text-sm text-green-800">Approving this request will allow you to create and link a new asset for this replacement.</p>
+                    <div class="flex items-start space-x-3 p-3.5 rounded-lg" style="background:var(--forest-tint); border:1px solid #BFDEC7;">
+                        <i class="ri-checkbox-circle-line text-lg mt-0.5" style="color:var(--forest);"></i>
+                        <p class="text-sm" style="color:var(--forest-dark);">Approving this request will allow you to create and link a new asset for this replacement.</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1.5">Notes (optional)</label>
+                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);">Notes (optional)</label>
                         <textarea name="notes" rows="3" placeholder="Add any notes about this approval..."
-                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-shadow resize-none"></textarea>
+                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm resize-none"></textarea>
                     </div>
                     <input type="hidden" name="status" value="Approved"/>
                     <input type="hidden" name="Approve_by" value="{{ Auth::user()->full_name ?? '' }}"/>
                 </div>
-                <div class="p-6 border-t border-slate-100 flex justify-end space-x-3">
+                <div class="p-6 flex justify-end space-x-3" style="border-top:1px solid var(--line);">
                     <button type="button" onclick="closeModal('approveModal')"
-                        class="px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium">
+                        class="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style="border:1px solid var(--line); color:var(--navy-800);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                         Cancel
                     </button>
                     <button type="submit"
-                        class="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium shadow-sm shadow-green-600/20">
+                        class="px-4 py-2.5 text-white rounded-lg text-sm font-medium transition" style="background:var(--forest);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                         <i class="ri-checkbox-circle-line mr-1"></i> Approve
                     </button>
                 </div>
@@ -478,14 +546,14 @@
     </div>
 
             <!-- Link New Asset Modal (full form, prefilled from old asset) -->
-            <div id="linkModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                    <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+            <div id="linkModal" class="hidden fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="background:rgba(10,24,48,.55);">
+                <div class="modal-panel rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
+                    <div class="modal-head px-6 py-5 flex justify-between items-center sticky top-0 z-10">
                         <div>
-                            <h3 class="text-lg font-bold text-slate-900">Create &amp; Link New Asset</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Pre-filled from old asset — edit as needed, then create</p>
+                            <h3 class="font-display text-lg font-semibold text-white">Create &amp; Link New Asset</h3>
+                            <p class="text-xs mt-0.5" style="color:var(--gold-100);">Pre-filled from old asset — edit as needed, then create</p>
                         </div>
-                        <button type="button" onclick="closeModal('linkModal')" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 w-8 h-8 rounded-lg flex items-center justify-center">
+                        <button type="button" onclick="closeModal('linkModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center">
                             <i class="ri-close-line text-xl"></i>
                         </button>
                     </div>
@@ -495,34 +563,37 @@
                         @method('PATCH')
                             <div class="p-6 space-y-5"> 
                         {{-- New Asset Code + QR (generate on demand) --}}
-                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 mb-4">
+                        <div class="rounded-xl p-4 mb-4" style="border:1px solid var(--line); background:var(--paper-2);">
                             <div class="flex items-center justify-between mb-2">
                                 <div>
-                                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">New Asset Code (auto)</p>
-                                    <p id="generatedCode" class="text-lg font-bold text-slate-900 font-mono mt-0.5">—</p>
+                                    <p class="eyebrow">New Asset Code (auto)</p>
+                                    <p id="generatedCode" class="text-lg font-bold font-mono mt-0.5" style="color:var(--navy-900);">—</p>
                                     <input type="hidden" name="Asset_code" id="assetCodeHidden" value="">
                                 </div>
                                 <button type="button" onclick="regenerateCode()"
-                                    class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition">
+                                    class="px-3 py-1.5 text-xs font-medium rounded-lg transition"
+                                    style="border:1px solid var(--line); background:#fff; color:var(--ink-600);"
+                                    onmouseover="this.style.borderColor='var(--gold-500)'; this.style.color='var(--gold-600)'"
+                                    onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink-600)'">
                                     <i class="ri-refresh-line mr-1"></i> Regenerate code
                                 </button>
                             </div>
 
                             {{-- Hidden until Generate QR is clicked --}}
-                            <div id="linkQrSection" class="hidden mt-3 pt-3 border-t border-slate-200">
+                            <div id="linkQrSection" class="hidden mt-3 pt-3" style="border-top:1px solid var(--line);">
                                 <div class="flex items-start gap-4">
-                                    <div class="w-28 h-28 bg-white border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                                    <div class="w-28 h-28 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0" style="background:#fff; border:1px solid var(--line);">
                                         <img id="generatedQrImg" src="" alt="QR" class="w-full h-full object-contain">
                                     </div>
                                     <div class="flex-1">
-                                        <p class="text-xs text-slate-500 mb-2">QR for the new code. Updates when you regenerate.</p>
+                                        <p class="text-xs mb-2" style="color:var(--ink-400);">QR for the new code. Updates when you regenerate.</p>
                                         <div class="flex flex-wrap gap-2">
                                             <button type="button" onclick="downloadGeneratedQr()"
-                                                class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">
+                                                class="px-3 py-1.5 text-xs font-medium rounded-lg" style="border:1px solid var(--line); background:#fff; color:var(--ink-600);">
                                                 <i class="ri-download-line mr-1"></i> Download
                                             </button>
                                             <button type="button" onclick="printGeneratedQr()"
-                                                class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">
+                                                class="px-3 py-1.5 text-xs font-medium rounded-lg" style="border:1px solid var(--line); background:#fff; color:var(--ink-600);">
                                                 <i class="ri-printer-line mr-1"></i> Print
                                             </button>
                                         </div>
@@ -533,116 +604,120 @@
                             {{-- Generate button (shown until QR is generated) --}}
                             <div id="linkQrGenerateWrap" class="mt-3">
                                 <button type="button" onclick="generateLinkQr()"
-                                    class="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                                    class="btn-gold w-full px-4 py-2.5 rounded-lg text-sm">
                                     <i class="ri-qr-code-line mr-1"></i> Generate QR Code
                                 </button>
-                                <p class="text-xs text-slate-400 mt-1.5 text-center">Fill in the fields below, then generate the QR.</p>
+                                <p class="text-xs mt-1.5 text-center" style="color:var(--ink-400);">Fill in the fields below, then generate the QR.</p>
                             </div>
                             </div>
 
                                 {{-- Prefilled fields --}}
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div class="sm:col-span-2">
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Asset Name <span class="text-red-500">*</span></label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Asset Name <span style="color:var(--brick);">*</span></label>
                                         <input type="text" name="Asset_name" id="link_asset_name" required
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                             <div>
-                                                <label class="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                                                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Category</label>
                                                     <input type="text" id="link_category_display" value="" readonly
-                                                        class="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-700 cursor-not-allowed">
+                                                        class="w-full px-3.5 py-2.5 rounded-lg text-sm cursor-not-allowed" style="border:1px solid var(--line); background:var(--paper-2); color:var(--ink-600);">
                                                     <input type="hidden" name="Category" id="link_category" value="">
                                             </div>
                                         <div>
-                                            <label class="block text-sm font-medium text-slate-700 mb-1">Condition</label>
+                                            <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Condition</label>
                                             <input type="text" value="New" readonly
-                                                class="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-700 cursor-not-allowed">
+                                                class="w-full px-3.5 py-2.5 rounded-lg text-sm cursor-not-allowed" style="border:1px solid var(--line); background:var(--paper-2); color:var(--ink-600);">
                                             <input type="hidden" name="Condition" id="link_condition" value="New">
                                         </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Location</label>
                                         <input type="text" name="asset_location" id="link_location"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Serial Number</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Serial Number</label>
                                         <input type="text" name="serial_Number" id="link_serial"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Purchase Price</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Purchase Price</label>
                                         <input type="number" step="0.01" name="purchase_Price" id="link_price"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Acquisition Date</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Acquisition Date</label>
                                         <input type="date" name="accusion_date" id="link_acquired"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Supplier</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Supplier</label>
                                         <input type="text" name="supplier" id="link_supplier"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Warranty (months)</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Warranty (months)</label>
                                         <input type="number" name="warranty_months" id="link_warranty" value="12"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Lifespan (months)</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Lifespan (months)</label>
                                         <input type="number" name="lifespan_months" id="link_lifespan"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Maintenance Interval (months)</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Maintenance Interval (months)</label>
                                         <input type="number" name="maintenance_interval" id="link_interval"
-                                            class="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
 
                                     {{-- Asset Photo --}}
                                     <div class="sm:col-span-2">
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Asset Photo</label>
-                                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:border-blue-400 transition cursor-pointer"
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Asset Photo</label>
+                                        <div class="mt-1 flex justify-center px-6 pt-5 pb-6 rounded-lg cursor-pointer transition"
+                                            style="border:2px dashed var(--line);"
+                                            onmouseover="this.style.borderColor='var(--gold-500)'"
+                                            onmouseout="this.style.borderColor='var(--line)'"
                                             onclick="document.getElementById('link_asset_photo').click()">
                                             <div class="space-y-1 text-center">
-                                                <i class="ri-image-line text-3xl text-slate-400 mb-1 block"></i>
-                                                <div class="flex text-sm text-slate-600 justify-center">
-                                                    <span class="font-medium text-blue-600">Upload a file</span>
+                                                <i class="ri-image-line text-3xl mb-1 block" style="color:var(--ink-400);"></i>
+                                                <div class="flex text-sm justify-center" style="color:var(--ink-600);">
+                                                    <span class="font-medium" style="color:var(--gold-600);">Upload a file</span>
                                                     <p class="pl-1">or drag and drop</p>
                                                 </div>
-                                                <p class="text-xs text-slate-500">PNG, JPG, GIF, WEBP up to 10MB</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">PNG, JPG, GIF, WEBP up to 10MB</p>
                                             </div>
                                         </div>
                                         <input id="link_asset_photo" name="asset_photo" type="file" class="hidden" accept="image/*"
                                             onchange="previewLinkImage(this)">
                                         <div id="link_photo_preview" class="mt-3 hidden flex items-start space-x-3">
-                                            <img id="link_preview_img" class="h-28 w-auto rounded-lg border border-slate-200" alt="Preview">
+                                            <img id="link_preview_img" class="h-28 w-auto rounded-lg" style="border:1px solid var(--line);" alt="Preview">
                                             <button type="button" onclick="removeLinkPreview()"
-                                                class="px-3 py-1 bg-red-50 text-red-600 rounded-lg border border-red-100 hover:bg-red-100 text-sm">
+                                                class="px-3 py-1 rounded-lg text-sm" style="background:var(--brick-tint); color:var(--brick); border:1px solid #E7C9C1;">
                                                 Remove
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                            <div class="flex items-start space-x-2 p-3.5 bg-amber-50 border border-amber-100 rounded-lg">
-                                <i class="ri-information-line text-amber-600 mt-0.5 flex-shrink-0"></i>
-                                <p class="text-xs text-amber-800">
-                                    New asset will be set to <strong>Active</strong> and assigned to the same user.
-                                    Old asset will be moved to <strong>Pullout</strong> with reason “Replacement” (not deleted).
+                            <div class="flex items-start space-x-2 p-3.5 rounded-lg" style="background:var(--bronze-tint); border:1px solid #E7CE9C;">
+                                <i class="ri-information-line mt-0.5 flex-shrink-0" style="color:var(--bronze);"></i>
+                                <p class="text-xs" style="color:var(--bronze-dark);">
+                                    The new asset will be created and the requester will be notified that it is ready for pickup.
+                                    When the user collects it in person, mark the replacement as <strong>Received</strong> —
+                                    that will set the new asset to <strong>Active</strong> and move the old asset to <strong>Pullout</strong>.
                                 </p>
                             </div>
                         </div>
                         
 
-                        <div class="p-6 border-t border-slate-100 flex justify-end space-x-3 sticky bottom-0 bg-white">
+                        <div class="p-6 flex justify-end space-x-3 sticky bottom-0" style="border-top:1px solid var(--line); background:#fff;">
                             <button type="button" onclick="closeModal('linkModal')"
-                                class="px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 text-sm font-medium">
+                                class="px-4 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--line); color:var(--navy-800);">
                                 Cancel
                             </button>
                             <button type="submit"
-                                class="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm">
+                                class="btn-gold px-4 py-2.5 rounded-lg text-sm">
                                 <i class="ri-add-line mr-1"></i> Create &amp; Link Asset
                             </button>
                         </div>
@@ -651,31 +726,31 @@
             </div>
 
             <!-- Mark Received Modal -->
-            <div id="receivedModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-                <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4">
+            <div id="receivedModal" class="hidden fixed inset-0 backdrop-blur-sm z-[70] flex items-center justify-center p-4" style="background:rgba(10,24,48,.55);">
+                <div class="modal-panel rounded-2xl shadow-xl max-w-sm w-full mx-4" style="background:#fff;">
                     <div class="p-6 text-center">
-                        <div class="w-14 h-14 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="ri-check-double-line text-teal-600 text-2xl"></i>
+                        <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--teal-tint);">
+                            <i class="ri-check-double-line text-2xl" style="color:var(--teal);"></i>
                         </div>
-                        <h3 class="text-lg font-bold text-slate-900 mb-2">Mark as Received?</h3>
-                        <p class="text-slate-500 text-sm leading-relaxed">
+                        <h3 class="font-display text-lg font-semibold mb-2" style="color:var(--navy-900);">Mark as Received?</h3>
+                        <p class="text-sm leading-relaxed" style="color:var(--ink-600);">
                             Confirming receipt will set the new asset to
-                            <span class="font-semibold text-green-600">Active</span>
+                            <span class="font-semibold" style="color:var(--forest);">Active</span>
                             and the old asset to
-                            <span class="font-semibold text-orange-600">Pullout</span>.
+                            <span class="font-semibold" style="color:var(--bronze-dark);">Pullout</span>.
                         </p>
                     </div>
                     <form id="receivedForm" method="POST">
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="status" value="Received"/>
-                        <div class="p-6 border-t border-slate-100 flex justify-center space-x-3">
+                        <div class="p-6 flex justify-center space-x-3" style="border-top:1px solid var(--line);">
                             <button type="button" onclick="closeModal('receivedModal')"
-                                class="px-5 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 text-sm font-medium">
+                                class="px-5 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--line); color:var(--navy-800);">
                                 Cancel
                             </button>
                             <button type="submit"
-                                class="px-5 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium">
+                                class="px-5 py-2.5 text-white rounded-lg text-sm font-medium transition" style="background:var(--teal);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                                 <i class="ri-check-double-line mr-1"></i> Confirm Received
                             </button>
                         </div>
@@ -684,25 +759,25 @@
             </div>
 
     <!-- Delete Modal -->
-    <div id="deleteModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4">
+    <div id="deleteModal" class="hidden fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="background:rgba(10,24,48,.55);">
+        <div class="modal-panel rounded-2xl shadow-xl max-w-sm w-full mx-4" style="background:#fff;">
             <div class="p-6 text-center">
-                <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="ri-delete-bin-line text-red-600 text-2xl"></i>
+                <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--brick-tint);">
+                    <i class="ri-delete-bin-line text-2xl" style="color:var(--brick);"></i>
                 </div>
-                <h3 class="text-lg font-bold text-slate-900 mb-2">Delete Replacement Record?</h3>
-                <p class="text-slate-500 text-sm">This action cannot be undone.</p>
+                <h3 class="font-display text-lg font-semibold mb-2" style="color:var(--navy-900);">Delete Replacement Record?</h3>
+                <p class="text-sm" style="color:var(--ink-600);">This action cannot be undone.</p>
             </div>
-            <div class="p-6 border-t border-slate-100 flex justify-center space-x-3">
+            <div class="p-6 flex justify-center space-x-3" style="border-top:1px solid var(--line);">
                 <button onclick="closeModal('deleteModal')"
-                    class="px-5 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium">
+                    class="px-5 py-2.5 rounded-lg text-sm font-medium transition-colors" style="border:1px solid var(--line); color:var(--navy-800);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                     Cancel
                 </button>
                 <form id="deleteForm" method="POST">
                     @csrf
                     @method('DELETE')
                     <button type="submit"
-                        class="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium shadow-sm shadow-red-600/20">
+                        class="px-5 py-2.5 text-white rounded-lg text-sm font-medium transition" style="background:var(--brick);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                         Delete
                     </button>
                 </form>
@@ -710,25 +785,14 @@
         </div>
     </div>
 
-            <style>
-                .filter-tab { transition: all 0.15s ease; }
-                .replacement-row { transition: background-color 0.15s ease; }
-                .scrollbar-hide::-webkit-scrollbar { display: none; }
-                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-                @keyframes slideUp { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-                .modal-panel { animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-            </style>
-
     <script>
         // Filter tabs
         document.querySelectorAll('.filter-tab').forEach(tab => {
             tab.addEventListener('click', function () {
                 document.querySelectorAll('.filter-tab').forEach(t => {
-                    t.classList.remove('active', 'text-blue-700', 'border-b-2', 'border-blue-600');
-                    t.classList.add('text-slate-500');
+                    t.classList.remove('active');
                 });
-                this.classList.add('active', 'text-blue-700', 'border-b-2', 'border-blue-600');
-                this.classList.remove('text-slate-500');
+                this.classList.add('active');
                 const filter = this.dataset.filter;
                 document.querySelectorAll('.replacement-row').forEach(row => {
                     row.style.display = (filter === 'all' || row.dataset.status === filter) ? '' : 'none';
@@ -923,12 +987,12 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                         if (newCell) {
                             newCell.innerHTML = `
                                 <div class="flex items-center space-x-3">
-                                    <div class="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <i class="ri-computer-line text-green-600 text-sm"></i>
+                                    <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background:var(--forest-tint);">
+                                        <i class="ri-computer-line text-sm" style="color:var(--forest);"></i>
                                     </div>
                                     <div>
-                                        <p class="font-medium text-slate-900 font-mono text-[13px]">${data.asset.code}</p>
-                                        <p class="text-xs text-slate-400 mt-0.5">${data.asset.name || ''}</p>
+                                        <p class="font-medium font-mono text-[13px]" style="color:var(--navy-900);">${data.asset.code}</p>
+                                        <p class="text-xs mt-0.5" style="color:var(--ink-400);">${data.asset.name || ''}</p>
                                     </div>
                                 </div>
                             `;
@@ -940,17 +1004,20 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                         let html = `
                             <div class="flex flex-row flex-nowrap items-center gap-1.5 whitespace-nowrap">
                                 <button type="button" onclick="openViewModal(${rid})"
-                                    class="w-8 h-8 shrink-0 flex items-center justify-center bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors"
+                                    class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                    style="background:var(--steel-tint); color:var(--steel);"
                                     title="View Details">
                                     <i class="ri-eye-line text-sm"></i>
                                 </button>
                                 <button type="button" onclick="openReceivedModal(${rid})"
-                                    class="w-8 h-8 shrink-0 flex items-center justify-center bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-600 hover:text-white transition-colors"
+                                    class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                    style="background:var(--teal-tint); color:var(--teal);"
                                     title="Mark as Received">
                                     <i class="ri-check-double-line text-sm"></i>
                                 </button>
                                 <a href="/admin/assets/${data.asset.id}" target="_blank"
-                                    class="w-8 h-8 shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
+                                    class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                    style="background:var(--plum-tint); color:var(--plum);"
                                     title="View New Asset">
                                     <i class="ri-external-link-line text-sm"></i>
                                 </a>`;
@@ -959,14 +1026,16 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                             const q = (s) => String(s ?? '').replace(/"/g, '&quot;');
                             html += `
                                 <button type="button"
-                                    class="js-dl-qr w-8 h-8 shrink-0 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                                    class="js-dl-qr w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                    style="background:var(--paper-2); color:var(--ink-600);"
                                     data-qr-dl="${q(data.asset.qr_url)}"
                                     data-qr-code="${q(data.asset.code || 'qr')}"
                                     title="Download QR">
                                     <i class="ri-download-line text-sm"></i>
                                 </button>
                                 <button type="button"
-                                    class="js-print-qr w-8 h-8 shrink-0 flex items-center justify-center bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                                    class="js-print-qr w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                    style="background:var(--paper-2); color:var(--ink-600);"
                                     data-qr-print="${q(data.asset.qr_url)}"
                                     data-code="${q(data.asset.code)}"
                                     data-name="${q(data.asset.name || 'ASSET')}"
@@ -980,7 +1049,8 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
 
                         html += `
                                 <button type="button" onclick="confirmDelete(${rid})"
-                                    class="w-8 h-8 shrink-0 flex items-center justify-center bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-colors"
+                                    class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
+                                    style="background:var(--brick-tint); color:var(--brick);"
                                     title="Delete">
                                     <i class="ri-delete-bin-line text-sm"></i>
                                 </button>

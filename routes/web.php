@@ -31,6 +31,45 @@ if (!function_exists('normalizePulloutAssetIds')) {
     }
 }
 
+if (!function_exists('createNotification')) {
+    /**
+     * Create a notification for a specific user.
+     * type: REQUEST | REPAIR | REPLACEMENT
+     * reference_type: request | repair | replacement
+     */
+    function createNotification(
+        int $userId,
+        string $title,
+        string $message,
+        string $type,
+        ?int $referenceId = null,
+        ?string $referenceType = null
+    ): void {
+        if (!$userId) {
+            return;
+        }
+
+        try {
+            DB::table('notifications')->insert([
+                'user_id'        => $userId,
+                'title'          => $title,
+                'message'        => $message,
+                'type'           => strtoupper($type),
+                'reference_id'   => $referenceId,
+                'reference_type' => $referenceType ? strtolower($referenceType) : null,
+                'is_read'        => false,
+                'created_at'     => now(),
+                'updated_at'     => now(),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Failed to create notification: ' . $e->getMessage(), [
+                'user_id' => $userId,
+                'type'    => $type,
+            ]);
+        }
+    }
+}
+
 if (!function_exists('createPulloutTransaction')) {
     function createPulloutTransaction(array $data, array $assetIds): int
     {
@@ -923,9 +962,13 @@ Route::get('/admin/assets', function () {
 });
 
 // Admin audit logs page
-Route::get('/admin/audit-logs', function () {
+Route::get('/admin/audit-logs', function (Request $request) {
+    $filter = $request->query('filter', 'all');   // all | asset | request | auth
+    $search = trim((string) $request->query('q', ''));
+    $date   = $request->query('date', '');
+
     try {
-        $logs = DB::table('audit_logs')
+        $query = DB::table('audit_logs')
             ->leftJoin('users', 'audit_logs.user_id', '=', 'users.id')
             ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
             ->leftJoin('assets', 'audit_logs.asset_id', '=', 'assets.id')
@@ -940,20 +983,66 @@ Route::get('/admin/audit-logs', function () {
                 'assets.Asset_code as asset_code',
                 'requests.id as request_id',
                 'requests.request_type as request_type'
-            )
-            ->orderByDesc('audit_logs.created_at')
-            ->paginate(5);   
+            );
+
+        // Tab filters
+        if ($filter === 'asset') {
+            $query->where(function ($q) {
+                $q->whereNotNull('audit_logs.asset_id')
+                  ->orWhere('audit_logs.action_type', 'ilike', '%ASSET%')
+                  ->orWhere('audit_logs.notes', 'ilike', '%asset%');
+            });
+        } elseif ($filter === 'request') {
+            $query->where(function ($q) {
+                $q->whereNotNull('audit_logs.request_id')
+                  ->orWhere('audit_logs.action_type', 'ilike', '%REQUEST%')
+                  ->orWhere('audit_logs.notes', 'ilike', '%request%');
+            });
+        } elseif ($filter === 'auth') {
+            $query->where(function ($q) {
+                $q->where('audit_logs.notes', 'ilike', '%login%')
+                  ->orWhere('audit_logs.notes', 'ilike', '%logout%')
+                  ->orWhere('audit_logs.notes', 'ilike', '%registered%')
+                  ->orWhere('audit_logs.action_type', 'ilike', '%AUTH%')
+                  ->orWhere('audit_logs.action_type', 'ilike', '%LOGIN%');
+            });
+        }
+
+        // Search
+        if ($search !== '') {
+            $term = '%' . $search . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('audit_logs.notes', 'ilike', $term)
+                  ->orWhere('audit_logs.action_description', 'ilike', $term)
+                  ->orWhere('employee_numbers.Full_Name', 'ilike', $term)
+                  ->orWhere('assets.Asset_name', 'ilike', $term)
+                  ->orWhere('assets.Asset_code', 'ilike', $term);
+            });
+        }
+
+        // Date
+        if ($date !== '') {
+            $query->whereDate('audit_logs.created_at', $date);
+        }
+
+        $logs = $query->orderByDesc('audit_logs.created_at')
+            ->paginate(15)
+            ->withQueryString();
+
     } catch (\Exception $e) {
-        $logs = collect([]);
+        $logs = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 15);
     }
 
-    $totalLogs = DB::table('audit_logs')->count();
-    $todayLogs = DB::table('audit_logs')->whereDate('created_at', now()->toDateString())->count();
-    $weekLogs = DB::table('audit_logs')->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count();
+    $totalLogs   = DB::table('audit_logs')->count();
+    $todayLogs   = DB::table('audit_logs')->whereDate('created_at', now()->toDateString())->count();
+    $weekLogs    = DB::table('audit_logs')->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count();
     $activeUsers = DB::table('users')->count();
 
-    return view('admin.audit-log.audit_logs', compact('logs', 'totalLogs', 'todayLogs', 'weekLogs', 'activeUsers'));
-});
+    return view('admin.audit-log.audit_logs', compact(
+        'logs', 'totalLogs', 'todayLogs', 'weekLogs', 'activeUsers',
+        'filter', 'search', 'date'
+    ));
+})->middleware('auth');
 
 Route::get('/admin/audit-logs/export', function () {
     $logs = DB::table('audit_logs')
@@ -1286,7 +1375,7 @@ Route::post('/admin/api/assets/{id}/status', function ($id, \Illuminate\Http\Req
     }
 });
 
-// Admin API: Evaluate asset in "For Checking" status
+// Admin API: Evaluate asset (For Checking, or Pullout + expired lifespan actions)
 Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\Request $request) {
     $user = Auth::user();
     if (!$user || ($user->role ?? '') !== 'Admin') {
@@ -1298,56 +1387,64 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
         return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
     }
 
-    if ($asset->Lifecycle_Status !== 'For Checking') {
-        return response()->json(['success' => false, 'message' => 'Asset is not in "For Checking" status'], 422);
-    }
-
     $action = $request->input('action');
     $evaluationNotes = $request->input('evaluation_notes', '');
-    
+    $status = $asset->Lifecycle_Status ?? '';
+
+    // Allow:
+    // - For Checking → all normal evaluation actions
+    // - Pullout → only extend_lifespan_pullout and proceed_disposal
+    $pulloutOnlyActions = ['extend_lifespan_pullout', 'proceed_disposal'];
+
+    if ($status === 'Pullout') {
+        if (!in_array($action, $pulloutOnlyActions, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid action for Pullout asset. Only extend lifespan or disposal is allowed.',
+            ], 422);
+        }
+    } elseif ($status !== 'For Checking') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Asset is not in "For Checking" status',
+        ], 422);
+    }
+
     try {
-        DB::transaction(function () use ($id, $asset, $action, $evaluationNotes, $request) {
+        DB::transaction(function () use ($id, $asset, $action, $evaluationNotes, $request, $status) {
             $adminEmail = Auth::user()?->email ?? 'Admin';
-            
-            switch($action) {
+
+            switch ($action) {
                 case 'return_active':
-                    // Return asset to Active status
-                    $extensionMonths = (int)$request->input('extension_months', 0);
-                    
+                    $extensionMonths = (int) $request->input('extension_months', 0);
                     $updateData = [
                         'Lifecycle_Status' => 'Active',
                         'updated_at' => now(),
                     ];
-                    
-                    // If extension is requested, recalculate expiration date
-                    if ($extensionMonths > 0) {
-                        $currentExpiration = \Carbon\Carbon::parse($asset->expiration_date);
-                        $newExpiration = $currentExpiration->addMonths($extensionMonths);
-                        $updateData['expiration_date'] = $newExpiration;
+                    if ($extensionMonths > 0 && !empty($asset->expiration_date)) {
+                        $updateData['expiration_date'] = \Carbon\Carbon::parse($asset->expiration_date)
+                            ->addMonths($extensionMonths)
+                            ->toDateString();
                     }
-                    
                     DB::table('assets')->where('id', $id)->update($updateData);
-                    
-                    // Log evaluation
                     DB::table('audit_logs')->insert([
                         'asset_id' => $id,
                         'user_id' => Auth::id(),
                         'action_type' => 'UPDATE',
                         'action_description' => 'Asset returned to Active status after lifespan evaluation',
-                        'notes' => 'Lifespan Evaluation Decision: RETURN TO ACTIVE' . ($extensionMonths > 0 ? " (Extended by $extensionMonths months)" : '') . "\nEvaluation Notes: " . ($evaluationNotes ?: 'Asset condition satisfactory, continues to meet operational requirements'),
+                        'notes' => 'Lifespan Evaluation Decision: RETURN TO ACTIVE'
+                            . ($extensionMonths > 0 ? " (Extended by $extensionMonths months)" : '')
+                            . "\nEvaluation Notes: " . ($evaluationNotes ?: 'Asset condition satisfactory'),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
                     break;
-                    
+
                 case 'send_repair':
-                    // Send asset for repair
                     DB::table('assets')->where('id', $id)->update([
                         'Lifecycle_Status' => 'For Repair',
                         'updated_at' => now(),
                     ]);
-                    
-                    // Create repair record
                     DB::table('repairs')->insertOrIgnore([
                         'Asset_id' => $id,
                         'Request_id' => null,
@@ -1360,30 +1457,23 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    
-                    // Increment repair counter
                     DB::table('assets')->where('id', $id)->increment('repair_counts');
-                    
-                    // Log evaluation
                     DB::table('audit_logs')->insert([
                         'asset_id' => $id,
                         'user_id' => Auth::id(),
                         'action_type' => 'REPAIR',
                         'action_description' => 'Asset sent for repair after lifespan evaluation',
-                        'notes' => 'Lifespan Evaluation Decision: SEND FOR REPAIR\nIssues Identified: ' . ($evaluationNotes ?: 'Maintenance required'),
+                        'notes' => 'Lifespan Evaluation Decision: SEND FOR REPAIR\nIssues: ' . ($evaluationNotes ?: 'Maintenance required'),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
                     break;
-                    
+
                 case 'recommend_replacement':
-                    // Recommend replacement
                     DB::table('assets')->where('id', $id)->update([
                         'Lifecycle_Status' => 'For Replacement',
                         'updated_at' => now(),
                     ]);
-                    
-                    // Create replacement record
                     DB::table('replacements')->insertOrIgnore([
                         'Asset_id' => $id,
                         'Request_id' => null,
@@ -1394,50 +1484,76 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    
-                    // Log evaluation
                     DB::table('audit_logs')->insert([
                         'asset_id' => $id,
                         'user_id' => Auth::id(),
                         'action_type' => 'REPLACEMENT',
                         'action_description' => 'Asset recommended for replacement after lifespan evaluation',
-                        'notes' => 'Lifespan Evaluation Decision: RECOMMEND REPLACEMENT\nReason: ' . ($evaluationNotes ?: 'Asset beyond economic repair'),
+                        'notes' => 'Lifespan Evaluation Decision: RECOMMEND REPLACEMENT\nReason: ' . ($evaluationNotes ?: 'Beyond economic repair'),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
                     break;
-                    
+
                 case 'proceed_disposal':
-                    // Proceed with disposal
                     DB::table('assets')->where('id', $id)->update([
                         'Lifecycle_Status' => 'Disposal',
                         'updated_at' => now(),
                     ]);
-                    
-                    // Create disposal record
                     DB::table('disposals')->insertOrIgnore([
                         'Asset_id' => $id,
                         'Approve_by' => $adminEmail,
                         'Description' => 'Asset disposal after lifespan evaluation',
                         'disposal_reason' => 'End of Lifespan',
                         'disposal_date' => now()->toDateString(),
-                        'notes' => 'Asset disposed following comprehensive lifespan evaluation. ' . ($evaluationNotes ?: 'No longer serviceable'),
+                        'notes' => 'Disposed after lifespan evaluation. ' . ($evaluationNotes ?: 'No longer serviceable'),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    
-                    // Log evaluation
                     DB::table('audit_logs')->insert([
                         'asset_id' => $id,
                         'user_id' => Auth::id(),
                         'action_type' => 'DISPOSAL',
                         'action_description' => 'Asset disposed after lifespan evaluation',
-                        'notes' => 'Lifespan Evaluation Decision: PROCEED WITH DISPOSAL\nReason: ' . ($evaluationNotes ?: 'End of life cycle'),
+                        'notes' => 'Lifespan Evaluation Decision: PROCEED WITH DISPOSAL\nReason: ' . ($evaluationNotes ?: 'End of life'),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
                     break;
-                    
+
+                case 'extend_lifespan_pullout':
+                    // Pullout only — status stays Pullout
+                    if ($status !== 'Pullout') {
+                        throw new \Exception('extend_lifespan_pullout is only allowed for Pullout assets');
+                    }
+                    $extensionMonths = (int) $request->input('extension_months', 0);
+                    if ($extensionMonths < 1) {
+                        throw new \Exception('Extension months must be at least 1');
+                    }
+                    $currentExpiration = !empty($asset->expiration_date)
+                        ? \Carbon\Carbon::parse($asset->expiration_date)
+                        : now();
+                    $newExpiration = $currentExpiration->copy()->addMonths($extensionMonths);
+
+                    DB::table('assets')->where('id', $id)->update([
+                        'expiration_date' => $newExpiration->toDateString(),
+                        // do NOT change Lifecycle_Status
+                        'updated_at' => now(),
+                    ]);
+
+                    DB::table('audit_logs')->insert([
+                        'asset_id' => $id,
+                        'user_id' => Auth::id(),
+                        'action_type' => 'UPDATE',
+                        'action_description' => 'Lifespan extended while in Pullout status',
+                        'notes' => 'Extended by ' . $extensionMonths . ' months. New expiration: '
+                            . $newExpiration->toDateString()
+                            . "\n" . ($evaluationNotes ?: 'Lifespan extended while in pullout'),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    break;
+
                 default:
                     throw new \Exception('Invalid evaluation action: ' . $action);
             }
@@ -1447,19 +1563,22 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
             'return_active' => 'Asset returned to Active status',
             'send_repair' => 'Asset sent for repair evaluation',
             'recommend_replacement' => 'Asset recommended for replacement',
-            'proceed_disposal' => 'Asset marked for disposal'
+            'proceed_disposal' => 'Asset marked for disposal',
+            'extend_lifespan_pullout' => 'Lifespan extended. Asset remains in Pullout.',
         ];
 
         return response()->json([
             'success' => true,
             'message' => $actionMessages[$action] ?? 'Asset evaluated successfully',
             'asset_id' => $id,
-            'action' => $action
+            'action' => $action,
         ]);
-
     } catch (\Exception $e) {
         \Illuminate\Support\Facades\Log::error('Asset evaluation error: ' . $e->getMessage());
-        return response()->json(['success' => false, 'message' => 'Failed to evaluate asset: ' . $e->getMessage()], 500);
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to evaluate asset: ' . $e->getMessage(),
+        ], 500);
     }
 });
 
@@ -1668,9 +1787,6 @@ Route::get('/admin/assets/{id}/qr-sticker', function ($id) {
     ]);
 })->middleware('auth')->where('id', '[0-9]+');
 
-
-
-// Admin asset detail view - must come before wildcard routes
 // Admin asset detail view - must come before wildcard routes
 Route::get('/admin/assets/{id}', function ($id) {
     $asset = DB::table('assets')
@@ -1691,6 +1807,72 @@ Route::get('/admin/assets/{id}', function ($id) {
 
     if (!$asset) {
         abort(404);
+    }
+
+    // Auto-transition to "For Checking" when lifespan expired or maintenance overdue
+    $today = \Carbon\Carbon::now()->toDateString();
+    $shouldTransition = false;
+    $transitionReason = '';
+
+        $currentStatus = $asset->Lifecycle_Status ?? '';
+
+        // Only Active assets can move to For Checking when lifespan expires
+        if ($currentStatus === 'Active'
+            && !empty($asset->expiration_date)
+            && \Carbon\Carbon::parse($asset->expiration_date)->toDateString() <= $today
+        ) {
+            $shouldTransition = true;
+            $transitionReason = 'Asset lifespan expired on ' . $asset->expiration_date
+                . '. Automatically transitioned to "For Checking" for evaluation.';
+        }
+        // Maintenance overdue — still only Active
+        elseif ($currentStatus === 'Active'
+            && !empty($asset->next_maintenance_date)
+            && \Carbon\Carbon::parse($asset->next_maintenance_date)->toDateString() <= $today
+        ) {
+            $shouldTransition = true;
+            $transitionReason = 'Asset maintenance is overdue (due date: ' . $asset->next_maintenance_date
+                . '). Automatically transitioned to "For Checking" for maintenance evaluation.';
+        }
+
+    if ($shouldTransition) {
+        try {
+            DB::transaction(function () use ($asset, $transitionReason) {
+                DB::table('assets')->where('id', $asset->id)->update([
+                    'Lifecycle_Status' => 'For Checking',
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('audit_logs')->insert([
+                    'asset_id' => $asset->id,
+                    'user_id' => Auth::id(),
+                    'action_type' => 'UPDATE',
+                    'action_description' => 'Automatic status change: Lifespan expired or maintenance overdue',
+                    'notes' => $transitionReason,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            });
+
+            // Refresh so the view sees the new status
+            $asset = DB::table('assets')
+                ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+                ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+                ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+                ->where('assets.id', $id)
+                ->select(
+                    'assets.*',
+                    'employee_numbers.Full_Name as full_name',
+                    DB::raw('MAX(asset_files.url) as image_url')
+                )
+                ->groupBy('assets.id', 'employee_numbers.Full_Name')
+                ->first();
+        } catch (\Exception $e) {
+            \Log::error('Failed to auto-transition asset', [
+                'asset_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     return view('admin.assets.show', compact('asset'));
@@ -1837,44 +2019,80 @@ Route::get('/admin/inventory-download', function () {
     }
 });
 
-// API: Notifications - user repair request statuses
-Route::get('/api/notifications/user', function () {
+// ─────────────────────────────────────────────────────────────
+// Notifications API (from notifications table)
+// ─────────────────────────────────────────────────────────────
+
+Route::get('/api/notifications', function (Request $request) {
     $user = Auth::user();
     if (!$user) {
-        return response()->json(['repairs' => []]);
+        return response()->json(['notifications' => [], 'unread_count' => 0], 401);
     }
 
-    $repairs = DB::table('requests')
-        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-        ->select('requests.id', 'requests.status', 'requests.updated_at', 'assets.Asset_name')
-        ->where('requests.user_id', $user->id)
-        ->where('requests.request_type', 'Repair')
-        ->orderByDesc('requests.updated_at')
-        ->limit(50)
-        ->get();
+    $limit = min((int) $request->query('limit', 20), 50);
 
-    return response()->json(['repairs' => $repairs]);
+    $notifications = DB::table('notifications')
+        ->where('user_id', $user->id)
+        ->orderByDesc('created_at')
+        ->limit($limit)
+        ->get()
+        ->map(function ($n) {
+            return [
+                'id'             => $n->id,
+                'title'          => $n->title,
+                'message'        => $n->message,
+                'type'           => $n->type,
+                'reference_id'   => $n->reference_id,
+                'reference_type' => $n->reference_type,
+                'is_read'        => (bool) $n->is_read,
+                'created_at'     => $n->created_at,
+                'time_ago'       => \Carbon\Carbon::parse($n->created_at)->diffForHumans(),
+            ];
+        });
+
+    $unreadCount = DB::table('notifications')
+        ->where('user_id', $user->id)
+        ->where('is_read', false)
+        ->count();
+
+    return response()->json([
+        'notifications' => $notifications,
+        'unread_count'  => $unreadCount,
+    ]);
 })->middleware('auth');
 
-// API: Notifications - department repair request statuses (for department head)
-Route::get('/api/notifications/department', function () {
+Route::post('/api/notifications/{id}/read', function ($id) {
     $user = Auth::user();
-    if (!$user || !$user->department_id) {
-        return response()->json(['repairs' => []]);
+    if (!$user) {
+        return response()->json(['success' => false], 401);
     }
 
-    $repairs = DB::table('requests')
-        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
-        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
-        ->select('requests.id', 'requests.status', 'requests.updated_at', 'assets.Asset_name', 'employee_numbers.Full_Name as submitted_by')
-        ->where('requests.request_type', 'Repair')
-        ->where('users.department_id', $user->department_id)
-        ->orderByDesc('requests.updated_at')
-        ->limit(50)
-        ->get();
+    $updated = DB::table('notifications')
+        ->where('id', $id)
+        ->where('user_id', $user->id)
+        ->update([
+            'is_read'    => true,
+            'updated_at' => now(),
+        ]);
 
-    return response()->json(['repairs' => $repairs]);
+    return response()->json(['success' => (bool) $updated]);
+})->middleware('auth');
+
+Route::post('/api/notifications/read-all', function () {
+    $user = Auth::user();
+    if (!$user) {
+        return response()->json(['success' => false], 401);
+    }
+
+    DB::table('notifications')
+        ->where('user_id', $user->id)
+        ->where('is_read', false)
+        ->update([
+            'is_read'    => true,
+            'updated_at' => now(),
+        ]);
+
+    return response()->json(['success' => true]);
 })->middleware('auth');
 
 // Admin disposal page
@@ -2037,8 +2255,39 @@ try {
     }
 })->middleware('auth');
 
+// Get single disposal details (for the view modal)
+Route::get('/admin/disposal/{id}/details', function ($id) {
+    $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
 
-// Admin requests page
+    if (!$disposal) {
+        return response()->json(['success' => false, 'message' => 'Disposal record not found'], 404);
+    }
+
+    $asset = $disposal->Asset_id
+        ? DB::table('assets')->where('id', $disposal->Asset_id)->first()
+        : null;
+
+    return response()->json([
+        'asset_name'      => $asset->Asset_name ?? $disposal->Description ?? null,
+        'asset_code'      => $asset->Asset_code ?? null,
+        'disposal_date'   => $disposal->disposal_date,
+        'reason'          => $disposal->disposal_reason ?? $disposal->Description ?? null,
+        'disposed_by'     => $disposal->Approve_by,
+        'notes'           => $disposal->notes,
+        'original_value'  => $asset->purchase_Price ?? null,
+        'category'        => $asset->Category ?? null,
+        'condition'       => $asset->Condition ?? null,
+        'serial_number'   => $asset->serial_Number ?? null,
+        'asset_location'  => $asset->asset_location ?? null,
+        'supplier'        => $asset->supplier ?? null,
+        'model'           => $asset->model ?? null,
+        'manufacture'     => $asset->manufacture ?? null,
+        'purchase_price'  => $asset->purchase_Price ?? null,
+        'warranty_months' => $asset->warranty_months ?? null,
+        'lifespan_months' => $asset->lifespan_months ?? null,
+    ]);
+})->middleware('auth');
+
 // Admin requests page – supports bulk requests via request_items
 Route::get('/admin/requests', function () {
     $requests = DB::table('requests')
@@ -2359,7 +2608,7 @@ Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Reques
             'updated_at'         => now(),
         ]);
 
-        // When completed → set the asset back to Active
+        // When completed → set the asset back to Active + notify owner
         if ($newStatus === 'completed' && !empty($repair->Assets_id)) {
             DB::table('assets')
                 ->where('id', $repair->Assets_id)
@@ -2367,6 +2616,68 @@ Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Reques
                     'Lifecycle_Status' => 'Active',
                     'updated_at'       => now(),
                 ]);
+
+            // Notify the current owner of the asset
+            $asset = DB::table('assets')->where('id', $repair->Assets_id)->first();
+            if ($asset && $asset->user_id) {
+                $assetLabel = ($asset->Asset_name ?? 'Asset') . ($asset->Asset_code ? ' ' . $asset->Asset_code : '');
+                createNotification(
+                    (int) $asset->user_id,
+                    'Repair Completed',
+                    "Your {$assetLabel} has completed its repair and is ready for pickup.",
+                    'REPAIR',
+                    (int) $id,
+                    'repair'
+                );
+            }
+        }
+
+        // When cancelled → restore asset to Active, save reason, notify owner
+        if ($newStatus === 'cancelled' && !empty($repair->Assets_id)) {
+            $cancellationReason = trim((string) $request->input('cancellation_reason', ''));
+
+            // Restore asset lifecycle
+            DB::table('assets')
+                ->where('id', $repair->Assets_id)
+                ->update([
+                    'Lifecycle_Status' => 'Active',
+                    'updated_at'       => now(),
+                ]);
+
+            // Persist cancellation reason on the repair record
+            $notesUpdate = $cancellationReason !== ''
+                ? 'Cancelled: ' . $cancellationReason
+                : 'Cancelled';
+
+            // Append to existing notes if any
+            $existingNotes = trim((string) ($repair->notes ?? ''));
+            $finalNotes = $existingNotes !== ''
+                ? $existingNotes . ' | ' . $notesUpdate
+                : $notesUpdate;
+
+            DB::table('repairs')
+                ->where('Repair_id', $id)
+                ->update([
+                    'notes'      => $finalNotes,
+                    'updated_at' => now(),
+                ]);
+
+            // Notify the current owner of the asset
+            $asset = DB::table('assets')->where('id', $repair->Assets_id)->first();
+            if ($asset && $asset->user_id) {
+                $assetLabel = ($asset->Asset_name ?? 'Asset') . ($asset->Asset_code ? ' (' . $asset->Asset_code . ')' : '');
+                $reasonNote = $cancellationReason !== ''
+                    ? ' Reason: ' . $cancellationReason . '.'
+                    : '';
+                createNotification(
+                    (int) $asset->user_id,
+                    'Repair Cancelled',
+                    "The repair for your {$assetLabel} has been cancelled.{$reasonNote} The asset is now Active again.",
+                    'REPAIR',
+                    (int) $id,
+                    'repair'
+                );
+            }
         }
 
         return response()->json([
@@ -2383,105 +2694,238 @@ Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Reques
     }
 });
 
-// Admin API: Create replacement from repair
 Route::post('/admin/replacements/create', function (\Illuminate\Http\Request $request) {
-    $requestId = $request->input('request_id');
-    $assetId = $request->input('asset_id');
-    $reason = $request->input('reason', 'Created from repair request');
+    $requestId         = $request->input('request_id');
+    $assetId           = $request->input('asset_id');
+    $repairId          = $request->input('repair_id');
+    $reason            = trim((string) $request->input('reason', ''));
     $replacementReason = $request->input('replacement_reason', 'Beyond Repair');
-    
-    if (!$assetId || !$requestId) {
-        return response()->json(['success' => false, 'message' => 'Asset ID and Request ID required'], 400);
+
+    if (!$assetId) {
+        return response()->json(['success' => false, 'message' => 'Asset ID is required'], 400);
     }
-    
+
+    if ($reason === '') {
+        return response()->json([
+            'success' => false,
+            'message' => 'A reason is required so the user knows why the asset is being replaced.'
+        ], 422);
+    }
+
     try {
         $asset = DB::table('assets')->where('id', $assetId)->first();
         if (!$asset) {
             return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
         }
-        
+
         // Create replacement record
-        // Note: new_assets_id is set to the same as old_assets_id initially and should be updated when actual replacement asset is assigned
         $replacementId = DB::table('replacements')->insertGetId([
-            'Request_id' => $requestId,
-            'old_assets_id' => $assetId,
-            'new_assets_id' => $assetId,  // Placeholder - will be updated when replacement asset is assigned
-            'Approve_by' => Auth::user()?->email ?? 'Admin',
-            'reason' => $reason,
-            'replacement_reason' => $replacementReason,
-            'notes' => 'Created from repair request. Awaiting replacement asset assignment.',
-            'Replacement_Date' => now(),
-            'status' => 'Pending',
-            'created_at' => now(),
-            'updated_at' => now(),
+            'Request_id'          => $requestId,
+            'old_assets_id'       => $assetId,
+            'new_assets_id'       => $assetId, // placeholder until a real new asset is linked
+            'Approve_by'          => Auth::user()?->full_name
+                                    ?? Auth::user()?->email
+                                    ?? 'Admin',
+            'reason'              => $reason,
+            'replacement_reason'  => $replacementReason,
+            'notes'               => 'Created from repair request. Reason: ' . $reason,
+            'Replacement_Date'    => now(),
+            'status'              => 'Approved',   // ← was 'Pending' — skip approval step
+            'created_at'          => now(),
+            'updated_at'          => now(),
         ], 'Replacement_id');
-        
-        // Update asset lifecycle to "For Replacement" (from "For Repair")
+
+        // Update asset lifecycle
         DB::table('assets')->where('id', $assetId)->update([
             'Lifecycle_Status' => 'For Replacement',
-            'updated_at' => now(),
+            'updated_at'       => now(),
         ]);
-        
-        return response()->json(['success' => true, 'message' => 'Replacement request created successfully', 'id' => $replacementId]);
-    } catch (\Exception $e) {
-        \Illuminate\Support\Facades\Log::error('Replacement creation error: ' . $e->getMessage());
-        return response()->json(['success' => false, 'message' => 'Failed to create replacement: ' . $e->getMessage()], 500);
-    }
-});
 
-// Admin API: Create disposal from repair
-Route::post('/admin/disposals/create', function (\Illuminate\Http\Request $request) {
-    $requestId = $request->input('request_id');
-    $assetId = $request->input('asset_id');
-    $reason = $request->input('reason', 'Created from repair request');
-    $disposalReason = $request->input('disposal_reason', 'Beyond Repair');
-    
-    if (!$assetId || !$requestId) {
-        return response()->json(['success' => false, 'message' => 'Asset ID and Request ID required'], 400);
+        // Optionally mark the related repair as cancelled
+        if ($repairId) {
+            // First try to read existing notes so we can append safely
+            $existingNotes = DB::table('repairs')
+                ->where('Repair_id', $repairId)
+                ->value('notes');
+
+            $newNotes = trim(($existingNotes ? $existingNotes . ' | ' : '') . 'Sent to replacement: ' . $reason);
+
+            DB::table('repairs')
+                ->where('Repair_id', $repairId)
+                ->update([
+                    'status'     => 'Cancelled',
+                    'notes'      => $newNotes,
+                    'updated_at' => now(),
+                ]);
+        }
+
+        // Find the original requester and notify them
+        $requesterId = null;
+
+        if ($requestId) {
+            $requesterId = DB::table('requests')->where('id', $requestId)->value('user_id');
+        }
+
+        // Fallback: owner of the asset
+        if (!$requesterId && !empty($asset->user_id)) {
+            $requesterId = (int) $asset->user_id;
+        }
+
+        if ($requesterId) {
+            $assetLabel = ($asset->Asset_code ?? '') . ' – ' . ($asset->Asset_name ?? 'Asset');
+
+            createNotification(
+                $requesterId,
+                'Repair Converted to Replacement',
+                'Your repair request for ' . $assetLabel . ' cannot be repaired and has been sent for replacement.'
+                    . "\n\nReason from Asset Management: " . $reason
+                    . "\n\nYou will be notified again when a new asset is ready for pickup.",
+                'REPLACEMENT',
+                (int) $replacementId,
+                'replacement'
+            );
+        }
+
+        // Audit log
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'asset_id'           => $assetId,
+            'request_id'         => $requestId,
+            'action_type'        => 'REPLACEMENT',
+            'notes'              => 'Repair converted to replacement. Reason: ' . $reason,
+            'action_description' => 'Asset #' . $assetId . ' sent to replacement from repair',
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Replacement request created and user notified',
+            'id'      => $replacementId,
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('Replacement creation error: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create replacement: ' . $e->getMessage(),
+        ], 500);
     }
-    
+})->middleware('auth');
+
+
+Route::post('/admin/disposals/create', function (\Illuminate\Http\Request $request) {
+    $requestId      = $request->input('request_id');
+    $assetId        = $request->input('asset_id');
+    $repairId       = $request->input('repair_id');
+    $reason         = trim((string) $request->input('reason', ''));
+    $disposalReason = $request->input('disposal_reason', 'Beyond Repair');
+
+    if (!$assetId) {
+        return response()->json(['success' => false, 'message' => 'Asset ID is required'], 400);
+    }
+
+    if ($reason === '') {
+        return response()->json([
+            'success' => false,
+            'message' => 'A reason is required so the user knows why the asset is being disposed.'
+        ], 422);
+    }
+
     try {
         $asset = DB::table('assets')->where('id', $assetId)->first();
         if (!$asset) {
             return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
         }
-        
-        // Create disposal record
+
+        // Already disposed?
+        if (in_array($asset->Lifecycle_Status ?? '', ['Disposal', 'Disposed'], true)) {
+            return response()->json(['success' => false, 'message' => 'Asset is already disposed'], 422);
+        }
+
+        // Create disposal record (no pending/approval — done immediately from repair)
         $disposalId = DB::table('disposals')->insertGetId([
-            'Request_id' => $requestId,
-            'Asset_id' => $assetId,
-            'Approve_by' => Auth::user()?->email ?? 'Admin',
-            'Description' => $reason,
+            'Request_id'      => $requestId,
+            'Asset_id'        => $assetId,
+            'Approve_by'      => Auth::user()?->full_name ?? Auth::user()?->email ?? 'Admin',
+            'Description'     => $reason,
             'disposal_reason' => $disposalReason,
-            'disposal_date' => now()->toDateString(),
-            'notes' => 'Created from repair request',
-            'created_at' => now(),
-            'updated_at' => now(),
+            'disposal_date'   => now()->toDateString(),
+            'notes'           => 'Created from repair request. Reason: ' . $reason,
+            'created_at'      => now(),
+            'updated_at'      => now(),
         ], 'Disposal_ID');
-        
-        // Log the disposal creation
-        DB::table('audit_logs')->insert([
-            'user_id' => Auth::id(),
-            'asset_id' => $assetId,
-            'action_type' => 'DISPOSAL',
-            'notes' => 'Disposal request created from repair #' . $assetId,
-            'action_description' => 'Asset #' . $assetId . ' marked for disposal with reason: ' . $disposalReason,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        
-        // Update asset lifecycle to Disposal
+
+        // Mark asset as disposed
         DB::table('assets')->where('id', $assetId)->update([
             'Lifecycle_Status' => 'Disposal',
-            'updated_at' => now(),
+            'updated_at'       => now(),
         ]);
-        
-        return response()->json(['success' => true, 'message' => 'Disposal request created successfully', 'id' => $disposalId]);
+
+        // Cancel related repair if provided
+        if ($repairId) {
+            $existingNotes = DB::table('repairs')
+                ->where('Repair_id', $repairId)
+                ->value('notes');
+
+            $newNotes = trim(($existingNotes ? $existingNotes . ' | ' : '') . 'Sent to disposal: ' . $reason);
+
+            DB::table('repairs')
+                ->where('Repair_id', $repairId)
+                ->update([
+                    'status'     => 'Cancelled',
+                    'notes'      => $newNotes,
+                    'updated_at' => now(),
+                ]);
+        }
+
+        // Audit log
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'asset_id'           => $assetId,
+            'action_type'        => 'DISPOSAL',
+            'notes'              => 'Disposed from repair. Reason: ' . $reason,
+            'action_description' => 'Asset #' . $assetId . ' disposed via repair (no approval required)',
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        // Notify the original requester / asset owner
+        $requesterId = null;
+        if ($requestId) {
+            $requesterId = DB::table('requests')->where('id', $requestId)->value('user_id');
+        }
+        if (!$requesterId && !empty($asset->user_id)) {
+            $requesterId = (int) $asset->user_id;
+        }
+
+        if ($requesterId) {
+            $assetLabel = ($asset->Asset_code ?? '') . ' – ' . ($asset->Asset_name ?? 'Asset');
+
+            createNotification(
+                (int) $requesterId,
+                'Asset Sent to Disposal',
+                'Your asset ' . $assetLabel . ' could not be repaired and has been sent for disposal.'
+                    . "\n\nReason from Asset Management: " . $reason
+                    . "\n\nIf you have questions, please contact the Asset Management Office.",
+                'DISPOSAL',
+                (int) $disposalId,
+                'disposal'
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset disposed and user notified',
+            'id'      => $disposalId,
+        ]);
     } catch (\Exception $e) {
-        \Illuminate\Support\Facades\Log::error('Disposal creation error: ' . $e->getMessage());
-        return response()->json(['success' => false, 'message' => 'Failed to create disposal: ' . $e->getMessage()], 500);
+        \Log::error('Disposal creation error: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create disposal: ' . $e->getMessage(),
+        ], 500);
     }
-});
+})->middleware('auth');
 
 // Admin replacement page
 Route::get('/admin/replacement', function () {
@@ -2657,14 +3101,14 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Reque
                     ->toDateString();
             }
 
-            // 1. Create NEW asset (Active, same user as old)
+            // 1. Create NEW asset (still Acquired — becomes Active only when marked Received)
             $newAssetId = DB::table('assets')->insertGetId([
                 'user_id'               => $old->user_id,
                 'Asset_code'            => $validated['Asset_code'],
                 'Asset_name'            => $validated['Asset_name'],
                 'Category'              => $validated['Category'] ?? $old->Category,
                 'Condition'             => 'New',
-                'Lifecycle_Status'      => 'Acquired',
+                'Lifecycle_Status'      => 'Acquired',          // ← keep Acquired until pickup
                 'accusion_date'         => $validated['accusion_date'] ?? now()->toDateString(),
                 'purchase_Price'        => $validated['purchase_Price'] ?? null,
                 'warranty_months'       => $validated['warranty_months'] ?? null,
@@ -2683,29 +3127,24 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Reque
                 'updated_at'            => now(),
             ]);
 
-            // Save photo to asset_files (same as registry)
+            // Save photo if uploaded
             if ($request->hasFile('asset_photo')) {
                 $file = $request->file('asset_photo');
                 $filePath = $file->store('assets', 'public');
-                $fileName = $file->getClientOriginalName();
-                $fileSize = $file->getSize();
-                $mime = $file->getClientMimeType();
-                $url = Storage::url($filePath);
-
                 DB::table('asset_files')->insert([
                     'Asset_id'    => $newAssetId,
-                    'file_name'   => $fileName,
+                    'file_name'   => $file->getClientOriginalName(),
                     'file_path'   => $filePath,
-                    'file_size'   => $fileSize,
-                    'mime_type'   => $mime,
-                    'url'         => $url,
+                    'file_size'   => $file->getSize(),
+                    'mime_type'   => $file->getClientMimeType(),
+                    'url'         => Storage::url($filePath),
                     'uploaded_at' => now()->toDateTimeString(),
                     'created_at'  => now(),
                     'updated_at'  => now(),
                 ]);
             }
 
-            // 2. QR code
+            // 2. Generate QR
             $qrUrl = null;
             try {
                 $qrSource = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' . urlencode($validated['Asset_code']);
@@ -2720,48 +3159,50 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Reque
                 Log::warning('QR generation failed on replacement link', ['error' => $e->getMessage()]);
             }
 
-            // 3. Link on replacement
+            // 3. Link on replacement record (do NOT touch old asset status yet)
             DB::table('replacements')->where('Replacement_id', $id)->update([
                 'new_assets_id' => $newAssetId,
                 'updated_at'    => now(),
             ]);
 
-            // 4. Move OLD asset to Pullout (reason: Replacement) — do NOT delete
-            DB::table('assets')->where('id', $old->id)->update([
-                'Lifecycle_Status' => 'Pullout',
-                'updated_at'       => now(),
-            ]);
-
-            $pulloutId = DB::table('pullouts')->insertGetId([
-                'request_id'   => $replacement->request_id ?? null,
-                'asset_id'     => $old->id,
-                'Approve_by'   => $user->email ?? 'Admin',
-                'Description'  => 'Replacement',
-                'notes'        => 'Old asset pulled out due to replacement. New asset: ' . $validated['Asset_code'],
-                'pullout_date' => now()->toDateString(),
-                'destination'  => 'Storage Room',
-                'status'       => 'pending',
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ]);
-
-            DB::table('pullout_items')->insert([
-                'pullout_id' => $pulloutId,
-                'asset_id'   => $old->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // 5. Audit
+            // 4. Audit
             DB::table('audit_logs')->insert([
                 'user_id'            => Auth::id(),
                 'asset_id'           => $newAssetId,
                 'action_type'        => 'CREATE',
                 'notes'              => 'New asset created via replacement #' . $id,
-                'action_description' => 'Linked to old asset ' . ($old->Asset_code ?? $old->id) . '; old asset moved to Pullout',
+                'action_description' => 'Linked to old asset ' . ($old->Asset_code ?? $old->id) . '. Waiting for physical pickup.',
                 'created_at'         => now(),
                 'updated_at'         => now(),
             ]);
+
+            // 5. Notify the original requester
+            $requesterId = null;
+
+            // Prefer the request that created the replacement
+            $reqId = $replacement->Request_id ?? $replacement->request_id ?? null;
+            if ($reqId) {
+                $requesterId = DB::table('requests')->where('id', $reqId)->value('user_id');
+            }
+
+            // Fallback to the owner of the old asset
+            if (!$requesterId && !empty($old->user_id)) {
+                $requesterId = (int) $old->user_id;
+            }
+
+            if ($requesterId) {
+                createNotification(
+                    $requesterId,
+                    'New Asset Ready for Pickup',
+                    'Your replacement request has been fulfilled. New asset '
+                        . $validated['Asset_code'] . ' (' . $validated['Asset_name'] . ') '
+                        . 'is ready for pickup at the Asset Management Office. '
+                        . 'Please bring the old asset for exchange.',
+                    'REPLACEMENT',
+                    (int) $id,
+                    'replacement'
+                );
+            }
 
             return [
                 'newAssetId' => $newAssetId,
@@ -2862,7 +3303,7 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/received', function (R
                 'notes'        => 'Old asset pulled out after replacement received. New asset ID: ' . $newId,
                 'pullout_date' => now()->toDateString(),
                 'destination'  => 'Storage Room',
-                'status'       => 'pending',
+                'status'       => 'approved',
                 'created_at'   => now(),
                 'updated_at'   => now(),
             ]);
@@ -2903,6 +3344,88 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/received', function (R
     }
 })->middleware('auth');
 
+// Approve a pending replacement
+Route::match(['post', 'patch'], '/admin/replacements/{id}/approve', function (Request $request, $id) {
+    $user = Auth::user();
+    if (!$user) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Unauthenticated'], 401)
+            : redirect('/login');
+    }
+
+    $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
+    if (!$replacement) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Replacement not found'], 404)
+            : abort(404);
+    }
+
+    if (($replacement->status ?? '') !== 'Pending') {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Only Pending replacements can be approved'], 422)
+            : back()->with('error', 'Only Pending replacements can be approved.');
+    }
+
+    $notes = trim((string) $request->input('notes', ''));
+
+    try {
+        DB::table('replacements')->where('Replacement_id', $id)->update([
+            'status'     => 'Approved',
+            'Approve_by' => $user->full_name ?? $user->email ?? 'Admin',
+            'notes'      => $notes !== ''
+                ? trim(($replacement->notes ? $replacement->notes . ' | ' : '') . $notes)
+                : $replacement->notes,
+            'updated_at' => now(),
+        ]);
+
+        // Audit log
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'action_type'        => 'APPROVAL',
+            'notes'              => 'Replacement #' . $id . ' approved' . ($notes ? ': ' . $notes : ''),
+            'action_description' => 'Replacement request approved. Admin can now link a new asset.',
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+
+        // Optional: notify the original requester that their replacement was approved
+        $requesterId = null;
+        $reqId = $replacement->Request_id ?? $replacement->request_id ?? null;
+        if ($reqId) {
+            $requesterId = DB::table('requests')->where('id', $reqId)->value('user_id');
+        }
+        if (!$requesterId && !empty($replacement->old_assets_id)) {
+            $requesterId = DB::table('assets')->where('id', $replacement->old_assets_id)->value('user_id');
+        }
+
+        if ($requesterId) {
+            createNotification(
+                (int) $requesterId,
+                'Replacement Request Approved',
+                'Your replacement request has been approved by Asset Management.'
+                    . ($notes ? "\n\nNote: " . $notes : '')
+                    . "\n\nA new asset will be prepared and you will be notified when it is ready for pickup.",
+                'REPLACEMENT',
+                (int) $id,
+                'replacement'
+            );
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Replacement approved']);
+        }
+
+        return redirect('/admin/replacement')->with('success', 'Replacement approved successfully.');
+    } catch (\Throwable $e) {
+        \Log::error('Approve replacement failed: ' . $e->getMessage());
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+        return back()->with('error', $e->getMessage());
+    }
+})->middleware('auth');
+
+
 Route::get('/admin/replacements/{id}/old-asset', function ($id) {
     $replacement = DB::table('replacements')->where('id', $id)->first();
     if (!$replacement) {
@@ -2922,6 +3445,80 @@ Route::get('/admin/replacements/{id}/old-asset', function ($id) {
     return response()->json(['success' => true, 'asset' => $asset]);
 })->middleware('auth');
 
+Route::match(['post', 'patch'], '/admin/replacements/{id}/approve', function (Request $request, $id) {
+    $user = Auth::user();
+    if (!$user) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Unauthenticated'], 401)
+            : redirect('/login');
+    }
+
+    $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
+    if (!$replacement) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Replacement not found'], 404)
+            : abort(404);
+    }
+
+    if (($replacement->status ?? '') !== 'Pending') {
+        return back()->with('error', 'Only Pending replacements can be approved.');
+    }
+
+    $notes = trim((string) $request->input('notes', ''));
+
+    DB::table('replacements')->where('Replacement_id', $id)->update([
+        'status'     => 'Approved',
+        'Approve_by' => $user->full_name ?? $user->email ?? 'Admin',
+        'notes'      => $notes !== ''
+            ? trim(($replacement->notes ? $replacement->notes . ' | ' : '') . $notes)
+            : $replacement->notes,
+        'updated_at' => now(),
+    ]);
+
+    DB::table('audit_logs')->insert([
+        'user_id'            => Auth::id(),
+        'action_type'        => 'APPROVAL',
+        'notes'              => 'Replacement #' . $id . ' approved' . ($notes ? ': ' . $notes : ''),
+        'action_description' => 'Replacement request approved',
+        'created_at'         => now(),
+        'updated_at'         => now(),
+    ]);
+
+    return redirect('/admin/replacement')->with('success', 'Replacement approved successfully.');
+})->middleware('auth');
+
+Route::match(['delete', 'post'], '/admin/replacements/{id}', function (Request $request, $id) {
+    $user = Auth::user();
+    if (!$user) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Unauthenticated'], 401)
+            : redirect('/login');
+    }
+
+    $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
+    if (!$replacement) {
+        return $request->wantsJson()
+            ? response()->json(['success' => false, 'message' => 'Replacement not found'], 404)
+            : abort(404);
+    }
+
+    DB::table('replacements')->where('Replacement_id', $id)->delete();
+
+    DB::table('audit_logs')->insert([
+        'user_id'            => Auth::id(),
+        'action_type'        => 'DELETE',
+        'notes'              => 'Deleted replacement record #' . $id,
+        'action_description' => 'Replacement record permanently deleted',
+        'created_at'         => now(),
+        'updated_at'         => now(),
+    ]);
+
+    if ($request->wantsJson() || $request->ajax()) {
+        return response()->json(['success' => true, 'message' => 'Replacement deleted']);
+    }
+
+    return redirect('/admin/replacement')->with('success', 'Replacement record deleted.');
+})->middleware('auth');
 
 // Admin pullout page
 Route::get('/admin/pullout', function () {
@@ -3511,6 +4108,37 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
                 'created_at'         => now(),
                 'updated_at'         => now(),
             ]);
+
+            // ─── Notify the requester ───────────────────────────────
+            $assetNames = DB::table('assets')
+                ->whereIn('id', $assetIds)
+                ->pluck('Asset_name')
+                ->filter()
+                ->values()
+                ->all();
+
+            // List every asset name for bulk requests
+            if (count($assetNames) === 0) {
+                $assetLabel = 'your asset';
+            } elseif (count($assetNames) === 1) {
+                $assetLabel = $assetNames[0];
+            } elseif (count($assetNames) === 2) {
+                $assetLabel = $assetNames[0] . ' and ' . $assetNames[1];
+            } else {
+                $last = array_pop($assetNames);
+                $assetLabel = implode(', ', $assetNames) . ', and ' . $last;
+            }
+
+            $typeLabel = ucfirst($requestRecord->request_type ?? 'request');
+
+            createNotification(
+                (int) $requestRecord->user_id,
+                'Request Approved',
+                "Your {$typeLabel} request for {$assetLabel} has been approved.",
+                'REQUEST',
+                (int) $requestRecord->id,
+                'request'
+            );
         });
 
         return response()->json(['message' => 'Request approved successfully.']);
@@ -3550,6 +4178,38 @@ Route::post('/admin/requests/{id}/reject', function ($id) {
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+            // Resolve a friendly asset name
+            $assetIds = DB::table('request_items')
+                ->where('request_id', $requestRecord->id)
+                ->pluck('asset_id')
+                ->all();
+
+            if (empty($assetIds) && !empty($requestRecord->asset_id)) {
+                $assetIds = [(int) $requestRecord->asset_id];
+            }
+
+            $assetName = 'your asset';
+            if (!empty($assetIds)) {
+                $names = DB::table('assets')->whereIn('id', $assetIds)->pluck('Asset_name')->filter()->values();
+                if ($names->isNotEmpty()) {
+                    $assetName = $names->count() === 1
+                        ? $names->first()
+                        : $names->first() . ' +' . ($names->count() - 1) . ' more';
+                }
+            }
+
+            $typeLabel = ucfirst($requestRecord->request_type ?? 'request');
+
+            createNotification(
+                (int) $requestRecord->user_id,
+                'Request Rejected',
+                "Your {$typeLabel} request for {$assetName} has been rejected. Please check your request for more details.",
+                'REQUEST',
+                (int) $requestRecord->id,
+                'request'
+            );
+
     } catch (\Exception $e) {
         // ignore
     }
@@ -4284,17 +4944,47 @@ Route::get('/department-head/assets/check-code', function (Request $request) {
     return response()->json(['exists' => false]);
 })->name('department_head.assets.check');
 
-Route::get('/user/requests', function () {
+Route::get('/user/requests', function (Request $request) {
     try {
         $user = Auth::user();
         if (!$user) {
             return redirect('/login');
         }
 
-        $requests = DB::table('requests')
-            ->where('requests.user_id', $user->id)
-            ->orderByDesc('requests.created_at')
-            ->paginate(10);
+        $status = $request->query('status', 'all');   // all | Pending | Approved | Rejected
+        $search = trim((string) $request->query('q', ''));
+
+        $query = DB::table('requests')
+            ->where('requests.user_id', $user->id);
+
+        // Server-side status filter
+        if ($status !== 'all') {
+            $query->where('requests.status', $status);
+        }
+
+        // Case-insensitive search (PostgreSQL)
+        if ($search !== '') {
+            $term = '%' . $search . '%';
+
+            $query->where(function ($q) use ($term) {
+                $q->where('requests.Note', 'ilike', $term)
+                  ->orWhere('requests.request_type', 'ilike', $term)
+                  ->orWhereExists(function ($sub) use ($term) {
+                      $sub->select(DB::raw(1))
+                          ->from('request_items')
+                          ->join('assets', 'request_items.asset_id', '=', 'assets.id')
+                          ->whereColumn('request_items.request_id', 'requests.id')
+                          ->where(function ($aq) use ($term) {
+                              $aq->where('assets.Asset_name', 'ilike', $term)
+                                 ->orWhere('assets.Asset_code', 'ilike', $term);
+                          });
+                  });
+            });
+        }
+
+        $requests = $query->orderByDesc('requests.created_at')
+            ->paginate(10)
+            ->withQueryString();
 
         // Load assets from request_items
         $requestIds = $requests->pluck('id')->all();
@@ -4349,11 +5039,11 @@ Route::get('/user/requests', function () {
                 'file_name'    => $r->file_name ?? null,
                 'created_at'   => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
                 'updated_at'   => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),
-                'asset'        => (object)[          // for backward compatibility
+                'asset'        => (object)[
                     'Asset_name' => $displayName,
                     'Asset_code' => $count === 1 ? $assetList->first()->Asset_code : '',
                 ],
-                'assets'       => $assetList,        // full list for modal
+                'assets'       => $assetList,
                 'asset_count'  => $count,
             ];
         });
@@ -4364,7 +5054,13 @@ Route::get('/user/requests', function () {
         $rejectedRequests = DB::table('requests')->where('user_id', $user->id)->where('status', 'Rejected')->count();
 
         return view('users.request.request', compact(
-            'requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'
+            'requests',
+            'totalRequests',
+            'pendingRequests',
+            'approvedRequests',
+            'rejectedRequests',
+            'status',
+            'search'
         ));
     } catch (\Throwable $e) {
         return redirect('/users')->withErrors(['error' => 'Unable to load requests.']);
@@ -4374,23 +5070,55 @@ Route::get('/user/requests', function () {
     Route::post('/user/requests/store', [UserRequestController::class, 'store'])->name('user.requests.store');
 
     // Department Head: view requests submitted by users in the head's department
-Route::get('/department-head/requests', function () {
+Route::get('/department-head/requests', function (Request $request) {
     $user = Auth::user();
     if (!$user) return redirect('/login');
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    $requests = DB::table('requests')
+    $status = $request->query('status', 'all');   // all | Pending | Approved | Rejected
+    $search = trim((string) $request->query('q', ''));
+
+    // Base query – all requests in the department head’s department
+    $query = DB::table('requests')
         ->leftJoin('users', 'requests.user_id', '=', 'users.id')
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->where('users.department_id', $user->department_id)
         ->select(
             'requests.*',
             'employee_numbers.Full_Name as requester_name'
-        )
-        ->orderByDesc('requests.created_at')
-        ->paginate(10);
+        );
 
-    // Load assets from request_items
+    // Server-side status filter
+    if ($status !== 'all') {
+        $query->where('requests.status', $status);
+    }
+
+// Optional server-side search (case-insensitive, PostgreSQL)
+if ($search !== '') {
+    $term = '%' . $search . '%';
+
+    $query->where(function ($q) use ($term) {
+        $q->where('requests.Note', 'ilike', $term)
+          ->orWhere('requests.request_type', 'ilike', $term)
+          ->orWhere('employee_numbers.Full_Name', 'ilike', $term)
+          ->orWhereExists(function ($sub) use ($term) {
+              $sub->select(DB::raw(1))
+                  ->from('request_items')
+                  ->join('assets', 'request_items.asset_id', '=', 'assets.id')
+                  ->whereColumn('request_items.request_id', 'requests.id')
+                  ->where(function ($aq) use ($term) {
+                      $aq->where('assets.Asset_name', 'ilike', $term)
+                         ->orWhere('assets.Asset_code', 'ilike', $term);
+                  });
+          });
+    });
+}
+
+    $requests = $query->orderByDesc('requests.created_at')
+        ->paginate(10)
+        ->withQueryString();   // ← keeps ?status= & ?q= on pagination links
+
+    // Load assets from request_items (same as before)
     $requestIds = $requests->pluck('id')->all();
     $itemsByRequest = collect();
 
@@ -4453,6 +5181,7 @@ Route::get('/department-head/requests', function () {
         ];
     });
 
+    // Summary counts (always total for the department, not filtered)
     $totalRequests = DB::table('requests')
         ->leftJoin('users', 'requests.user_id', '=', 'users.id')
         ->where('users.department_id', $user->department_id)
@@ -4482,6 +5211,8 @@ Route::get('/department-head/requests', function () {
         'pendingRequests'  => $pendingRequests,
         'approvedRequests' => $approvedRequests,
         'rejectedRequests' => $rejectedRequests,
+        'status'           => $status,   // ← pass current filter to the view
+        'search'           => $search,
         'user'             => $user,
         'currentUser'      => $user,
     ]);

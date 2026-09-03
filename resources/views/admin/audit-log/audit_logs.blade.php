@@ -13,15 +13,16 @@
                     <p class="text-sm text-gray-500 mt-1">Track all system activities and actions</p>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <!-- Search -->
-                    <div class="relative">
-                        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                        <input type="text" id="searchInput" placeholder="Search logs..."
-                            class="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 w-56"/>
-                    </div>
-                    <!-- Date Filter -->
-                    <input type="date" id="dateFilter"
-                        class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 text-gray-600"/>
+                <!-- Search -->
+                <div class="relative">
+                    <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input type="text" id="searchInput" placeholder="Search logs..."
+                        value="{{ $search ?? '' }}"
+                        class="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 w-56"/>
+                </div>
+                <!-- Date Filter -->
+                <input type="date" id="dateFilter" value="{{ $date ?? '' }}"
+                    class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 text-gray-600"/>
                     <!-- Export -->
                     <a href="{{ url('/admin/audit-logs/export') }}"
                     class="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">
@@ -96,20 +97,23 @@
             <!-- Tabs -->
             <div class="flex items-center justify-between px-6 pt-5 pb-0 border-b border-gray-100">
                 <div class="flex space-x-1">
-                    <button class="filter-tab active px-4 py-2.5 text-sm font-medium text-blue-600 border-b-2 border-blue-600" data-filter="all">
-                        All
-                    </button>
-                    <button class="filter-tab px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700" data-filter="asset">
-                        Assets
-                    </button>
-                    <button class="filter-tab px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700" data-filter="request">
-                        Requests
-                    </button>
-                    <button class="filter-tab px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700" data-filter="auth">
-                        Auth
-                    </button>
+                    @php
+                        $tabs = [
+                            'all'     => 'All',
+                            'asset'   => 'Assets',
+                            'request' => 'Requests',
+                            'auth'    => 'Auth',
+                        ];
+                        $currentFilter = $filter ?? 'all';
+                    @endphp
+                    @foreach($tabs as $key => $label)
+                        <a href="{{ url('/admin/audit-logs') }}?{{ http_build_query(array_filter(['filter' => $key, 'q' => $search ?? '', 'date' => $date ?? ''])) }}"
+                        class="filter-tab px-4 py-2.5 text-sm font-medium {{ $currentFilter === $key ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700' }}">
+                            {{ $label }}
+                        </a>
+                    @endforeach
                 </div>
-                <p class="text-sm text-gray-400 pb-3">{{ $logs->count() ?? 0 }} records</p>
+                <p class="text-sm text-gray-400 pb-3">{{ $logs->total() ?? 0 }} records</p>
             </div>
 
             <!-- Table -->
@@ -313,37 +317,28 @@
 
     <script>
         // Filter tabs
-        document.querySelectorAll('.filter-tab').forEach(tab => {
-            tab.addEventListener('click', function () {
-                document.querySelectorAll('.filter-tab').forEach(t => {
-                    t.classList.remove('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
-                    t.classList.add('text-gray-500');
-                });
-                this.classList.add('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
-                this.classList.remove('text-gray-500');
+            function applyFilters() {
+                const params = new URLSearchParams();
+                const filter = '{{ $filter ?? "all" }}';
+                const q = document.getElementById('searchInput').value.trim();
+                const date = document.getElementById('dateFilter').value;
 
-                const filter = this.dataset.filter;
-                document.querySelectorAll('.log-row').forEach(row => {
-                    row.style.display = (filter === 'all' || row.dataset.type === filter) ? '' : 'none';
-                });
-            });
-        });
+                if (filter && filter !== 'all') params.set('filter', filter);
+                if (q) params.set('q', q);
+                if (date) params.set('date', date);
 
-        // Search
-        document.getElementById('searchInput').addEventListener('input', function () {
-            const val = this.value.toLowerCase();
-            document.querySelectorAll('.log-row').forEach(row => {
-                row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
-            });
-        });
+                const qs = params.toString();
+                window.location.href = '{{ url("/admin/audit-logs") }}' + (qs ? '?' + qs : '');
+            }
 
-        // Date filter
-        document.getElementById('dateFilter').addEventListener('change', function () {
-            const val = this.value;
-            document.querySelectorAll('.log-row').forEach(row => {
-                row.style.display = (!val || row.dataset.date === val) ? '' : 'none';
+            document.getElementById('searchInput').addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyFilters();
+                }
             });
-        });
+
+            document.getElementById('dateFilter').addEventListener('change', applyFilters);
 
         // View Modal
         function openViewModal(id) {
