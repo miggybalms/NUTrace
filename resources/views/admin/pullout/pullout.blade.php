@@ -8,17 +8,37 @@
     <title>Pullout Management - Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
-        body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+        :root{
+            --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --paper:#F3EEE0; --paper-2:#EAE2C9;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --line:#DED2AE;
+            --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
+            --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
+            --steel:#2E5C8A; --steel-dark:#234869; --steel-tint:#E9F0F7;
+            --brick:#A23B32; --brick-dark:#7E2E27; --brick-tint:#F7E9E6;
         }
-        
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--paper);
+            color: var(--ink-900);
+        }
+
+        .font-display{ font-family:'Fraunces',serif; }
+        .font-mono{ font-family:'IBM Plex Mono',monospace; }
+        .eyebrow{ font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-400); }
+
         .sidebar-item {
             transition: all 0.2s ease;
             cursor: pointer;
@@ -33,14 +53,28 @@
             color: #3b82f6;
             border-right: 3px solid #3b82f6;
         }
-        
+
+        .topbar{ background:#fff; border-bottom:1px solid var(--line); position:relative; }
+        .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500) 20%, var(--gold-500) 80%, transparent); opacity:.7; }
+
+        .btn-gold{ font-family:'Inter',sans-serif; font-weight:600; border-radius:9px; padding:.55rem 1.1rem; background:var(--gold-500); color:var(--navy-950); display:inline-flex; align-items:center; transition:filter .15s ease; }
+        .btn-gold:hover{ filter:brightness(1.06); }
+        .btn-ghost{ font-family:'Inter',sans-serif; font-weight:500; border-radius:9px; padding:.55rem 1.1rem; color:var(--navy-800); border:1px solid var(--line); background:#fff; transition:background .15s; }
+        .btn-ghost:hover{ background:var(--paper-2); }
+
+        .hero-card{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); border-radius:14px; position:relative; overflow:hidden; }
+        .hero-card::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:linear-gradient(90deg,transparent, var(--gold-500), transparent); }
+
         .pullout-card {
+            background:#fff; border:1px solid var(--line); border-radius:14px;
+            box-shadow: 0 1px 2px rgba(10,24,48,.05), 0 10px 26px -18px rgba(10,24,48,.28);
             transition: all 0.3s ease;
         }
         
         .pullout-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border-color: var(--gold-500);
+            box-shadow: 0 2px 4px rgba(10,24,48,.06), 0 16px 32px -16px rgba(10, 24, 48, 0.3);
         }
         
         .modal {
@@ -71,13 +105,13 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            background-color: #10b981;
             color: white;
             padding: 12px 24px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             z-index: 10000;
             animation: slideIn 0.3s ease;
+            font-family: 'Inter', sans-serif;
         }
 
         @keyframes slideIn {
@@ -90,6 +124,11 @@
                 opacity: 1;
             }
         }
+
+        .modal-head{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); position:relative; }
+        .modal-head::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--gold-500); }
+        .form-input{ width:100%; border:1px solid var(--line); border-radius:9px; padding:.55rem .9rem; font-size:.9rem; outline:none; transition:border-color .15s, box-shadow .15s; }
+        .form-input:focus{ border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
 
         /* Fixed scanner styles matching disposal page */
         #qrScanner {
@@ -125,7 +164,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body>
     @php
     $pulloutRecords = $pulloutRecords ?? collect();
     $availableAssets = $availableAssets ?? collect();
@@ -137,25 +176,25 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
                 <!-- Header -->
-                <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                <div class="topbar sticky top-0 z-10">
                     <div class="px-4 sm:px-8 py-5">
                         <div class="flex justify-between items-center">
                             <div class="flex items-center">
                                 <!-- Hamburger, mobile only -->
-                                <button onclick="toggleSidebar()" class="lg:hidden mr-3 text-gray-600 hover:text-gray-900">
+                                <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
                                     <i class="ri-menu-line text-2xl"></i>
                                 </button>
-                                <a href="#" onclick="window.history.back(); return false;" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
+                                <a href="#" onclick="window.history.back(); return false;" class="mr-4 transition-transform hover:translate-x-[-2px]" style="color:var(--ink-400);">
                                     <i class="ri-arrow-left-line text-xl"></i>
                                 </a>
                                 <div>
-                                    <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Record Pullout</h2>
-                                    <p class="text-sm text-gray-500 mt-1 hidden sm:block">Manage pulled out assets</p>
+                                    <h2 class="font-display text-xl sm:text-2xl font-semibold" style="color:var(--navy-900);">Record Pullout</h2>
+                                    <p class="text-sm mt-1 hidden sm:block" style="color:var(--ink-600);">Manage pulled out assets</p>
                                 </div>
                             </div>
-                            <button onclick="openScannerAuto()" class="bg-orange-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-orange-700 transition-all hover:scale-105 flex items-center shadow-md">
+                            <button onclick="openScannerAuto()" class="btn-gold">
                                 <i class="ri-add-line sm:mr-2"></i>
                                 <span class="hidden sm:inline">Record Pullout</span>
                             </button>
@@ -166,15 +205,15 @@
             <!-- Content -->
             <div class="p-8">
                 <!-- Stats Card -->
-                <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 mb-8 text-white" id="statsCard">
+                <div class="hero-card p-6 mb-8 text-white" id="statsCard">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium opacity-90">Total Pulled Out</p>
-                            <p class="text-4xl font-bold mt-2" id="totalPulledOutCount">{{ $totalPulledOut }}</p>
-                            <p class="text-xs opacity-80 mt-2">Complete log of pulled out institutional assets</p>
+                            <p class="eyebrow" style="color:var(--gold-500);">Total Pulled Out</p>
+                            <p class="font-display text-4xl font-bold mt-2" id="totalPulledOutCount">{{ $totalPulledOut }}</p>
+                            <p class="text-xs mt-2" style="color:#C7D2E3;">Complete log of pulled out institutional assets</p>
                         </div>
-                        <div class="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
-                            <i class="ri-logout-box-r-line text-4xl"></i>
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(180,121,30,.35); border:1px solid rgba(255,255,255,.15);">
+                            <i class="ri-logout-box-r-line text-4xl" style="color:#F3DCB0;"></i>
                         </div>
                     </div>
                 </div>
@@ -184,22 +223,22 @@
                     @if(isset($pulloutRecords) && count($pulloutRecords) > 0)
                         <div class="grid grid-cols-1 gap-4" id="pulloutRecordsList">
                             @foreach($pulloutRecords as $record)
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 pullout-card" data-id="{{ $record->id }}">
+                            <div class="pullout-card p-6" data-id="{{ $record->id }}">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1">
                                         <div class="flex items-center mb-3">
-                                            <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                                                <i class="ri-logout-box-r-line text-orange-600 text-xl"></i>
+                                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style="background:var(--bronze-tint);">
+                                                <i class="ri-logout-box-r-line text-xl" style="color:var(--bronze);"></i>
                                             </div>
                                             <div>
-                                                <h3 class="font-semibold text-gray-900">
+                                                <h3 class="font-semibold" style="color:var(--navy-900);">
                                                     @if(($record->asset_count ?? 1) > 1)
                                                         {{ $record->asset_count }} Assets
                                                     @else
                                                         {{ $record->asset_name ?? 'Asset' }}
                                                     @endif
                                                 </h3>
-                                                <p class="text-xs text-gray-500 font-mono">
+                                                <p class="text-xs font-mono" style="color:var(--ink-400);">
                                                     @if(($record->asset_count ?? 1) > 1)
                                                         {{ $record->asset_codes->take(3)->implode(', ') }}
                                                         @if($record->asset_codes->count() > 3)
@@ -212,54 +251,55 @@
                                             </div>
                                         </div>
                                         @if(($record->asset_count ?? 1) > 1)
-                                        <div class="mb-3 inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">
+                                        <div class="mb-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" style="background:var(--bronze-tint); color:var(--bronze-dark);">
                                             {{ $record->asset_count }} assets in one pullout
                                         </div>
                                         @endif
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                                             <div>
-                                                <p class="text-xs text-gray-500">Pullout Date</p>
-                                                <p class="text-sm font-medium text-gray-900">{{ $record->pullout_date ?? date('Y-m-d') }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Pullout Date</p>
+                                                <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $record->pullout_date ?? date('Y-m-d') }}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs text-gray-500">Reason</p>
-                                                <p class="text-sm font-medium text-gray-900">{{ $record->reason ?? $record->Description ?? $record->notes ?? '-' }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Reason</p>
+                                                <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $record->reason ?? $record->Description ?? $record->notes ?? '-' }}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs text-gray-500">Pulled By</p>
-                                                <p class="text-sm font-medium text-gray-900">{{ $record->pulled_by ?? 'Admin' }}</p>
+                                                <p class="text-xs" style="color:var(--ink-400);">Pulled By</p>
+                                                <p class="text-sm font-medium" style="color:var(--navy-900);">{{ $record->pulled_by ?? 'Admin' }}</p>
                                             </div>
                                             <div>
-                                                <p class="text-xs text-gray-500">Status</p>
-                                                <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                                                    @if(($record->status ?? 'pending') == 'pending') bg-yellow-100 text-yellow-700
-                                                    @elseif(($record->status ?? 'pending') == 'approved') bg-green-100 text-green-700
-                                                    @else bg-red-100 text-red-700
+                                                <p class="text-xs" style="color:var(--ink-400);">Status</p>
+                                                <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                                    style="
+                                                    @if(($record->status ?? 'pending') == 'pending') background:var(--bronze-tint); color:var(--bronze-dark);
+                                                    @elseif(($record->status ?? 'pending') == 'approved') background:var(--forest-tint); color:var(--forest-dark);
+                                                    @else background:var(--brick-tint); color:var(--brick-dark);
                                                     @endif">
                                                     {{ ucfirst($record->status ?? 'pending') }}
                                                 </span>
                                             </div>
                                         </div>
                                         @if($record->destination ?? false)
-                                        <div class="mt-3 pt-3 border-t border-gray-100">
-                                            <p class="text-xs text-gray-500">Destination / New Location</p>
-                                            <p class="text-sm text-gray-700">{{ $record->destination }}</p>
+                                        <div class="mt-3 pt-3" style="border-top:1px solid var(--line);">
+                                            <p class="text-xs" style="color:var(--ink-400);">Destination / New Location</p>
+                                            <p class="text-sm" style="color:var(--ink-600);">{{ $record->destination }}</p>
                                         </div>
                                         @endif
                                     </div>
-                                        <div class="flex space-x-2">
-                                            <button onclick="viewPulloutDetails({{ $record->id }})" class="text-blue-600 hover:text-blue-700" title="View">
+                                        <div class="flex space-x-1">
+                                            <button onclick="viewPulloutDetails({{ $record->id }})" class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--steel);" onmouseover="this.style.background='var(--steel-tint)'" onmouseout="this.style.background='transparent'" title="View">
                                             <i class="ri-eye-line text-xl"></i>
                                             </button>
                                             @if(($record->status ?? 'pending') == 'pending')
-                                            <button onclick="approvePullout({{ $record->id }})" class="text-green-600 hover:text-green-700" title="Approve">
+                                            <button onclick="approvePullout({{ $record->id }})" class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--forest);" onmouseover="this.style.background='var(--forest-tint)'" onmouseout="this.style.background='transparent'" title="Approve">
                                             <i class="ri-checkbox-circle-line text-xl"></i>
                                             </button>
                                             @endif
-                                            <button onclick="openEditPullout({{ $record->id }})" class="text-amber-600 hover:text-amber-700" title="Edit / Resolve">
+                                            <button onclick="openEditPullout({{ $record->id }})" class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--bronze);" onmouseover="this.style.background='var(--bronze-tint)'" onmouseout="this.style.background='transparent'" title="Edit / Resolve">
                                             <i class="ri-edit-line text-xl"></i>
                                             </button>
-                                            <button onclick="openDisposeFromPullout({{ $record->id }})"class="text-red-600 hover:text-red-700" title="Dispose assets"> 
+                                            <button onclick="openDisposeFromPullout({{ $record->id }})" class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--brick);" onmouseover="this.style.background='var(--brick-tint)'" onmouseout="this.style.background='transparent'" title="Dispose assets">
                                             <i class="ri-delete-bin-line text-xl"></i>
                                         </button>
                                     </div>
@@ -268,13 +308,13 @@
                             @endforeach
                         </div>
                     @else
-                        <div id="emptyState" class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-                            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="ri-logout-box-r-line text-4xl text-gray-400"></i>
+                        <div id="emptyState" class="p-12 text-center" style="background:#fff; border-radius:14px; border:1px solid var(--line);">
+                            <div class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--paper-2);">
+                                <i class="ri-logout-box-r-line text-4xl" style="color:var(--ink-400);"></i>
                             </div>
-                            <h3 class="text-lg font-semibold text-gray-900 mb-2">No pullout records yet</h3>
-                            <p class="text-gray-500">There are currently no pullout reports to show.</p>
-                            <button onclick="openNewPulloutModal()" class="mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition">
+                            <h3 class="text-lg font-semibold mb-2" style="color:var(--navy-900);">No pullout records yet</h3>
+                            <p style="color:var(--ink-400);">There are currently no pullout reports to show.</p>
+                            <button onclick="openNewPulloutModal()" class="btn-gold mt-4">
                                 <i class="ri-add-line mr-2"></i>
                                 Record First Pullout
                             </button>
@@ -283,7 +323,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm text-gray-500 mt-8 pt-6 border-t border-gray-200">
+                <div class="text-center text-sm mt-8 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -291,15 +331,15 @@
     </div>
 
     <!-- View Pullout Details Modal -->
-<div id="viewPulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
-    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+<div id="viewPulloutModal" class="hidden fixed inset-0 z-50 items-center justify-center" style="background:rgba(10,24,48,.55);">
+    <div class="rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
         <!-- Header -->
-        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+        <div class="modal-head p-6 flex justify-between items-center">
             <div>
-                <h3 class="text-xl font-bold text-gray-900">Pullout Details</h3>
-                <p class="text-sm text-gray-500 mt-1">Pullout #<span id="viewPulloutIdLabel">—</span></p>
+                <h3 class="font-display text-xl font-semibold text-white">Pullout Details</h3>
+                <p class="text-sm mt-1" style="color:var(--gold-100);">Pullout #<span id="viewPulloutIdLabel">—</span></p>
             </div>
-            <button type="button" onclick="closeViewPullout()" class="text-gray-400 hover:text-gray-600">
+            <button type="button" onclick="closeViewPullout()" class="text-white/60 hover:text-white">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>
@@ -309,44 +349,43 @@
             <!-- Basic info -->
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                    <p class="text-xs text-gray-500">Pullout Date</p>
-                    <p id="viewPulloutDate" class="font-medium text-gray-900">—</p>
+                    <p class="text-xs" style="color:var(--ink-400);">Pullout Date</p>
+                    <p id="viewPulloutDate" class="font-medium" style="color:var(--navy-900);">—</p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500">Status</p>
+                    <p class="text-xs" style="color:var(--ink-400);">Status</p>
                     <p id="viewPulloutStatus" class="font-medium">—</p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500">Reason</p>
-                    <p id="viewPulloutReason" class="font-medium text-gray-900">—</p>
+                    <p class="text-xs" style="color:var(--ink-400);">Reason</p>
+                    <p id="viewPulloutReason" class="font-medium" style="color:var(--navy-900);">—</p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500">Pulled By</p>
-                    <p id="viewPulloutBy" class="font-medium text-gray-900">—</p>
+                    <p class="text-xs" style="color:var(--ink-400);">Pulled By</p>
+                    <p id="viewPulloutBy" class="font-medium" style="color:var(--navy-900);">—</p>
                 </div>
                 <div class="col-span-2">
-                    <p class="text-xs text-gray-500">Destination / New Location</p>
-                    <p id="viewPulloutDestination" class="font-medium text-gray-900">—</p>
+                    <p class="text-xs" style="color:var(--ink-400);">Destination / New Location</p>
+                    <p id="viewPulloutDestination" class="font-medium" style="color:var(--navy-900);">—</p>
                 </div>
                 <div class="col-span-2">
-                    <p class="text-xs text-gray-500">Notes</p>
-                    <p id="viewPulloutNotes" class="font-medium text-gray-900">—</p>
+                    <p class="text-xs" style="color:var(--ink-400);">Notes</p>
+                    <p id="viewPulloutNotes" class="font-medium" style="color:var(--navy-900);">—</p>
                 </div>
             </div>
 
             <!-- Assets list -->
             <div>
-                <h4 class="text-sm font-semibold text-gray-700 mb-2">Assets in this pullout</h4>
-                <div id="viewAssetList" class="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                <h4 class="text-sm font-semibold mb-2" style="color:var(--ink-600);">Assets in this pullout</h4>
+                <div id="viewAssetList" class="rounded-lg divide-y max-h-64 overflow-y-auto" style="border:1px solid var(--line); border-color:var(--line);">
                     <!-- Filled by JS -->
                 </div>
             </div>
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
-            <button type="button" onclick="closeViewPullout()"
-                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+        <div class="px-6 py-4 flex justify-end" style="border-top:1px solid var(--line);">
+            <button type="button" onclick="closeViewPullout()" class="btn-ghost">
                 Close
             </button>
         </div>
@@ -355,12 +394,12 @@
 
 
     <!-- New Pullout Modal -->
-    <div id="pulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center modal">
-        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="p-6 border-b border-gray-200">
+    <div id="pulloutModal" class="hidden fixed inset-0 z-50 items-center justify-center modal" style="background:rgba(10,24,48,.55);">
+        <div class="rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
+            <div class="modal-head p-6">
                 <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-bold text-gray-900">Record Asset Pullout</h3>
-                    <button onclick="closePulloutModal()" class="text-gray-400 hover:text-gray-600">
+                    <h3 class="font-display text-xl font-semibold text-white">Record Asset Pullout</h3>
+                    <button onclick="closePulloutModal()" class="text-white/60 hover:text-white">
                         <i class="ri-close-line text-2xl"></i>
                     </button>
                 </div>
@@ -369,32 +408,32 @@
                 @csrf
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Asset(s) *
-                            <button type="button" onclick="openScanner('pullout_asset_select')" title="Scan asset QR" class="ml-3 inline-flex items-center px-2 py-1 border border-gray-300 rounded text-sm hover:bg-gray-100">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Select Asset(s) *
+                            <button type="button" onclick="openScanner('pullout_asset_select')" title="Scan asset QR" class="ml-3 inline-flex items-center px-2 py-1 rounded text-sm transition-colors" style="border:1px solid var(--line); color:var(--ink-600);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                                 <i class="ri-camera-line"></i>
                                 <span class="sr-only">Scan</span>
                             </button>
                         </label>
                         <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <input type="text" id="pulloutAssetSearch" oninput="filterPulloutAssets(this.value)" placeholder="Search assets by code or name..." class="w-full sm:flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
-                            <button type="button" onclick="selectAllVisiblePulloutAssets()" class="px-4 py-2 border border-orange-200 rounded-lg text-orange-700 bg-orange-50 hover:bg-orange-100 transition">
+                            <input type="text" id="pulloutAssetSearch" oninput="filterPulloutAssets(this.value)" placeholder="Search assets by code or name..." class="form-input sm:flex-1">
+                            <button type="button" onclick="selectAllVisiblePulloutAssets()" class="px-4 py-2 rounded-lg text-sm transition-colors" style="border:1px solid var(--gold-500); color:var(--gold-600); background:var(--gold-100);">
                                 Select All Visible
                             </button>
                         </div>
-                        <select id="pullout_asset_select" name="asset_ids[]" multiple required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200 min-h-[180px]">
+                        <select id="pullout_asset_select" name="asset_ids[]" multiple required class="form-input" style="min-height:180px;">
                             @foreach($availableAssets ?? [] as $asset)
                             <option value="{{ $asset->id }}" data-code="{{ $asset->asset_code }}" data-status="{{ $asset->Lifecycle_Status }}">{{ $asset->name }} ({{ $asset->asset_code }}) - Assigned to: {{ $asset->assignedUser->name ?? 'Unassigned' }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-2 text-xs text-gray-500">Hold Ctrl on Windows or Command on Mac to select multiple assets.</p>
+                        <p class="mt-2 text-xs" style="color:var(--ink-400);">Hold Ctrl on Windows or Command on Mac to select multiple assets.</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Pullout Date *</label>
-                        <input type="date" name="pullout_date" required value="{{ date('Y-m-d') }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Pullout Date *</label>
+                        <input type="date" name="pullout_date" required value="{{ date('Y-m-d') }}" class="form-input">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Reason for Pullout *</label>
-                        <select name="reason" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Reason for Pullout *</label>
+                        <select name="reason" required class="form-input">
                             <option value="">Select reason...</option>
                             <option value="Transfer">Transfer to another department</option>
                             <option value="Repair">Needs repair/maintenance</option>
@@ -405,39 +444,39 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Pulled By *</label>
-                        <input type="text" name="pulled_by" required placeholder="Name of person authorizing pullout" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Pulled By *</label>
+                        <input type="text" name="pulled_by" required placeholder="Name of person authorizing pullout" class="form-input">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Destination / New Location</label>
-                        <input type="text" name="destination" placeholder="e.g., IT Department, Room 302, Storage Room" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Destination / New Location</label>
+                        <input type="text" name="destination" placeholder="e.g., IT Department, Room 302, Storage Room" class="form-input">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Expected Return Date (if applicable)</label>
-                        <input type="date" name="expected_return_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Expected Return Date (if applicable)</label>
+                        <input type="date" name="expected_return_date" class="form-input">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
-                        <textarea name="notes" rows="3" placeholder="Any additional information about the pullout..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200"></textarea>
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Additional Notes</label>
+                        <textarea name="notes" rows="3" placeholder="Any additional information about the pullout..." class="form-input"></textarea>
                     </div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closePulloutModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Record Pullout</button>
+                <div class="flex justify-end space-x-3 mt-6 pt-4" style="border-top:1px solid var(--line);">
+                    <button type="button" onclick="closePulloutModal()" class="btn-ghost">Cancel</button>
+                    <button type="submit" class="btn-gold">Record Pullout</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- Dispose from Pullout Modal -->
-<div id="disposeFromPulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+<div id="disposeFromPulloutModal" class="hidden fixed inset-0 z-50 items-center justify-center" style="background:rgba(10,24,48,.55);">
+    <div class="rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
+        <div class="modal-head p-6 flex justify-between items-center">
             <div>
-                <h3 class="text-xl font-bold text-gray-900">Dispose Assets</h3>
-                <p class="text-sm text-gray-500 mt-1">Pullout #<span id="disposePulloutIdLabel">—</span></p>
+                <h3 class="font-display text-xl font-semibold text-white">Dispose Assets</h3>
+                <p class="text-sm mt-1" style="color:var(--gold-100);">Pullout #<span id="disposePulloutIdLabel">—</span></p>
             </div>
-            <button type="button" onclick="closeDisposeFromPullout()" class="text-gray-400 hover:text-gray-600">
+            <button type="button" onclick="closeDisposeFromPullout()" class="text-white/60 hover:text-white">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>
@@ -447,25 +486,24 @@
             <input type="hidden" id="disposePulloutId" name="pullout_id">
 
             <div>
-                <p class="text-sm text-gray-600 mb-2">Select which assets to dispose:</p>
-                <div id="disposeAssetList" class="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                <p class="text-sm mb-2" style="color:var(--ink-600);">Select which assets to dispose:</p>
+                <div id="disposeAssetList" class="rounded-lg divide-y max-h-56 overflow-y-auto" style="border:1px solid var(--line); border-color:var(--line);">
                     <!-- filled by JS -->
                 </div>
                 <div class="mt-2 flex gap-2">
-                    <button type="button" onclick="selectAllDisposeAssets(true)" class="text-xs text-blue-600 hover:underline">Select all</button>
-                    <button type="button" onclick="selectAllDisposeAssets(false)" class="text-xs text-gray-500 hover:underline">Clear</button>
+                    <button type="button" onclick="selectAllDisposeAssets(true)" class="text-xs hover:underline" style="color:var(--steel);">Select all</button>
+                    <button type="button" onclick="selectAllDisposeAssets(false)" class="text-xs hover:underline" style="color:var(--ink-400);">Clear</button>
                 </div>
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Disposal Date</label>
-                <input type="date" name="disposal_date" value="{{ date('Y-m-d') }}"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Disposal Date</label>
+                <input type="date" name="disposal_date" value="{{ date('Y-m-d') }}" class="form-input">
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-                <select name="reason" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Reason</label>
+                <select name="reason" required class="form-input">
                     <option value="Obsolete">Obsolete</option>
                     <option value="Damage">Damaged</option>
                     <option value="Beyond Repair">Beyond Repair</option>
@@ -476,18 +514,15 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-                <textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          placeholder="Any additional notes..."></textarea>
+                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Notes (optional)</label>
+                <textarea name="notes" rows="2" class="form-input" placeholder="Any additional notes..."></textarea>
             </div>
 
-            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                <button type="button" onclick="closeDisposeFromPullout()"
-                        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            <div class="flex justify-end gap-3 pt-4" style="border-top:1px solid var(--line);">
+                <button type="button" onclick="closeDisposeFromPullout()" class="btn-ghost">
                     Cancel
                 </button>
-                <button type="submit"
-                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                <button type="submit" class="px-4 py-2 text-white rounded-lg text-sm font-medium transition" style="background:var(--brick);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                     Dispose Selected
                 </button>
             </div>
@@ -495,15 +530,15 @@
     </div>
 </div>
 
-<div id="editPulloutModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+<div id="editPulloutModal" class="hidden fixed inset-0 z-50 items-center justify-center" style="background:rgba(10,24,48,.55);">
+    <div class="rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
         <!-- Header -->
-        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+        <div class="modal-head p-6 flex justify-between items-center">
             <div>
-                <h3 class="text-xl font-bold text-gray-900">Resolve Pullout</h3>
-                <p class="text-sm text-gray-500 mt-1">Pullout #<span id="editPulloutIdLabel">—</span></p>
+                <h3 class="font-display text-xl font-semibold text-white">Resolve Pullout</h3>
+                <p class="text-sm mt-1" style="color:var(--gold-100);">Pullout #<span id="editPulloutIdLabel">—</span></p>
             </div>
-            <button type="button" onclick="closeEditPullout()" class="text-gray-400 hover:text-gray-600">
+            <button type="button" onclick="closeEditPullout()" class="text-white/60 hover:text-white">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>
@@ -515,19 +550,18 @@
             <!-- Asset selection -->
             <div>
                 <div class="flex justify-between items-center mb-2">
-                    <label class="block text-sm font-medium text-gray-700">Assets in this pullout *</label>
-                    <button type="button" onclick="toggleAllEditAssets(true)" class="text-xs text-orange-600 hover:underline">Select All</button>
+                    <label class="block text-sm font-medium" style="color:var(--ink-600);">Assets in this pullout *</label>
+                    <button type="button" onclick="toggleAllEditAssets(true)" class="text-xs hover:underline" style="color:var(--gold-600);">Select All</button>
                 </div>
-                <div id="editAssetList" class="border border-gray-200 rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+                <div id="editAssetList" class="rounded-lg max-h-40 overflow-y-auto p-2 space-y-1" style="border:1px solid var(--line);">
                     <!-- Filled by JS -->
                 </div>
-                <p class="text-xs text-gray-500 mt-1">Uncheck any asset you want to leave in pullout.</p>
+                <p class="text-xs mt-1" style="color:var(--ink-400);">Uncheck any asset you want to leave in pullout.</p>
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Action *</label>
-                <select id="editAction" onchange="toggleEditActionFields()"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Action *</label>
+                <select id="editAction" onchange="toggleEditActionFields()" class="form-input">
                     <option value="">Select action...</option>
                     <option value="assign">Assign to new user (release from storage)</option>
                     <option value="repair">Send to repair</option>
@@ -537,69 +571,66 @@
             <!-- Assign block -->
             <div id="editAssignBlock" class="hidden space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">New Owner *</label>
+                    <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">New Owner *</label>
                     <div class="relative">
                         <input type="text" id="editUserSearch" autocomplete="off"
                             placeholder="Type name or email to search..."
                             oninput="filterEditUsers()" onfocus="showEditUserList()"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                            class="form-input">
                         <input type="hidden" id="editAssignUserId" value="">
                         <div id="editUserList"
-                            class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                            class="hidden absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg shadow-lg" style="background:#fff; border:1px solid var(--line);">
                             @foreach($users ?? [] as $u)
                                 <button type="button"
-                                    class="edit-user-option w-full text-left px-4 py-2 text-sm hover:bg-orange-50 border-b border-gray-100 last:border-0"
+                                    class="edit-user-option w-full text-left px-4 py-2 text-sm transition-colors"
+                                    style="border-bottom:1px solid var(--line);"
+                                    onmouseover="this.style.background='var(--gold-100)'" onmouseout="this.style.background='transparent'"
                                     data-id="{{ $u->id }}"
                                     data-label="{{ strtolower(($u->full_name ?? '') . ' ' . ($u->email ?? '')) }}"
                                     onclick="selectEditUser(this)">
-                                    <span class="font-medium text-gray-900">{{ $u->full_name ?? 'User' }}</span>
-                                    <span class="text-gray-500 text-xs block">{{ $u->email }}</span>
+                                    <span class="font-medium" style="color:var(--navy-900);">{{ $u->full_name ?? 'User' }}</span>
+                                    <span class="text-xs block" style="color:var(--ink-400);">{{ $u->email }}</span>
                                 </button>
                             @endforeach
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">
-                        Selected: <span id="editSelectedUserLabel" class="font-medium text-gray-700">None</span>
+                    <p class="text-xs mt-1" style="color:var(--ink-400);">
+                        Selected: <span id="editSelectedUserLabel" class="font-medium" style="color:var(--ink-600);">None</span>
                     </p>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">New Location *</label>
-                    <input type="text" id="editNewLocation" placeholder="e.g., Room 301, Faculty Office, Lab 2"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200">
+                    <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">New Location *</label>
+                    <input type="text" id="editNewLocation" placeholder="e.g., Room 301, Faculty Office, Lab 2" class="form-input">
                 </div>
             </div>
 
             <!-- Repair block -->
             <div id="editRepairBlock" class="hidden">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Issue description</label>
-                <textarea id="editRepairNotes" rows="3" placeholder="What needs repair?"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200"></textarea>
+                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Issue description</label>
+                <textarea id="editRepairNotes" rows="3" placeholder="What needs repair?" class="form-input"></textarea>
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Notes (optional)</label>
-                <textarea id="editNotes" rows="2" placeholder="Optional notes..."
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:ring focus:ring-orange-200"></textarea>
+                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Notes (optional)</label>
+                <textarea id="editNotes" rows="2" placeholder="Optional notes..." class="form-input"></textarea>
             </div>
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-            <button type="button" onclick="closeEditPullout()"
-                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-            <button type="button" onclick="submitEditPullout()"
-                class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Save</button>
+        <div class="px-6 py-4 flex justify-end gap-3" style="border-top:1px solid var(--line);">
+            <button type="button" onclick="closeEditPullout()" class="btn-ghost">Cancel</button>
+            <button type="button" onclick="submitEditPullout()" class="btn-gold">Save</button>
         </div>
     </div>
 </div> <!-- end of modal overlay -->
 
     <!-- Scanner Modal - Stays open until manually closed (same style as disposal) -->
-    <div id="scannerModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 items-center justify-center modal">
-        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6">
+    <div id="scannerModal" class="hidden fixed inset-0 z-50 items-center justify-center modal" style="background:rgba(10,24,48,.75);">
+        <div class="rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6" style="background:#fff;">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-semibold text-gray-900">Scan Asset QR</h3>
-                <button onclick="manualCloseScanner()" class="text-gray-400 hover:text-gray-600 transition">
+                <h3 class="font-display text-xl font-semibold" style="color:var(--navy-900);">Scan Asset QR</h3>
+                <button onclick="manualCloseScanner()" class="transition" style="color:var(--ink-400);">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -613,16 +644,16 @@
             </div>
 
             <!-- Status and Controls -->
-            <p id="qr-reader-status" class="text-sm text-gray-600 text-center mb-3">Initializing camera...</p>
+            <p id="qr-reader-status" class="text-sm text-center mb-3" style="color:var(--ink-600);">Initializing camera...</p>
             
             <div class="flex justify-center">
-                <button onclick="manualCloseScanner()" class="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center">
+                <button onclick="manualCloseScanner()" class="px-6 py-2 text-white rounded-lg transition flex items-center" style="background:var(--bronze);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                     <i class="ri-close-line mr-2"></i>
                     Close Camera
                 </button>
             </div>
 
-            <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-sm text-blue-800 rounded">
+            <div class="mt-4 p-3 rounded text-sm" style="background:var(--steel-tint); border-left:4px solid var(--steel); color:var(--steel-dark);">
                 <strong class="font-medium">💡 Camera Tips:</strong>
                 <ul class="mt-1 list-disc list-inside space-y-1">
                     <li>Camera stays open - click "Close Camera" when done</li>
@@ -1200,7 +1231,7 @@ function toggleEditActionFields() {
             
             const toast = document.createElement('div');
             toast.className = 'toast-notification';
-            toast.style.backgroundColor = type === 'error' ? '#ef4444' : '#10b981';
+            toast.style.backgroundColor = type === 'error' ? '#A23B32' : '#2F7A4D';
             toast.textContent = message;
             document.body.appendChild(toast);
             
@@ -1250,10 +1281,10 @@ async function viewPulloutDetails(id) {
 
         document.getElementById('viewPulloutDate').textContent = p.pullout_date || '—';
         document.getElementById('viewPulloutStatus').innerHTML = `
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                ${p.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                  p.status === 'approved' ? 'bg-green-100 text-green-700' :
-                  'bg-red-100 text-red-700'}">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                style="${p.status === 'pending' ? 'background:var(--bronze-tint); color:var(--bronze-dark);' :
+                  p.status === 'approved' ? 'background:var(--forest-tint); color:var(--forest-dark);' :
+                  'background:var(--brick-tint); color:var(--brick-dark);'}">
                 ${p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : '—'}
             </span>`;
         document.getElementById('viewPulloutReason').textContent = p.reason || p.Description || '—';
