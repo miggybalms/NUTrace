@@ -157,32 +157,14 @@
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
-            <!-- Header -->
-            <div class="topbar sticky top-0 z-10">
-                <div class="px-4 sm:px-8 py-5">
-                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                        <div class="flex items-center">
-                            <!-- Hamburger, mobile only -->
-                            <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
-                                <i class="ri-menu-line text-2xl"></i>
-                            </button>
-                            <div>
-                                <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900);">Repair Management</h2>
-                                <div class="flex items-center mt-1.5">
-                                    <span class="badge-role inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md">
-                                        <i class="ri-tools-line"></i> Asset Officer
-                                    </span>
-                                    <p class="text-sm hidden sm:block ml-3" style="color:var(--ink-600);">Manage and track all repair requests</p>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="openNewRepairModal()" class="btn-gold w-full sm:w-auto justify-center">
-                            <i class="ri-add-line mr-1.5 text-base"></i>
-                            New Repair Request
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <!-- Header (shared admin header) -->
+            @include('admin.partials.header', [
+                'adminHeaderPage'     => 'repair',
+                'adminHeaderTitle'    => 'Repair Management',
+                'adminHeaderSubtitle' => 'Manage and track all repair requests',
+                'adminHeaderIcon'     => 'ri-tools-line',
+                'adminHeaderBadge'    => 'Asset Officer',
+            ])
 
             <!-- Content -->
             <div class="p-4 sm:p-8">

@@ -36,8 +36,8 @@
     
     .form-input:focus, .form-select:focus, .form-textarea:focus {
         outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        border-color: #C9A227;
+        box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.18);
     }
     
     .regenerate-btn {
@@ -47,10 +47,10 @@
     }
     
     .regenerate-btn:hover {
-        background-color: #3b82f6;
-        color: white;
+        background-color: #C9A227;
+        color: #0A1830;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        box-shadow: 0 4px 12px rgba(201, 162, 39, 0.3);
     }
     
     .regenerate-btn:hover i {
@@ -100,8 +100,8 @@
     
     .asset-id-display.updated {
         transform: scale(1.02);
-        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
-        border-color: #3b82f6;
+        background: linear-gradient(135deg, #F3E7C4 0%, #ffffff 100%);
+        border-color: #C9A227;
     }
     
     .condition-badge {
@@ -123,35 +123,40 @@
         page-break-inside: avoid;
     }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    :root{
+        --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
+        --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+        --paper:#F3EEE0; --paper-2:#EAE2C9;
+        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+        --line:#DED2AE;
+    }
+    body{ background:var(--paper) !important; font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif !important; color:var(--ink-900); }
+    .font-display{ font-family:'Fraunces',Georgia,serif; }
+    .brand-title{ font-family:'Fraunces',Georgia,serif; }
+    .topbar{ background:#fff; border-bottom:1px solid var(--line); position:relative; }
+    .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500) 20%, var(--gold-500) 80%, transparent); opacity:.7; }
+    input[type=checkbox], input[type=radio]{ accent-color:var(--gold-500); }
+</style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
-            <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-                <div class="px-8 py-5">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center">
-                            <a href="javascript:void(0)" onclick="window.history.back()" class="text-gray-500 hover:text-gray-700 mr-4 transition-transform hover:translate-x-[-2px]">
-                                <i class="ri-arrow-left-line text-xl"></i>
-                            </a>
-                            <div>
-                                <h2 class="text-2xl font-bold text-gray-900">Asset Registry</h2>
-                                <p class="text-sm text-gray-500 mt-1">Register new assets to the inventory</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <button class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-all hover:scale-105 flex items-center">
-                                <i class="ri-question-line mr-2"></i>
-                                Help
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Header (shared admin header) -->
+            @include('admin.partials.header', [
+                'adminHeaderPage'     => 'asset_registry',
+                'adminHeaderTitle'    => 'Asset Registry',
+                'adminHeaderSubtitle' => 'Register new assets to the inventory',
+                'adminHeaderIcon'     => 'ri-qr-code-line',
+                'adminHeaderBadge'    => 'Admin',
+                'adminHeaderBackUrl'  => '/admin/assets',
+            ])
 
             <!-- Form Content -->
             <div class="p-8">
@@ -163,7 +168,7 @@
                         $bulkRegisteredCount = $bulkRegisteredCount ?? 0;
                     @endphp
                     @if(session('success'))
-                        <div class="mb-4 p-4 rounded-lg bg-green-50 border border-green-100 text-green-700">
+                        <div class="mb-4 p-4 rounded-lg bg-[#EAF4EE] border border-[#CFE3D4] text-[#245C3B]">
                             {{ session('success') }}
                         </div>
                     @endif
@@ -171,27 +176,27 @@
 
 
                     <!-- Basic Information -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-[#0F2143] mb-4">Basic Information</h3>
                         
                         <div class="grid grid-cols-1 gap-6">
                             <!-- Asset Name -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Asset Name <span class="text-red-500">*</span>
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                    Asset Name <span class="text-[#A23B32]">*</span>
                                 </label>
                                 <input type="text" name="name" id="asset-name" required
                                        placeholder="e.g., Dell Laptop i7-12th Gen"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"
                                        onchange="updateQRCode()">
                             </div>
 
                             <!-- Asset Category -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Category <span class="text-red-500">*</span>
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                    Category <span class="text-[#A23B32]">*</span>
                                 </label>
-                                <select name="category" id="asset-category" required class="form-select w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition" onchange="updateQRCode()">
+                                <select name="category" id="asset-category" required class="form-select w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" onchange="updateQRCode()">
                                     <option value="">Select category</option>
                                        <option value="Furnitures and Fixtures">Furnitures and Fixtures</option>
                                        <option value="General and Office Equipment">General and Office Equipment</option>
@@ -206,45 +211,45 @@
 
                             <!-- Supplier -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Supplier
                                 </label>
                                 <input type="text" name="supplier"
                                        placeholder="Enter supplier name"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                             </div>
 
                             <!-- Condition -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Condition <span class="text-red-500">*</span>
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                    Condition <span class="text-[#A23B32]">*</span>
                                 </label>
                                 <div class="grid grid-cols-4 gap-3 mb-4">
                                     <label class="condition-badge cursor-pointer">
                                         <input type="radio" name="condition" value="new" class="hidden peer" onchange="updateQRCode()">
-                                        <div class="border-2 border-gray-200 rounded-lg p-3 text-center peer-checked:border-green-500 peer-checked:bg-green-50 transition-all hover:shadow-md">
-                                            <i class="ri-sparkling-line text-xl text-green-600 mb-1 block"></i>
+                                        <div class="border-2 border-[#DED2AE] rounded-lg p-3 text-center peer-checked:border-[#2F7A4D] peer-checked:bg-[#EAF4EE] transition-all hover:shadow-md">
+                                            <i class="ri-sparkling-line text-xl text-[#2F7A4D] mb-1 block"></i>
                                             <span class="text-sm font-medium">New</span>
                                         </div>
                                     </label>
                                     <label class="condition-badge cursor-pointer">
                                         <input type="radio" name="condition" value="good" class="hidden peer" onchange="updateQRCode()">
-                                        <div class="border-2 border-gray-200 rounded-lg p-3 text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-all hover:shadow-md">
-                                            <i class="ri-checkbox-circle-line text-xl text-blue-600 mb-1 block"></i>
+                                        <div class="border-2 border-[#DED2AE] rounded-lg p-3 text-center peer-checked:border-[#2E5C8A] peer-checked:bg-[#E9F0F7] transition-all hover:shadow-md">
+                                            <i class="ri-checkbox-circle-line text-xl text-[#A8841E] mb-1 block"></i>
                                             <span class="text-sm font-medium">Good</span>
                                         </div>
                                     </label>
                                     <label class="condition-badge cursor-pointer">
                                         <input type="radio" name="condition" value="fair" class="hidden peer" onchange="updateQRCode()">
-                                        <div class="border-2 border-gray-200 rounded-lg p-3 text-center peer-checked:border-yellow-500 peer-checked:bg-yellow-50 transition-all hover:shadow-md">
-                                            <i class="ri-alert-line text-xl text-yellow-600 mb-1 block"></i>
+                                        <div class="border-2 border-[#DED2AE] rounded-lg p-3 text-center peer-checked:border-[#B4791E] peer-checked:bg-[#FBF1DE] transition-all hover:shadow-md">
+                                            <i class="ri-alert-line text-xl text-[#B4791E] mb-1 block"></i>
                                             <span class="text-sm font-medium">Fair</span>
                                         </div>
                                     </label>
                                     <label class="condition-badge cursor-pointer">
                                         <input type="radio" name="condition" value="poor" class="hidden peer" onchange="updateQRCode()">
-                                        <div class="border-2 border-gray-200 rounded-lg p-3 text-center peer-checked:border-red-500 peer-checked:bg-red-50 transition-all hover:shadow-md">
-                                            <i class="ri-error-warning-line text-xl text-red-600 mb-1 block"></i>
+                                        <div class="border-2 border-[#DED2AE] rounded-lg p-3 text-center peer-checked:border-[#A23B32] peer-checked:bg-[#F7E9E6] transition-all hover:shadow-md">
+                                            <i class="ri-error-warning-line text-xl text-[#A23B32] mb-1 block"></i>
                                             <span class="text-sm font-medium">Poor</span>
                                         </div>
                                     </label>
@@ -253,29 +258,29 @@
 
                             <!-- Assignment & Location -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Assign to (Name/Department)
                                 </label>
                                 <div class="relative">
                                     <input type="text" id="user-search" 
                                            placeholder="Type to search users (name or dept)"
-                                           class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                           class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"
                                            autocomplete="off">
-                                    <div id="search-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg search-results"></div>
+                                    <div id="search-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-[#DED2AE] rounded-lg shadow-lg search-results"></div>
                                 </div>
                                 <input type="hidden" name="assigned_to" id="assigned-to">
                                 <div id="selected-user" class="mt-2 hidden">
-                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 flex items-center justify-between">
+                                    <div class="bg-[#F3E7C4] border border-[#EADFC0] rounded-lg p-2 flex items-center justify-between">
                                         <div class="flex items-center">
-                                            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                            <div class="w-8 h-8 bg-[#0A1830] border border-[#C9A227] rounded-full flex items-center justify-center">
                                                 <i class="ri-user-line text-white text-sm"></i>
                                             </div>
                                             <div class="ml-2">
-                                                <p class="text-sm font-medium text-gray-900" id="selected-user-name"></p>
-                                                <p class="text-xs text-gray-500" id="selected-user-dept"></p>
+                                                <p class="text-sm font-medium text-[#0F2143]" id="selected-user-name"></p>
+                                                <p class="text-xs text-[#5B6678]" id="selected-user-dept"></p>
                                             </div>
                                         </div>
-                                        <button type="button" onclick="clearSelectedUser()" class="text-red-500 hover:text-red-600 transition-colors">
+                                        <button type="button" onclick="clearSelectedUser()" class="text-[#A23B32] hover:text-[#A23B32] transition-colors">
                                             <i class="ri-close-line"></i>
                                         </button>
                                     </div>
@@ -284,175 +289,175 @@
 
                             <!-- Location -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Location
                                 </label>
                                 <input type="text" name="location" id="asset-location"
                                        placeholder="e.g., Room 301, Engineering Building"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"
                                        onchange="updateQRCode()">
                             </div>
                         </div>
                     </div>
 
                     <!-- Acquisition Details -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Acquisition Details</h3>
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-[#0F2143] mb-4">Acquisition Details</h3>
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Date Acquired <span class="text-red-500">*</span>
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                    Date Acquired <span class="text-[#A23B32]">*</span>
                                 </label>
                                 <input type="date" name="acquisition_date" required
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Purchase Price
                                 </label>
                                 <div class="relative">
-                                    <span class="absolute left-3 top-2 text-gray-500">₱</span>
+                                    <span class="absolute left-3 top-2 text-[#5B6678]">₱</span>
                                     <input type="number" name="purchase_price" step="0.01"
                                            placeholder="0.00"
-                                           class="form-input w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                           class="form-input w-full pl-8 pr-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Warranty (months)
                                 </label>
                                 <input type="number" name="warranty_months" value="12"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                             </div>
                         </div>
                     </div>
 
                     <!-- Additional Information -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-[#0F2143] mb-4">Additional Information</h3>
                         
                         <div class="grid grid-cols-1 gap-6">
                             <!-- Serial Number -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Serial Number
                                 </label>
                                 <input type="text" name="serial_number" 
                                        placeholder="Enter serial number"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                             </div>
 
                             <!-- Asset Photo -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Asset Photo
                                 </label>
-                                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-all hover:bg-gray-50 photo-upload cursor-pointer">
+                                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-[#CFC4A4] border-dashed rounded-lg hover:border-[#C9A227] transition-all hover:bg-[#F5F0E2] photo-upload cursor-pointer">
                                     <div class="space-y-1 text-center">
-                                        <i class="ri-image-line text-3xl text-gray-400 mb-2 block"></i>
-                                        <div class="flex text-sm text-gray-600">
-                                            <label for="asset-photo" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                        <i class="ri-image-line text-3xl text-[#8991A0] mb-2 block"></i>
+                                        <div class="flex text-sm text-[#46536B]">
+                                            <label for="asset-photo" class="relative cursor-pointer bg-white rounded-md font-medium text-[#0F2143] hover:text-[#C9A227] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#C9A227]">
                                                 <span>Upload a file</span>
                                                 <input id="asset-photo" name="asset_photo" type="file" class="sr-only" accept="image/*" onchange="previewImage(this)">
                                             </label>
                                             <p class="pl-1">or drag and drop</p>
                                         </div>
-                                        <p class="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                                        <p class="text-xs text-[#5B6678]">PNG, JPG, GIF up to 10MB</p>
                                     </div>
                                 </div>
                                 <div id="photo-preview" class="mt-3 hidden flex items-start space-x-3">
-                                    <img id="preview-img" class="h-32 w-auto rounded-lg border border-gray-200" alt="Preview">
+                                    <img id="preview-img" class="h-32 w-auto rounded-lg border border-[#DED2AE]" alt="Preview">
                                     <div class="flex items-center">
-                                        <button type="button" onclick="removePreview()" class="px-3 py-1 bg-red-50 text-red-600 rounded-lg border border-red-100 hover:bg-red-100">Remove</button>
+                                        <button type="button" onclick="removePreview()" class="px-3 py-1 bg-[#F7E9E6] text-[#A23B32] rounded-lg border border-[#F7E9E6] hover:bg-[#EFD5D0]">Remove</button>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Notes -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Notes
                                 </label>
                                 <textarea name="notes" rows="4"
                                           placeholder="Additional notes or remarks..."
-                                          class="form-textarea w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"></textarea>
+                                          class="form-textarea w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"></textarea>
                             </div>
                         </div>
                     </div>
 
                     <!-- Lifespan & Maintenance -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Lifespan & Maintenance</h3>
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-[#0F2143] mb-4">Lifespan & Maintenance</h3>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- Lifespan Months -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Lifespan (months)
                                 </label>
                                 <input type="number" name="lifespan_months" id="lifespan-months"
                                        placeholder="e.g., 60"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"
                                        onchange="calculateExpirationDate()">
-                                <p class="text-xs text-gray-500 mt-1">Asset will expire after this many months</p>
+                                <p class="text-xs text-[#5B6678] mt-1">Asset will expire after this many months</p>
                             </div>
 
                             <!-- Expiration Date (Auto-Calculated) -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Expiration Date (Auto-Calculated)
                                 </label>
                                 <input type="date" name="expiration_date" id="expiration-date"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg bg-[#F5F0E2]"
                                        readonly>
-                                <p class="text-xs text-gray-500 mt-1">Auto-calculated: Acquisition Date + Lifespan</p>
+                                <p class="text-xs text-[#5B6678] mt-1">Auto-calculated: Acquisition Date + Lifespan</p>
                             </div>
 
                             <!-- Last Maintenance Date -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Last Maintenance Date (Optional)
                                 </label>
                                 <input type="date" name="last_maintenance_date" id="last-maintenance-date"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"
                                        onchange="calculateNextMaintenanceDate()">
-                                <p class="text-xs text-gray-500 mt-1">If left empty, next maintenance will be calculated from registration date</p>
+                                <p class="text-xs text-[#5B6678] mt-1">If left empty, next maintenance will be calculated from registration date</p>
                             </div>
 
                             <!-- Maintenance Interval (months) -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Maintenance Interval (months)
                                 </label>
                                 <input type="number" name="maintenance_interval" id="maintenance-interval"
                                        placeholder="e.g., 6"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"
                                        onchange="calculateNextMaintenanceDate()">
-                                <p class="text-xs text-gray-500 mt-1">How often should maintenance be done?</p>
+                                <p class="text-xs text-[#5B6678] mt-1">How often should maintenance be done?</p>
                             </div>
 
                             <!-- Next Maintenance Date (Auto-Calculated) -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2">
                                     Next Maintenance Date (Auto-Calculated)
                                 </label>
                                 <input type="date" name="next_maintenance_date" id="next-maintenance-date"
-                                       class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg bg-[#F5F0E2]"
                                        readonly>
-                                <p class="text-xs text-gray-500 mt-1">Auto-calculated: Last Maintenance (or Registration Date) + Interval</p>
+                                <p class="text-xs text-[#5B6678] mt-1">Auto-calculated: Last Maintenance (or Registration Date) + Interval</p>
                             </div>
                         </div>
                     </div>
 
                                         <!-- Auto-Generated Asset ID with QR Code -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
                         <div class="flex items-center justify-between mb-4">
                             <div>
-                                <h3 class="text-lg font-semibold text-gray-900">Auto-Generated Asset ID</h3>
-                                <p class="text-sm text-gray-500 mt-1">Unique identifier for this asset</p>
+                                <h3 class="text-lg font-semibold text-[#0F2143]">Auto-Generated Asset ID</h3>
+                                <p class="text-sm text-[#5B6678] mt-1">Unique identifier for this asset</p>
                             </div>
                         </div>
                         
@@ -461,12 +466,12 @@
                             <div>
                                 <div class="flex items-center space-x-4">
                                     <div class="flex-1">
-                                        <div class="asset-id-display bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg px-4 py-3 transition-all duration-300">
-                                            <code class="text-lg font-mono font-semibold text-gray-900" id="asset-id-display">Not generated</code>
+                                        <div class="asset-id-display bg-gradient-to-r from-gray-50 to-white border border-[#DED2AE] rounded-lg px-4 py-3 transition-all duration-300">
+                                            <code class="text-lg font-mono font-semibold text-[#0F2143]" id="asset-id-display">Not generated</code>
                                         </div>
                                     </div>
                                     <button type="button" id="regenerate-btn" onclick="regenerateAssetId()" 
-                                            class="regenerate-btn px-5 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-300 flex items-center font-medium group"
+                                            class="regenerate-btn px-5 py-3 bg-[#F3E7C4] text-[#0F2143] rounded-lg hover:bg-[#C9A227] hover:text-[#0A1830] transition-all duration-300 flex items-center font-medium group"
                                             disabled>
                                         <i class="ri-refresh-line mr-2 text-lg transition-transform duration-300 group-hover:rotate-180"></i>
                                         <span>Regenerate ID</span>
@@ -474,29 +479,29 @@
                                 </div>
                                 <input type="hidden" name="asset_code" id="asset-code-input" value="">
                                 <div class="mt-4 max-w-sm">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Quantity <span class="text-red-500">*</span>
+                                    <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                        Quantity <span class="text-[#A23B32]">*</span>
                                     </label>
                                     <input type="number" name="quantity" id="asset-quantity" min="1" max="100" value="1" required
-                                           class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
-                                    <p class="text-xs text-gray-500 mt-1">Registers multiple identical assets. Quantity is not stored.</p>
+                                           class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
+                                    <p class="text-xs text-[#5B6678] mt-1">Registers multiple identical assets. Quantity is not stored.</p>
                                 </div>
                             </div>
                             
                             <!-- Right side - QR Code -->
-                            <div class="border-l border-gray-200 pl-6">
+                            <div class="border-l border-[#DED2AE] pl-6">
                                 <div class="flex items-center justify-between mb-3">
-                                    <label class="text-sm font-medium text-gray-700">Asset QR Code</label>
+                                    <label class="text-sm font-medium text-[#33425C]">Asset QR Code</label>
                                     <button type="button" onclick="viewQRCode()" 
-                                            class="text-blue-600 hover:text-blue-700 text-sm flex items-center">
+                                            class="text-[#A8841E] hover:text-[#0F2143] text-sm flex items-center font-medium">
                                         <i class="ri-eye-line mr-1"></i>
                                         View Full Size
                                     </button>
                                 </div>
-                                <div class="qr-container bg-white border border-gray-200 rounded-lg p-3 inline-block">
+                                <div class="qr-container bg-white border border-[#DED2AE] rounded-lg p-3 inline-block">
                                     <div id="qrcode" class="flex justify-center"></div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-2">Scan to view asset details</p>
+                                <p class="text-xs text-[#5B6678] mt-2">Scan to view asset details</p>
                             </div>
                         </div>
                     </div>
@@ -505,11 +510,11 @@
                     <!-- Form Actions -->
                     <div class="flex items-center justify-end space-x-4">
                         <button type="button" onclick="window.history.back()" 
-                                class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-all hover:scale-105">
+                                class="px-6 py-2 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition-all hover:scale-105">
                             Cancel
                         </button>
                         <button type="submit" id="register-btn"
-                                class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all hover:scale-105 flex items-center shadow-md hover:shadow-lg"
+                                class="px-6 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition-all hover:scale-105 flex items-center shadow-md hover:shadow-lg"
                                 disabled>
                             <i class="ri-add-line mr-2"></i>
                             Register Assets
@@ -518,7 +523,7 @@
                 </form>
 
                 <!-- Footer -->
-                <div class="text-center text-sm text-gray-500 mt-8 pt-6 border-t border-gray-200">
+                <div class="text-center text-sm text-[#5B6678] mt-8 pt-6 border-t border-[#DED2AE]">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -529,8 +534,8 @@
     <div id="qrModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center modal">
         <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md mx-4">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-gray-900">Asset QR Code</h3>
-                <button onclick="closeQRModal()" class="text-gray-400 hover:text-gray-600">
+                <h3 class="text-xl font-bold text-[#0F2143]">Asset QR Code</h3>
+                <button onclick="closeQRModal()" class="text-[#8991A0] hover:text-[#46536B]">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -538,15 +543,15 @@
                 <div id="modal-qrcode" class="p-4 bg-white rounded-lg"></div>
             </div>
             <div class="text-center mb-4">
-                <p class="text-sm text-gray-600 font-mono" id="modal-asset-id"></p>
-                <p class="text-xs text-gray-500 mt-1">Scan this QR code to view asset details</p>
+                <p class="text-sm text-[#46536B] font-mono" id="modal-asset-id"></p>
+                <p class="text-xs text-[#5B6678] mt-1">Scan this QR code to view asset details</p>
             </div>
             <div class="flex space-x-3">
-                <button onclick="downloadQRCode()" class="flex-1 download-btn bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all flex items-center justify-center">
+                <button onclick="downloadQRCode()" class="flex-1 download-btn bg-[#C9A227] text-[#0A1830] px-4 py-2 rounded-lg hover:bg-[#E0BC44] transition-all flex items-center justify-center">
                     <i class="ri-download-line mr-2"></i>
                     Download QR Code
                 </button>
-                <button onclick="printQRCode()" class="flex-1 download-btn bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-all flex items-center justify-center">
+                <button onclick="printQRCode()" class="flex-1 download-btn bg-[#0F2143] text-white px-4 py-2 rounded-lg hover:bg-[#1D3F73] transition-all flex items-center justify-center">
                     <i class="ri-printer-line mr-2"></i>
                     Print
                 </button>
@@ -557,24 +562,24 @@
     <!-- Bulk QR Preview Modal -->
     <div id="bulkQrModal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 items-center justify-center modal">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl mx-4 max-h-[92vh] overflow-hidden flex flex-col">
-            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+            <div class="p-6 border-b border-[#DED2AE] flex justify-between items-center">
                 <div>
-                    <h3 class="text-xl font-bold text-gray-900">Bulk QR Code Preview</h3>
-                    <p class="text-sm text-gray-500 mt-1" id="bulkQrSummary">Generated QR labels</p>
+                    <h3 class="text-xl font-bold text-[#0F2143]">Bulk QR Code Preview</h3>
+                    <p class="text-sm text-[#5B6678] mt-1" id="bulkQrSummary">Generated QR labels</p>
                 </div>
-                <button onclick="closeBulkQrModal()" class="text-gray-400 hover:text-gray-600">
+                <button onclick="closeBulkQrModal()" class="text-[#8991A0] hover:text-[#46536B]">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
             <div class="p-6 overflow-y-auto">
                 <div id="bulkQrGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
             </div>
-            <div class="bulk-qr-actions p-6 border-t border-gray-200 bg-gray-50 flex flex-wrap gap-3 justify-end">
-                <button type="button" onclick="downloadBulkQrSheet()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center">
+            <div class="bulk-qr-actions p-6 border-t border-[#DED2AE] bg-[#F5F0E2] flex flex-wrap gap-3 justify-end">
+                <button type="button" onclick="downloadBulkQrSheet()" class="px-4 py-2 bg-[#EFE9D8] text-[#33425C] rounded-lg hover:bg-[#E4DAC0] transition flex items-center">
                     <i class="ri-download-line mr-2"></i>
                     Download Labels
                 </button>
-                <button type="button" onclick="printBulkQrSheet()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center">
+                <button type="button" onclick="printBulkQrSheet()" class="px-4 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition flex items-center">
                     <i class="ri-printer-line mr-2"></i>
                     Print QR Codes
                 </button>
@@ -915,7 +920,7 @@
 
             bulkQrLabels.forEach((label) => {
                 const card = document.createElement('div');
-                card.className = 'bulk-qr-card rounded-xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col items-center gap-3';
+                card.className = 'bulk-qr-card rounded-xl border border-[#DED2AE] bg-white p-4 shadow-sm flex flex-col items-center gap-3';
 
                 const qrBox = document.createElement('div');
                 qrBox.className = 'w-36 h-36 flex items-center justify-center bg-white';
@@ -940,10 +945,10 @@
                 const meta = document.createElement('div');
                 meta.className = 'text-center';
                 const codeText = document.createElement('p');
-                codeText.className = 'text-sm font-semibold text-gray-900 break-all';
+                codeText.className = 'text-sm font-semibold text-[#0F2143] break-all';
                 codeText.textContent = label.code || '';
                 const nameText = document.createElement('p');
-                nameText.className = 'text-xs text-gray-500 mt-1';
+                nameText.className = 'text-xs text-[#5B6678] mt-1';
                 nameText.textContent = label.name || 'Asset';
                 meta.appendChild(codeText);
                 meta.appendChild(nameText);
@@ -1199,19 +1204,19 @@
                     if (results.length > 0) {
                         results.forEach(user => {
                             const el = document.createElement('div');
-                            el.className = 'px-4 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors';
+                            el.className = 'px-4 py-2 hover:bg-[#F5F0E2] cursor-pointer border-b border-[#EFE9D8] last:border-0 transition-colors';
                             el.tabIndex = 0;
                             el.dataset.id = user.id;
                             el.dataset.name = user.name;
                             el.dataset.dept = user.department;
                             el.innerHTML = `
                                 <div class="flex items-center">
-                                    <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                                        <i class="ri-user-line text-gray-600"></i>
+                                    <div class="w-8 h-8 bg-[#E4DAC0] rounded-full flex items-center justify-center">
+                                        <i class="ri-user-line text-[#46536B]"></i>
                                     </div>
                                     <div class="ml-2">
-                                        <p class="text-sm font-medium text-gray-900"></p>
-                                        <p class="text-xs text-gray-500"></p>
+                                        <p class="text-sm font-medium text-[#0F2143]"></p>
+                                        <p class="text-xs text-[#5B6678]"></p>
                                     </div>
                                 </div>`;
                             el.querySelector('.text-sm').textContent = user.name;
@@ -1223,7 +1228,7 @@
                         });
                     } else {
                         const no = document.createElement('div');
-                        no.className = 'px-4 py-2 text-sm text-gray-500';
+                        no.className = 'px-4 py-2 text-sm text-[#5B6678]';
                         no.textContent = 'No users found';
                         searchResults.appendChild(no);
                     }
@@ -1269,20 +1274,20 @@
         // drag over visuals
         photoUpload?.addEventListener('dragover', function(e) {
             e.preventDefault();
-            this.classList.add('bg-gray-50');
-            this.classList.add('border-blue-500');
+            this.classList.add('bg-[#F5F0E2]');
+            this.classList.add('border-[#C9A227]');
         });
         photoUpload?.addEventListener('dragleave', function(e) {
             e.preventDefault();
-            this.classList.remove('bg-gray-50');
-            this.classList.remove('border-blue-500');
+            this.classList.remove('bg-[#F5F0E2]');
+            this.classList.remove('border-[#C9A227]');
         });
 
         // drop handler — accept files and preview
         photoUpload?.addEventListener('drop', function(e) {
             e.preventDefault();
-            this.classList.remove('bg-gray-50');
-            this.classList.remove('border-blue-500');
+            this.classList.remove('bg-[#F5F0E2]');
+            this.classList.remove('border-[#C9A227]');
             const files = e.dataTransfer.files;
             if (files && files.length > 0) {
                 // set input files (works in modern browsers)
@@ -1385,11 +1390,11 @@
             toastInner.className = 'w-full flex items-start space-x-3 rounded-lg p-4';
 
             if (type === 'success') {
-                toastInner.classList.add('bg-green-50', 'border', 'border-green-100', 'text-green-800');
+                toastInner.classList.add('bg-[#EAF4EE]', 'border', 'border-[#CFE3D4]', 'text-[#1D4A2E]');
                 toastTitle.textContent = 'Saved';
                 toastBody.textContent = message;
             } else {
-                toastInner.classList.add('bg-red-50', 'border', 'border-red-100', 'text-red-800');
+                toastInner.classList.add('bg-[#F7E9E6]', 'border', 'border-[#E8CCC6]', 'text-[#7E2E27]');
                 toastTitle.textContent = 'Error';
                 toastBody.textContent = message;
             }
@@ -1498,11 +1503,11 @@
     <div id="toast" class="hidden fixed bottom-6 right-6 z-50 max-w-sm">
         <div id="toast-inner" class="w-full flex items-start space-x-3 rounded-lg p-4">
             <div class="flex-1">
-                <p id="toast-title" class="text-sm font-medium text-gray-900">Saved</p>
-                <p id="toast-body" class="text-xs text-gray-600 mt-1">Your asset was saved successfully.</p>
+                <p id="toast-title" class="text-sm font-medium text-[#0F2143]">Saved</p>
+                <p id="toast-body" class="text-xs text-[#46536B] mt-1">Your asset was saved successfully.</p>
             </div>
             <div class="flex items-start">
-                <button id="toast-close" class="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+                <button id="toast-close" class="text-[#8991A0] hover:text-[#46536B] text-lg leading-none">&times;</button>
             </div>
         </div>
     </div>

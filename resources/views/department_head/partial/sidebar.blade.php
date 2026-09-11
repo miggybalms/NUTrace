@@ -82,9 +82,6 @@
                     <p class="text-sm font-medium text-white truncate">{{ $user?->full_name ?? 'User' }}</p>
                     <p class="text-xs text-gray-400 truncate">{{ $user?->email ?? 'user@user.com' }}</p>
                 </div>
-            <a href="/user/settings">
-                <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-[#E8C874] text-sm"></i>
-            </a>
         </div>
         <a href="/logout" class="w-full flex items-center px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-white/5 transition">
             <i class="ri-logout-box-line mr-3 text-lg"></i>

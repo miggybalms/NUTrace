@@ -46,47 +46,19 @@
     .modal-panel { animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
 </style>
 
-            <!-- Header -->
-            <div class="topbar sticky top-0 z-10">
-                <div class="px-4 sm:px-8 py-5">
-                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                        <div class="flex items-center">
-                            <!-- Hamburger, mobile only -->
-                            <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
-                                <i class="ri-menu-line text-2xl"></i>
-                            </button>
-                            <div>
-                                <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900);">Replacement Records</h2>
-                                <p class="text-sm mt-1 hidden sm:block" style="color:var(--ink-600);">Manage and track all asset replacement requests</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <div class="relative flex-1 sm:flex-none">
-                                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400);"></i>
-                                <input type="text" id="searchInput" placeholder="Search replacements..."
-                                    class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
-                            </div>
-                            <div class="relative cursor-pointer flex-shrink-0" style="color:var(--ink-400);">
-                                <i class="ri-notification-3-line text-xl"></i>
-                                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white" style="background:var(--brick);"></span>
-                            </div>
-                            <div class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1 flex-shrink-0" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
-                                <div class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center">
-                                    <span class="text-xs font-semibold">
-                                        {{ strtoupper(substr(Auth::user()->full_name ?? 'A', 0, 1)) }}
-                                    </span>
-                                </div>
-                                <i class="ri-arrow-down-s-line hidden sm:block" style="color:var(--ink-400);"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Header (shared admin header) -->
+            @include('admin.partials.header', [
+                'adminHeaderPage'     => 'replacement',
+                'adminHeaderTitle'    => 'Replacement Records',
+                'adminHeaderSubtitle' => 'Manage and track all asset replacement requests',
+                'adminHeaderIcon'     => 'ri-refresh-line',
+                'adminHeaderBadge'    => 'Admin',
+            ])
 
     <div class="p-4 sm:p-8">
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-8">
             <div class="stat-card p-5">
                 <div class="flex items-center justify-between mb-1">
                     <p class="eyebrow">Total</p>
@@ -95,15 +67,6 @@
                     </div>
                 </div>
                 <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $totalReplacements ?? 0 }}</p>
-            </div>
-            <div class="stat-card p-5">
-                <div class="flex items-center justify-between mb-1">
-                    <p class="eyebrow">Pending</p>
-                    <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--bronze-tint);">
-                        <i class="ri-time-line" style="color:var(--bronze);"></i>
-                    </div>
-                </div>
-                <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $pendingReplacements ?? 0 }}</p>
             </div>
             <div class="stat-card p-5">
                 <div class="flex items-center justify-between mb-1">
@@ -132,7 +95,6 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 pt-4 pb-0" style="border-bottom:1px solid var(--line);">
             <div class="flex space-x-1 overflow-x-auto scrollbar-hide">
                 <button class="filter-tab active px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="all">All</button>
-                <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Pending">Pending</button>
                 <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Approved">Approved</button>
                 <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Received">Received</button>
             </div>
@@ -786,26 +748,43 @@
     </div>
 
     <script>
-        // Filter tabs
+        // Filter tabs + search — kept in sync so they never fight each other
+        let currentReplacementFilter = 'all';
+
+        function applyReplacementFilters() {
+            const val = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+            document.querySelectorAll('.replacement-row').forEach(row => {
+                const statusOk = currentReplacementFilter === 'all' || row.dataset.status === currentReplacementFilter;
+                const searchOk = !val || row.innerText.toLowerCase().includes(val);
+                row.style.display = (statusOk && searchOk) ? '' : 'none';
+            });
+        }
+
+        function setReplacementTab(filter) {
+            currentReplacementFilter = filter;
+            document.querySelectorAll('.filter-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.filter === filter);
+            });
+        }
+
         document.querySelectorAll('.filter-tab').forEach(tab => {
             tab.addEventListener('click', function () {
-                document.querySelectorAll('.filter-tab').forEach(t => {
-                    t.classList.remove('active');
-                });
-                this.classList.add('active');
-                const filter = this.dataset.filter;
-                document.querySelectorAll('.replacement-row').forEach(row => {
-                    row.style.display = (filter === 'all' || row.dataset.status === filter) ? '' : 'none';
-                });
+                setReplacementTab(this.dataset.filter);
+                // Clear the search box so the tab result is the unfiltered view
+                const search = document.getElementById('searchInput');
+                if (search && search.value) {
+                    search.value = '';
+                }
+                applyReplacementFilters();
             });
         });
 
-        // Search
+        // Searching returns to the "All" tab so results are never hidden by a stale status filter
         document.getElementById('searchInput').addEventListener('input', function () {
-            const val = this.value.toLowerCase();
-            document.querySelectorAll('.replacement-row').forEach(row => {
-                row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
-            });
+            if (this.value.trim() !== '' && currentReplacementFilter !== 'all') {
+                setReplacementTab('all');
+            }
+            applyReplacementFilters();
         });
 
         // Modal helpers

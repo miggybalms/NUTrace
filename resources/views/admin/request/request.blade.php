@@ -114,33 +114,14 @@
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
-                <!-- Header -->
-                <div class="topbar sticky top-0 z-10">
-                    <div class="px-4 sm:px-8 py-5">
-                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                            <div class="flex items-center">
-                                <!-- Hamburger, mobile only -->
-                                <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
-                                    <i class="ri-menu-line text-2xl"></i>
-                                </button>
-                                <div>
-                                    <h2 class="font-display text-xl sm:text-2xl font-semibold" style="color:var(--navy-900);">Requests</h2>
-                                    <div class="flex items-center mt-1.5">
-                                        <span class="badge-role inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md">Admin</span>
-                                        <span class="mx-2" style="color:var(--ink-400);">•</span>
-                                        <p class="text-sm hidden sm:block" style="color:var(--ink-600);">Manage and process asset requests</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                            <button onclick="exportRequests()" class="w-full sm:w-auto justify-center btn-gold flex items-center">
-                                    <i class="ri-file-copy-line mr-2"></i>
-                                    Export Report
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Header (shared admin header) -->
+                @include('admin.partials.header', [
+                    'adminHeaderPage'     => 'requests',
+                    'adminHeaderTitle'    => 'Requests',
+                    'adminHeaderSubtitle' => 'Manage and process asset requests',
+                    'adminHeaderIcon'     => 'ri-file-list-3-line',
+                    'adminHeaderBadge'    => 'Admin',
+                ])
 
             <!-- Content -->
             <div class="p-4 sm:p-8">

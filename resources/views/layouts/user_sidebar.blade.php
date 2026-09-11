@@ -7,12 +7,19 @@
     <title>@yield('title', 'Dashboard') - University Asset Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #F3EEE0;
+            color: #1A2233;
         }
+
+        .font-display{ font-family: 'Fraunces', Georgia, serif; }
+        .font-mono{ font-family: 'IBM Plex Mono', monospace; }
 
         .sidebar-item {
             transition: all 0.2s ease;
@@ -35,7 +42,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-[#F3EEE0]">
 
     @php
         // Prefer explicitly-passed $currentUser, otherwise fall back to the authenticated user
@@ -112,11 +119,7 @@
                     <div class="ml-3 flex-1 min-w-0">
                         <p class="text-sm font-medium text-white truncate">{{ $user?->full_name ?? 'User' }}</p>
                         <p class="text-xs text-gray-400 truncate">{{ $user?->email ?? 'user@user.com' }}</p>
-                    </div>
-                    <a href="/user/settings">
-                        <i class="ri-settings-3-line text-gray-400 cursor-pointer hover:text-[#E8C874] text-sm"></i>
-                    </a>
-                </div>
+                    </div>                    </div>
                 <a href="/logout" class="w-full flex items-center px-3 py-2 text-sm text-gray-300 rounded-lg hover:bg-white/5 transition">
                     <i class="ri-logout-box-line mr-3 text-lg"></i>
                     <span>Logout</span>
@@ -126,7 +129,7 @@
         </div>
 
         <!-- MAIN CONTENT -->
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Spacer so page content isn't hidden under the fixed mobile top bar -->
             <div class="lg:hidden h-14"></div>
             @yield('content')

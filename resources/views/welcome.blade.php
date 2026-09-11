@@ -361,7 +361,7 @@
                 </p>
                 <div class="hero-cta">
                     <a href="/login" class="btn-primary">Get Started</a>
-                    <a href="#features" class="btn-secondary">Learn More</a>
+                    <a href="/learn-more" class="btn-secondary">Learn More</a>
                 </div>
             </div>
             <div class="hero-right">

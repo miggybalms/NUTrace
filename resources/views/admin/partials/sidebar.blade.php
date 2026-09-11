@@ -106,7 +106,6 @@
                 <p class="text-[13px] font-medium text-[#F3EFE3] truncate">{{ $user?->full_name ?? 'Asset Officer' }}</p>
                 <p class="text-xs text-[#7C86A0] truncate">{{ $user?->email ?? 'admin@university.edu' }}</p>
             </div>
-            <i class="ri-settings-3-line text-[#7C86A0] cursor-pointer hover:text-[#E9C766] text-sm"></i>
         </div>
         <a href="/logout" class="flex items-center gap-3 px-3 py-2 text-sm text-[#9AA3B8] rounded-lg hover:bg-white/5 hover:text-[#F3EFE3] transition-colors">
             <i class="ri-logout-box-line text-lg"></i>

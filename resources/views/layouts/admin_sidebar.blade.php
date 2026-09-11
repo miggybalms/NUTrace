@@ -7,12 +7,18 @@
     <title>@yield('title', 'Admin') - University Asset Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #F3EEE0;
+            color: #1A2233;
         }
+
+        .font-display{ font-family: 'Fraunces', Georgia, serif; }
 
         /* Sidebar item styles so the active nav highlights correctly */
         .sidebar-item {
@@ -31,12 +37,12 @@
 
         .sidebar-item.active {
             background-color: #0b1220;
-            color: #3b82f6;
-            border-right: 3px solid #3b82f6;
+            color: #E9C766;
+            border-right: 3px solid #C9A227;
         }
 
         .sidebar-item.active i {
-            color: #3b82f6;
+            color: #E9C766;
         }
     </style>
 </head>
@@ -48,7 +54,7 @@
             @include('admin.partials.sidebar')
         @endif
 
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             @yield('content')
         </div>
     </div>

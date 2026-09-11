@@ -115,66 +115,114 @@
         @include('admin.partials.sidebar')
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
-            <!-- Header -->
-
-        <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
-            <!-- Header -->
-            <div class="topbar sticky top-0 z-10">
-            <div class="px-4 sm:px-8 py-5">
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center">
-                        <!-- Hamburger, mobile only -->
-                        <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-600);">
-                            <i class="ri-menu-line text-2xl"></i>
-                        </button>
-                        <div>
-                            <h2 class="font-display text-xl sm:text-2xl font-semibold" style="color:var(--navy-900);">Dashboard</h2>
-                            <div class="flex items-center mt-1.5 gap-2">
-                                <span class="badge-admin">Admin</span>
-                                <span style="color:var(--ink-400);">•</span>
-                                <p class="text-sm hidden sm:block" style="color:var(--ink-600);">Overview of asset management system</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                <!-- bell + avatar block stays exactly the same -->
-                            <!-- Maintenance Alerts Bell -->
+            @section('admin_header_actions')
+                <!-- Requests bell (user submitted requests) -->
                             <div class="relative">
-                                <button id="maintenanceAlertsBell" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="Maintenance & Lifespan Alerts">
-                                    <i class="ri-notification-3-line text-xl"></i>
-                                    <span id="alertBadge" class="absolute -top-1 -right-1 w-5 h-5 text-white text-xs font-bold rounded-full flex items-center justify-center hidden" style="background:var(--brick);">0</span>
+                                <button id="requestsBell" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="User Requests">
+                                    <i class="ri-mail-line text-xl"></i>
+                                    <span id="requestBadge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden" style="background:var(--steel);">0</span>
                                 </button>
 
-                                <!-- Alerts Dropdown -->
-                                <div id="alertsDropdown" class="hidden absolute right-0 mt-2 w-96 rounded-lg shadow-xl z-50 max-h-screen overflow-y-auto" style="background:#fff; border:1px solid var(--line);">
-                                    <!-- Lifespan Expiration Alerts Tab -->
-                                    <div class="p-4" style="border-bottom:1px solid var(--line); background:var(--brick-tint);">
-                                        <h3 class="font-semibold" style="color:var(--brick-dark);">
-                                            <i class="ri-time-line mr-2"></i>
-                                            Assets Requiring Evaluation
+                                <div id="requestsDropdown" class="hidden absolute right-0 mt-2 w-96 rounded-lg shadow-xl z-50 max-h-[480px] overflow-y-auto" style="background:#fff; border:1px solid var(--line);">
+                                    <div class="p-4" style="border-bottom:1px solid var(--line); background:var(--steel-tint);">
+                                        <h3 class="font-semibold" style="color:var(--steel-dark);">
+                                            <i class="ri-mail-line mr-2"></i>
+                                            User Requests
                                         </h3>
-                                        <p class="text-xs mt-1" style="color:var(--brick-dark); opacity:.85;">Assets that have reached their lifespan and require evaluation</p>
+                                        <p class="text-xs mt-1" style="color:var(--steel-dark); opacity:.85;">Requests submitted by employees and department heads — pending first</p>
                                     </div>
-                                    <div id="lifespanAlertsList" class="divide-y max-h-56 overflow-y-auto" style="border-color:var(--line);">
+                                    <div id="requestNotificationsList" class="divide-y max-h-72 overflow-y-auto" style="border-color:var(--line);">
                                         <div class="p-4 text-center text-sm" style="color:var(--ink-400);">
                                             <p><i class="ri-check-line text-lg" style="color:var(--forest);"></i></p>
-                                            <p>No lifespan expiration alerts</p>
+                                            <p>No user requests yet</p>
                                         </div>
                                     </div>
+                                    <div class="p-3 text-center" style="border-top:1px solid var(--line);">
+                                        <a href="/admin/requests?tab=pending" class="text-sm font-medium" style="color:var(--gold-600);">
+                                            Go to Requests page <i class="ri-arrow-right-line"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
 
-                                    <!-- Maintenance Alerts Tab -->
+                            <!-- Maintenance icon (separate from bell) -->
+                            <div class="relative">
+                                <button id="maintenanceIcon" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="Maintenance Due">
+                                    <i class="ri-tools-line text-xl"></i>
+                                    <span id="maintenanceBadge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden" style="background:var(--bronze);">0</span>
+                                </button>
+
+                                <div id="maintenanceDropdown" class="hidden absolute right-0 mt-2 w-96 rounded-lg shadow-xl z-50 max-h-[480px] overflow-y-auto" style="background:#fff; border:1px solid var(--line);">
                                     <div class="p-4" style="border-bottom:1px solid var(--line); background:var(--bronze-tint);">
                                         <h3 class="font-semibold" style="color:var(--bronze-dark);">
                                             <i class="ri-tools-line mr-2"></i>
                                             Maintenance Due
                                         </h3>
-                                        <p class="text-xs mt-1" style="color:var(--bronze-dark); opacity:.85;">Assets requiring preventive maintenance</p>
+                                        <p class="text-xs mt-1" style="color:var(--bronze-dark); opacity:.85;">Assets requiring preventive maintenance — mark complete to reschedule</p>
                                     </div>
-                                    <div id="maintenanceAlertsList" class="divide-y max-h-56 overflow-y-auto" style="border-color:var(--line);">
+                                    <div id="maintenanceAlertsList" class="divide-y max-h-72 overflow-y-auto" style="border-color:var(--line);">
                                         <div class="p-4 text-center text-sm" style="color:var(--ink-400);">
                                             <p><i class="ri-check-line text-lg" style="color:var(--forest);"></i></p>
                                             <p>No maintenance alerts</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Lifespan icon (separate from bell) -->
+                            <div class="relative">
+                                <button id="lifespanIcon" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="Expired Lifespans">
+                                    <i class="ri-timer-flash-line text-xl"></i>
+                                    <span id="lifespanBadge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden" style="background:var(--brick);">0</span>
+                                </button>
+
+                                <div id="lifespanDropdown" class="hidden absolute right-0 mt-2 w-96 rounded-lg shadow-xl z-50 max-h-[520px] overflow-y-auto" style="background:#fff; border:1px solid var(--line);">
+                                    <div class="p-4" style="border-bottom:1px solid var(--line); background:var(--brick-tint);">
+                                        <h3 class="font-semibold" style="color:var(--brick-dark);">
+                                            <i class="ri-time-line mr-2"></i>
+                                            Assets Requiring Evaluation
+                                        </h3>
+                                        <p class="text-xs mt-1" style="color:var(--brick-dark); opacity:.85;">Assets whose lifespan has expired — extend the lifespan or evaluate on the asset page</p>
+                                    </div>
+                                    <div id="lifespanAlertsList" class="divide-y max-h-80 overflow-y-auto" style="border-color:var(--line);">
+                                        <div class="p-4 text-center text-sm" style="color:var(--ink-400);">
+                                            <p><i class="ri-check-line text-lg" style="color:var(--forest);"></i></p>
+                                            <p>No lifespan expiration alerts</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Extend lifespan modal -->
+                                <div id="extendLifespanModal" class="hidden fixed inset-0 z-[60] items-center justify-center" style="background:rgba(10,24,48,.55);">
+                                    <div class="rounded-xl shadow-2xl max-w-sm w-full mx-4" style="background:#fff; overflow:hidden;">
+                                        <div class="flex justify-between items-center p-5" style="background:linear-gradient(135deg,var(--navy-950),var(--navy-800));">
+                                            <h3 class="font-display text-base font-semibold text-white">Extend Lifespan</h3>
+                                            <button onclick="closeExtendLifespanModal()" class="text-white/60 hover:text-white"><i class="ri-close-line text-xl"></i></button>
+                                        </div>
+                                        <div class="p-5 space-y-4">
+                                            <div>
+                                                <p class="field-label">Asset</p>
+                                                <p id="extendAssetName" class="font-display font-semibold" style="color:var(--navy-900);">—</p>
+                                                <p id="extendAssetCode" class="text-xs font-mono" style="color:var(--ink-400);">—</p>
+                                            </div>
+                                            <div>
+                                                <label class="field-label" for="extensionMonthsInput">Extend by (months)</label>
+                                                <input type="number" id="extensionMonthsInput" min="1" max="120" value="12"
+                                                       class="w-full mt-1 px-3 py-2 rounded-lg text-sm"
+                                                       style="border:1px solid var(--line); outline:none;"
+                                                       onfocus="this.style.borderColor='var(--gold-500)'" onblur="this.style.borderColor='var(--line)'" />
+                                                <p class="text-xs mt-1" style="color:var(--ink-400);">1–120 months. Counted from today if already expired.</p>
+                                            </div>
+                                            <div>
+                                                <label class="field-label" for="extensionNotesInput">Notes (optional)</label>
+                                                <textarea id="extensionNotesInput" rows="2" class="w-full mt-1 px-3 py-2 rounded-lg text-sm"
+                                                          style="border:1px solid var(--line); outline:none; resize:none;"></textarea>
+                                            </div>
+                                            <p id="extendLifespanMsg" class="text-xs hidden" style="color:var(--brick-dark);"></p>
+                                            <div class="flex justify-end gap-2 pt-1">
+                                                <button onclick="closeExtendLifespanModal()" class="btn-ghost">Cancel</button>
+                                                <button id="confirmExtendBtn" class="btn-gold">Extend</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -186,10 +234,16 @@
                                 </div>
                                 <i class="ri-arrow-down-s-line" style="color:var(--ink-400);"></i>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            @stop
+
+            <!-- Header (shared admin header) -->
+            @include('admin.partials.header', [
+                'adminHeaderPage'     => 'dashboard',
+                'adminHeaderTitle'    => 'Dashboard',
+                'adminHeaderSubtitle' => 'Overview of asset management system',
+                'adminHeaderIcon'     => 'ri-dashboard-line',
+                'adminHeaderBadge'    => 'Admin',
+            ])
 
             <!-- Dashboard Content -->
             <div class="p-8">
@@ -643,103 +697,324 @@
             startCameraBtn.style.display = 'inline-block';
         });
 
-        // Maintenance & Lifespan Alerts System
-        const maintenanceAlertsBell = document.getElementById('maintenanceAlertsBell');
-        const alertsDropdown = document.getElementById('alertsDropdown');
-        const alertBadge = document.getElementById('alertBadge');
-        const lifespanAlertsList = document.getElementById('lifespanAlertsList');
+        // ===== Requests bell + Maintenance icon + Lifespan icon system =====
+        const requestsBell = document.getElementById('requestsBell');
+        const requestsDropdown = document.getElementById('requestsDropdown');
+        const requestBadge = document.getElementById('requestBadge');
+        const requestNotificationsList = document.getElementById('requestNotificationsList');
+        const maintenanceIcon = document.getElementById('maintenanceIcon');
+        const maintenanceDropdown = document.getElementById('maintenanceDropdown');
+        const maintenanceBadge = document.getElementById('maintenanceBadge');
         const maintenanceAlertsList = document.getElementById('maintenanceAlertsList');
+        const lifespanIcon = document.getElementById('lifespanIcon');
+        const lifespanDropdown = document.getElementById('lifespanDropdown');
+        const lifespanBadge = document.getElementById('lifespanBadge');
+        const lifespanAlertsList = document.getElementById('lifespanAlertsList');
 
-        // Fetch lifespan expiration alerts
+        const allDropdowns = [requestsDropdown, maintenanceDropdown, lifespanDropdown];
+
+        function closeAllAlertDropdowns() {
+            allDropdowns.forEach(d => { if (d) d.classList.add('hidden'); });
+        }
+
+        function escapeAttr(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/'/g, '&#39;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;');
+        }
+
+        function setStatusBadgeText(badge, count) {
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : String(count);
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // ---- Fetch user request notifications (requests bell) ----
+        let lastRequestCount = null;
+        function fetchRequestNotifications() {
+            fetch('/admin/api/request-notifications')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) return;
+                    const requests = data.requests || [];
+                    const count = data.count || 0;
+
+                    setStatusBadgeText(requestBadge, count);
+                    if (lastRequestCount !== null && count > lastRequestCount) {
+                        requestsBell.classList.add('animate-pulse');
+                        playNotificationSound();
+                    } else if (count === 0) {
+                        requestsBell.classList.remove('animate-pulse');
+                    }
+                    lastRequestCount = count;
+
+                    if (requests.length === 0) {
+                        requestNotificationsList.innerHTML = `
+                            <div class="p-4 text-center text-sm" style="color:var(--ink-400);">
+                                <p><i class="ri-check-line text-lg" style="color:var(--forest);"></i></p>
+                                <p>No user requests yet</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const typeIcons = {
+                        'Repair': 'ri-tools-line',
+                        'Disposal': 'ri-delete-bin-line',
+                        'Transfer': 'ri-swap-line',
+                        'Replacement': 'ri-refresh-line',
+                        'Pullout': 'ri-logout-box-r-line',
+                        'Other': 'ri-file-list-3-line',
+                    };
+
+                    requestNotificationsList.innerHTML = requests.map(req => {
+                        const isPending = (req.status || '').toLowerCase() === 'pending';
+                        const icon = typeIcons[req.request_type] || 'ri-file-list-3-line';
+                        return `
+                        <div class="p-3 transition border-l-4 ${isPending ? '' : 'opacity-60'}" style="border-left-color:${isPending ? 'var(--steel)' : 'var(--line)'};">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium" style="color:var(--navy-900);">
+                                        <i class="${icon} mr-1" style="color:var(--gold-600);"></i>${req.request_type} — REQ-${String(req.id).padStart(5, '0')}
+                                    </p>
+                                    <p class="text-xs mt-0.5 truncate" style="color:var(--ink-600);">${req.asset_name}</p>
+                                    <p class="text-xs" style="color:var(--ink-400);">By ${req.submitted_by} · ${req.time_ago}</p>
+                                </div>
+                                <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <span class="status-pill" style="${isPending ? 'background:var(--bronze-tint); color:var(--bronze-dark);' : 'background:var(--paper-2); color:var(--ink-600);'}">${req.status}</span>
+                                    <a href="/admin/requests" class="text-xs font-medium" style="color:var(--gold-600);">Review <i class="ri-arrow-right-line"></i></a>
+                                </div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                })
+                .catch(error => console.error('Error fetching request notifications:', error));
+        }
+
+        // ---- Fetch lifespan expiration alerts (lifespan icon) ----
         function fetchLifespanAlerts() {
             fetch('/admin/api/lifespan-alerts')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.alerts.length > 0) {
-                        lifespanAlertsList.innerHTML = data.alerts.map(alert => `
-                            <div class="p-3 hover:bg-red-50 transition border-l-4 border-red-500">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex-1">
-                                        <p class="text-sm font-medium text-gray-900">${alert.Asset_name}</p>
-                                        <p class="text-xs text-gray-500 mt-0.5">Code: ${alert.Asset_code}</p>
-                                        <p class="text-xs text-gray-500">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
-                                        <p class="text-xs text-red-600 font-medium mt-1">
+                    const alerts = (data.success && data.alerts) ? data.alerts : [];
+                    setStatusBadgeText(lifespanBadge, alerts.length);
+
+                    if (alerts.length > 0) {
+                        lifespanAlertsList.innerHTML = alerts.map(alert => `
+                            <div class="p-3 transition border-l-4" style="border-left-color:var(--brick); background:var(--brick-tint);">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium" style="color:var(--navy-900);">${alert.Asset_name}</p>
+                                        <p class="text-xs mt-0.5 font-mono" style="color:var(--ink-400);">${alert.Asset_code}</p>
+                                        <p class="text-xs" style="color:var(--ink-600);">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
+                                        <p class="text-xs font-medium mt-1" style="color:var(--brick-dark);">
                                             <i class="ri-error-warning-line"></i> Expired: ${new Date(alert.expiration_date).toLocaleDateString()}
+                                            · Status: ${alert.Lifecycle_Status || '—'}
                                         </p>
-                                        <p class="text-xs text-gray-500 mt-1">Repair history: ${alert.repair_counts || 0}</p>
+                                        <p class="text-xs mt-0.5" style="color:var(--ink-400);">Repair history: ${alert.repair_counts || 0}</p>
                                     </div>
-                                    <a href="/admin/assets/${alert.id}" class="text-xs text-blue-600 hover:text-blue-700 font-medium ml-2">
-                                        Evaluate <i class="ri-arrow-right-line"></i>
-                                    </a>
+                                    <div class="flex flex-col items-stretch gap-1.5 flex-shrink-0">
+                                        <button type="button" class="btn-gold text-xs" style="padding:.35rem .7rem;"
+                                            onclick="openExtendLifespanModal(${alert.id}, '${escapeAttr(alert.Asset_name)}', '${escapeAttr(alert.Asset_code)}')">
+                                            <i class="ri-calendar-extension-line mr-1"></i>Extend
+                                        </button>
+                                        <a href="/admin/assets/${alert.id}" class="text-xs text-center font-medium" style="color:var(--gold-600);">
+                                            Evaluate <i class="ri-arrow-right-line"></i>
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         `).join('');
                     } else {
                         lifespanAlertsList.innerHTML = `
-                            <div class="p-4 text-center text-gray-500 text-sm">
-                                <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                            <div class="p-4 text-center text-sm" style="color:var(--ink-400);">
+                                <p><i class="ri-check-line text-lg" style="color:var(--forest);"></i></p>
                                 <p>No lifespan expiration alerts</p>
                             </div>
                         `;
                     }
+                    updateAlertTotals();
                 })
                 .catch(error => console.error('Error fetching lifespan alerts:', error));
         }
 
-        // Fetch maintenance alerts
+        // ---- Fetch maintenance alerts (maintenance icon) ----
         function fetchMaintenanceAlerts() {
             fetch('/admin/api/maintenance-alerts')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.alerts.length > 0) {
-                        maintenanceAlertsList.innerHTML = data.alerts.map(alert => `
-                            <div class="p-3 hover:bg-amber-50 transition border-l-4 border-amber-500">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex-1">
-                                        <p class="text-sm font-medium text-gray-900">${alert.Asset_name}</p>
-                                        <p class="text-xs text-gray-500 mt-0.5">Code: ${alert.Asset_code}</p>
-                                        <p class="text-xs text-gray-500">Assigned to: ${alert.assigned_to || 'Unassigned'}</p>
-                                        <p class="text-xs text-amber-600 font-medium mt-1">
+                    const alerts = (data.success && data.alerts) ? data.alerts : [];
+                    setStatusBadgeText(maintenanceBadge, alerts.length);
+
+                    if (alerts.length > 0) {
+                        maintenanceAlertsList.innerHTML = alerts.map(alert => `
+                            <div class="p-3 transition border-l-4" style="border-left-color:var(--bronze);">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium" style="color:var(--navy-900);">${alert.Asset_name}</p>
+                                        <p class="text-xs mt-0.5 font-mono" style="color:var(--ink-400);">${alert.Asset_code}</p>
+                                        <p class="text-xs" style="color:var(--ink-600);">Accountable: ${alert.accountable || 'Unassigned'}</p>
+                                        <p class="text-xs font-medium mt-1" style="color:var(--bronze-dark);">
                                             <i class="ri-alert-line"></i> Due: ${new Date(alert.next_maintenance_date).toLocaleDateString()}
+                                            · Status: ${alert.Lifecycle_Status || '—'}
                                         </p>
                                     </div>
-                                    <a href="/admin/assets/${alert.id}" class="text-xs text-blue-600 hover:text-blue-700 font-medium ml-2">
-                                        Service <i class="ri-arrow-right-line"></i>
-                                    </a>
+                                    <div class="flex flex-col items-stretch gap-1.5 flex-shrink-0">
+                                        <button type="button" class="btn-gold text-xs" style="padding:.35rem .7rem;"
+                                            onclick="markMaintenanceComplete(${alert.id}, this)">
+                                            <i class="ri-check-double-line mr-1"></i>Mark Complete
+                                        </button>
+                                        <a href="/admin/assets/${alert.id}" class="text-xs text-center font-medium" style="color:var(--gold-600);">
+                                            Service <i class="ri-arrow-right-line"></i>
+                                        </a>
+                                    </div>
                                 </div>
+                                <p class="maintenance-result text-xs mt-1.5 hidden" data-result-for="${alert.id}"></p>
                             </div>
                         `).join('');
                     } else {
                         maintenanceAlertsList.innerHTML = `
-                            <div class="p-4 text-center text-gray-500 text-sm">
-                                <p><i class="ri-check-line text-green-500 text-lg"></i></p>
+                            <div class="p-4 text-center text-sm" style="color:var(--ink-400);">
+                                <p><i class="ri-check-line text-lg" style="color:var(--forest);"></i></p>
                                 <p>No maintenance alerts</p>
                             </div>
                         `;
                     }
-                    
-                    updateAlertBadge();
+                    updateAlertTotals();
                 })
                 .catch(error => console.error('Error fetching maintenance alerts:', error));
         }
 
-        // Update alert badge with total count
-        function updateAlertBadge() {
-            fetch('/admin/api/lifespan-alerts').then(r => r.json()).then(d1 => {
-                fetch('/admin/api/maintenance-alerts').then(r => r.json()).then(d2 => {
-                    const totalCount = (d1.count || 0) + (d2.count || 0);
-                    if (totalCount > 0) {
-                        alertBadge.textContent = totalCount;
-                        alertBadge.classList.remove('hidden');
-                        maintenanceAlertsBell.classList.add('animate-pulse');
-                        playNotificationSound();
-                    } else {
-                        alertBadge.classList.add('hidden');
-                        maintenanceAlertsBell.classList.remove('animate-pulse');
-                    }
-                });
+        // ---- Pulse + sound only when the alert total increases (not on every poll) ----
+        let lastAlertTotal = null;
+        function updateAlertTotals() {
+            const mCount = maintenanceBadge && !maintenanceBadge.classList.contains('hidden') ? (parseInt(maintenanceBadge.textContent, 10) || 0) : 0;
+            const lCount = lifespanBadge && !lifespanBadge.classList.contains('hidden') ? (parseInt(lifespanBadge.textContent, 10) || 0) : 0;
+            const total = mCount + lCount;
+            if (lastAlertTotal !== null && total > lastAlertTotal) {
+                maintenanceIcon.classList.add('animate-pulse');
+                lifespanIcon.classList.add('animate-pulse');
+                playNotificationSound();
+            } else if (total === 0) {
+                maintenanceIcon.classList.remove('animate-pulse');
+                lifespanIcon.classList.remove('animate-pulse');
+            }
+            lastAlertTotal = total;
+        }
+
+        // ---- Mark maintenance complete straight from the dropdown ----
+        function markMaintenanceComplete(assetId, btn) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ri-loader-4-line mr-1"></i>Saving...';
+            }
+            fetch(`/admin/api/assets/${assetId}/maintenance-complete`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ notes: 'Marked complete from dashboard' }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultEl = document.querySelector(`.maintenance-result[data-result-for="${assetId}"]`);
+                if (resultEl) {
+                    resultEl.classList.remove('hidden');
+                    resultEl.style.color = data.success ? 'var(--forest-dark)' : 'var(--brick-dark)';
+                    resultEl.textContent = data.message || (data.success ? 'Maintenance completed.' : 'Failed to complete maintenance.');
+                }
+                if (data.success) {
+                    setTimeout(fetchMaintenanceAlerts, 1200);
+                } else if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ri-check-double-line mr-1"></i>Mark Complete';
+                }
+            })
+            .catch(error => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ri-check-double-line mr-1"></i>Mark Complete';
+                }
+                console.error('Maintenance completion error:', error);
             });
         }
+
+        // ---- Extend lifespan modal (lifespan icon) ----
+        let extendAssetId = null;
+        function openExtendLifespanModal(id, name, code) {
+            extendAssetId = id;
+            document.getElementById('extendAssetName').textContent = name || '—';
+            document.getElementById('extendAssetCode').textContent = code || '—';
+            document.getElementById('extensionMonthsInput').value = '12';
+            document.getElementById('extensionNotesInput').value = '';
+            const msg = document.getElementById('extendLifespanMsg');
+            msg.classList.add('hidden');
+            msg.textContent = '';
+            const modal = document.getElementById('extendLifespanModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeExtendLifespanModal() {
+            const modal = document.getElementById('extendLifespanModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            extendAssetId = null;
+        }
+
+        document.getElementById('confirmExtendBtn').addEventListener('click', function () {
+            if (!extendAssetId) return;
+            const months = parseInt(document.getElementById('extensionMonthsInput').value, 10);
+            const notes = document.getElementById('extensionNotesInput').value.trim();
+            const msg = document.getElementById('extendLifespanMsg');
+
+            if (!months || months < 1 || months > 120) {
+                msg.textContent = 'Enter a valid number of months (1-120).';
+                msg.classList.remove('hidden');
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Extending...';
+
+            fetch(`/admin/api/assets/${extendAssetId}/extend-lifespan`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ extension_months: months, notes: notes }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = 'Extend';
+                msg.classList.remove('hidden');
+                msg.style.color = data.success ? 'var(--forest-dark)' : 'var(--brick-dark)';
+                msg.textContent = data.message || (data.success ? 'Lifespan extended.' : 'Failed to extend lifespan.');
+                if (data.success) {
+                    setTimeout(() => {
+                        closeExtendLifespanModal();
+                        fetchLifespanAlerts();
+                    }, 1400);
+                }
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btn.textContent = 'Extend';
+                msg.textContent = 'Network error: ' + error.message;
+                msg.classList.remove('hidden');
+            });
+        });
 
         // Play notification sound
         function playNotificationSound() {
@@ -761,15 +1036,34 @@
             oscillator.stop(audioContext.currentTime + 0.5);
         }
 
-        // Toggle dropdown
-        maintenanceAlertsBell.addEventListener('click', function (e) {
+        // Dropdown toggling for the three icons
+        function toggleAlertDropdown(dd) {
+            const willShow = dd.classList.contains('hidden');
+            closeAllAlertDropdowns();
+            if (willShow) dd.classList.remove('hidden');
+            return willShow;
+        }
+
+        requestsBell.addEventListener('click', function (e) {
             e.stopPropagation();
-            alertsDropdown.classList.toggle('hidden');
+            if (toggleAlertDropdown(requestsDropdown)) fetchRequestNotifications();
         });
 
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function () {
-            alertsDropdown.classList.add('hidden');
+        maintenanceIcon.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (toggleAlertDropdown(maintenanceDropdown)) fetchMaintenanceAlerts();
+        });
+
+        lifespanIcon.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (toggleAlertDropdown(lifespanDropdown)) fetchLifespanAlerts();
+        });
+
+        // Close dropdowns when clicking outside (but not on the dropdowns themselves)
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('#requestsDropdown') && !e.target.closest('#maintenanceDropdown') && !e.target.closest('#lifespanDropdown')) {
+                closeAllAlertDropdowns();
+            }
         });
 
         // Auto-transition assets that need evaluation (on page load)
@@ -793,12 +1087,14 @@
         autoTransitionAssets();
         fetchLifespanAlerts();
         fetchMaintenanceAlerts();
+        fetchRequestNotifications();
 
         // Refresh alerts and auto-transition every 30 seconds
         setInterval(() => {
             autoTransitionAssets();
             fetchLifespanAlerts();
             fetchMaintenanceAlerts();
+            fetchRequestNotifications();
         }, 30000);
     </script>
 </body>

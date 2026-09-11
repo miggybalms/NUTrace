@@ -38,26 +38,32 @@
 @endphp
 
 <!-- Header -->
-<div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    .brand-topbar{ border-bottom:2px solid transparent; border-image:linear-gradient(90deg, rgba(201,162,39,0) 0%, #C9A227 18%, #C9A227 82%, rgba(201,162,39,0) 100%) 1; }
+    .brand-title{ font-family:'Fraunces',Georgia,serif; }
+</style>
+<div class="brand-topbar bg-white sticky top-0 z-10 shadow-sm">
     <div class="px-4 sm:px-8 py-4 sm:py-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
             {{-- Left: Title + subtitle --}}
             <div>
-                <h2 class="text-xl sm:text-2xl font-bold text-gray-900">{{ $title }}</h2>
+                <h2 class="brand-title text-xl sm:text-2xl font-semibold text-[#0F2143]">{{ $title }}</h2>
                 <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
                     @if($subtitle)
-                        <span class="text-sm text-blue-600 font-medium">{{ $displayName }}</span>
-                        <span class="text-gray-300 hidden xs:inline">•</span>
-                        <p class="text-sm text-gray-500">{{ $subtitle }}</p>
+                        <span class="text-sm font-semibold text-[#A8841E]">{{ $displayName }}</span>
+                        <span class="text-[#A8AFBC] hidden xs:inline">•</span>
+                        <p class="text-sm text-[#5B6678]">{{ $subtitle }}</p>
                     @else
                         {{-- Dashboard-style: role • department --}}
-                        <span class="text-sm font-semibold text-gray-900">
+                        <span class="text-sm font-semibold text-[#0F2143]">
                             {{ $user?->unit_heads_number ?? '' }}
                             @if($user?->unit_heads_number) – @endif
                             {{ $user?->role ?? 'Employee' }}
                         </span>
-                        <span class="mx-1 text-gray-300">•</span>
-                        <span class="text-sm text-blue-600 font-medium">{{ $deptName }}</span>
+                        <span class="mx-1 text-[#A8AFBC]">•</span>
+                        <span class="text-sm font-semibold text-[#A8841E]">{{ $deptName }}</span>
                     @endif
                 </div>
             </div>
@@ -66,17 +72,17 @@
         <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             @if($showSearch)
                 <div class="relative flex-1 min-w-[140px] sm:flex-none">
-                    <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#8991A0] text-sm"></i>
                     <input type="text"
                         id="header-search-input"
                         placeholder="{{ $searchPlaceholder }}"
-                        class="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 w-full sm:w-56"/>
+                        class="pl-9 pr-4 py-2 border border-[#DED2AE] bg-white rounded-lg text-sm focus:outline-none focus:border-[#C9A227] w-full sm:w-56"/>
                 </div>
             @endif
 
             @if($showAction)
                 <a href="{{ $actionUrl }}"
-                class="inline-flex items-center px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm whitespace-nowrap">
+                class="inline-flex items-center px-3 sm:px-4 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition text-sm font-medium shadow-sm whitespace-nowrap">
                     <i class="{{ $actionIcon }} mr-1.5"></i>
                     <span>{{ $actionLabel }}</span>
                 </a>
@@ -86,26 +92,26 @@
                 {{-- Notification bell --}}
                 <div class="relative" id="notification-wrapper">
                     <button type="button" id="notification-bell"
-                            class="relative p-2 rounded-full hover:bg-gray-100 transition focus:outline-none">
-                        <i class="ri-notification-3-line text-xl text-gray-600"></i>
+                            class="relative p-2 rounded-full hover:bg-[#EFE9D8] transition focus:outline-none">
+                        <i class="ri-notification-3-line text-xl text-[#46536B]"></i>
                         <span id="notification-badge"
-                              class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden">
+                              class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-[#A23B32] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden">
                             0
                         </span>
                     </button>
 
                     {{-- Dropdown --}}
                     <div id="notification-dropdown"
-                         class="hidden absolute right-0 mt-2 w-80 sm:w-96 max-h-[420px] overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 sticky top-0 bg-white">
-                            <h4 class="font-semibold text-gray-900">Notifications</h4>
+                         class="hidden absolute right-0 mt-2 w-80 sm:w-96 max-h-[420px] overflow-y-auto bg-white rounded-xl shadow-xl border border-[#DED2AE] z-50">
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-[#EFE9D8] sticky top-0 bg-white">
+                            <h4 class="font-semibold text-[#0F2143]">Notifications</h4>
                             <button type="button" id="mark-all-read"
-                                    class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                                    class="text-xs font-semibold text-[#A8841E] hover:text-[#0F2143]">
                                 Mark all as read
                             </button>
                         </div>
-                        <div id="notification-list" class="divide-y divide-gray-50">
-                            <div class="px-4 py-8 text-center text-gray-400 text-sm" id="notification-empty">
+                        <div id="notification-list" class="divide-y divide-[#F0EADA]">
+                            <div class="px-4 py-8 text-center text-[#8991A0] text-sm" id="notification-empty">
                                 No notifications yet
                             </div>
                         </div>
@@ -116,43 +122,43 @@
                 <div class="relative" id="profile-wrapper">
                     <button type="button"
                             id="profile-btn"
-                            class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 focus:outline-none">
+                            class="flex items-center space-x-2 cursor-pointer hover:bg-[#F5F0E2] rounded-lg px-2 py-1 focus:outline-none">
                         
                         {{-- Small avatar in the header --}}
                         <div class="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0
-                                    {{ $user?->profile_photo_url ? '' : 'bg-gradient-to-br from-blue-500 to-blue-600' }}">
+                                    {{ $user?->profile_photo_url ? '' : 'bg-gradient-to-br from-[#0A1830] to-[#1D3F73]' }}">
                             @if($user && $user->profile_photo_url)
                                 <img src="{{ $user->profile_photo_url }}"
                                     class="w-8 h-8 object-cover"
                                     alt="Profile">
                             @else
-                                <span class="text-white text-xs font-semibold">{{ $initial }}</span>
+                                <span class="text-[#E9C766] text-xs font-semibold">{{ $initial }}</span>
                             @endif
                         </div>
 
-                        <i class="ri-arrow-down-s-line text-gray-500 hidden sm:inline"></i>
+                        <i class="ri-arrow-down-s-line text-[#5B6678] hidden sm:inline"></i>
                     </button>
 
                     {{-- Profile dropdown --}}
                     <div id="profile-dropdown"
-                        class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+                        class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-[#DED2AE] z-50 overflow-hidden">
                         
                         {{-- Header with larger photo --}}
-                        <div class="px-4 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+                        <div class="px-4 py-4 bg-gradient-to-r from-[#F8F1DE] to-[#EFE5C9] border-b border-[#E3D6B0]">
                             <div class="flex items-center gap-3">
                                 <div class="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0
-                                            {{ $user?->profile_photo_url ? '' : 'bg-gradient-to-br from-blue-500 to-blue-600' }}">
+                                            {{ $user?->profile_photo_url ? '' : 'bg-gradient-to-br from-[#0A1830] to-[#1D3F73]' }}">
                                     @if($user && $user->profile_photo_url)
                                         <img src="{{ $user->profile_photo_url }}"
                                             class="w-12 h-12 object-cover"
                                             alt="Profile">
                                     @else
-                                        <span class="text-white text-lg font-semibold">{{ $initial }}</span>
+                                        <span class="text-[#E9C766] text-lg font-semibold">{{ $initial }}</span>
                                     @endif
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="font-semibold text-gray-900 truncate">{{ $displayName }}</p>
-                                    <p class="text-xs text-gray-500 truncate">
+                                    <p class="font-semibold text-[#0F2143] truncate">{{ $displayName }}</p>
+                                    <p class="text-xs text-[#5B6678] truncate">
                                         {{ $user?->email ?? 'No email' }}
                                     </p>
                                 </div>
@@ -162,35 +168,35 @@
                         {{-- Info rows --}}
                         <div class="px-4 py-3 space-y-2.5 text-sm">
                             <div class="flex items-center gap-2.5">
-                                <i class="ri-user-3-line text-gray-400 text-base"></i>
+                                <i class="ri-user-3-line text-[#8991A0] text-base"></i>
                                 <div>
-                                    <p class="text-xs text-gray-400">Role</p>
-                                    <p class="font-medium text-gray-800">{{ $user?->role ?? 'Employee' }}</p>
+                                    <p class="text-xs text-[#8991A0]">Role</p>
+                                    <p class="font-medium text-[#24334F]">{{ $user?->role ?? 'Employee' }}</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-2.5">
-                                <i class="ri-building-2-line text-gray-400 text-base"></i>
+                                <i class="ri-building-2-line text-[#8991A0] text-base"></i>
                                 <div>
-                                    <p class="text-xs text-gray-400">Department</p>
-                                    <p class="font-medium text-gray-800">{{ $deptName }}</p>
+                                    <p class="text-xs text-[#8991A0]">Department</p>
+                                    <p class="font-medium text-[#24334F]">{{ $deptName }}</p>
                                 </div>
                             </div>
                             @if($user?->unit_heads_number)
                             <div class="flex items-center gap-2.5">
-                                <i class="ri-hashtag text-gray-400 text-base"></i>
+                                <i class="ri-hashtag text-[#8991A0] text-base"></i>
                                 <div>
-                                    <p class="text-xs text-gray-400">Unit Head No.</p>
-                                    <p class="font-medium text-gray-800">{{ $user->unit_heads_number }}</p>
+                                    <p class="text-xs text-[#8991A0]">Unit Head No.</p>
+                                    <p class="font-medium text-[#24334F]">{{ $user->unit_heads_number }}</p>
                                 </div>
                             </div>
                             @endif
                         </div>
 
                         {{-- Footer actions --}}
-                        <div class="border-t border-gray-100 px-2 py-2">
+                        <div class="border-t border-[#EFE9D8] px-2 py-2">
                             <a href="{{ route('logout') }}"
                             onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
-                            class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 transition font-medium">
+                            class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#A23B32] hover:bg-[#F7E9E6] transition font-medium">
                                 <i class="ri-logout-box-r-line text-base"></i>
                                 Logout
                             </a>
@@ -224,9 +230,9 @@
     if (!bellBtn || !dropdown || !listEl || !badgeEl) return;
 
     const typeIcon = {
-        REQUEST:     { icon: 'ri-file-list-3-line', bg: 'bg-blue-100',   color: 'text-blue-600',   label: 'Request' },
-        REPAIR:      { icon: 'ri-tools-line',       bg: 'bg-red-100',    color: 'text-red-600',    label: 'Repair' },
-        REPLACEMENT: { icon: 'ri-exchange-line',    bg: 'bg-orange-100', color: 'text-orange-600', label: 'Replacement' },
+        REQUEST:     { icon: 'ri-file-list-3-line', bg: 'bg-[#F3E7C4]',   color: 'text-[#A8841E]',   label: 'Request' },
+        REPAIR:      { icon: 'ri-tools-line',       bg: 'bg-[#F7E9E6]',    color: 'text-[#7E2E27]',    label: 'Repair' },
+        REPLACEMENT: { icon: 'ri-exchange-line',    bg: 'bg-[#FBF1DE]', color: 'text-[#8F5F16]', label: 'Replacement' },
     };
 
     // Detail modal
@@ -237,27 +243,27 @@
         modalOverlay.className = 'fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 p-4';
         modalOverlay.innerHTML = `
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div class="flex items-start gap-3 p-5 border-b border-gray-100">
+                <div class="flex items-start gap-3 p-5 border-b border-[#EFE9D8]">
                     <div id="nd-icon" class="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"></div>
                     <div class="flex-1 min-w-0">
-                        <p id="nd-type" class="text-xs font-semibold uppercase tracking-wide text-gray-400"></p>
-                        <h3 id="nd-title" class="text-lg font-bold text-gray-900 mt-0.5"></h3>
+                        <p id="nd-type" class="text-xs font-semibold uppercase tracking-wide text-[#8991A0]"></p>
+                        <h3 id="nd-title" class="text-lg font-bold text-[#0F2143] mt-0.5"></h3>
                     </div>
-                    <button type="button" id="nd-close" class="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                    <button type="button" id="nd-close" class="p-1 rounded-lg hover:bg-[#EFE9D8] text-[#8991A0] hover:text-[#46536B]">
                         <i class="ri-close-line text-xl"></i>
                     </button>
                 </div>
                 <div class="p-5">
-                    <p id="nd-message" class="text-sm text-gray-700 leading-relaxed"></p>
-                    <p id="nd-time" class="text-xs text-gray-400 mt-4"></p>
+                    <p id="nd-message" class="text-sm text-[#33425C] leading-relaxed"></p>
+                    <p id="nd-time" class="text-xs text-[#8991A0] mt-4"></p>
                 </div>
                 <div class="flex gap-2 px-5 pb-5">
                     <button type="button" id="nd-view-related"
-                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg transition">
+                            class="flex-1 bg-[#C9A227] hover:bg-[#E0BC44] text-[#0A1830] text-sm font-medium py-2.5 rounded-lg transition">
                         View related
                     </button>
                     <button type="button" id="nd-dismiss"
-                            class="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                            class="px-4 py-2.5 text-sm font-medium text-[#46536B] hover:bg-[#EFE9D8] rounded-lg transition">
                         Close
                     </button>
                 </div>
@@ -319,25 +325,25 @@
     function renderNotifications(items) {
         listEl.innerHTML = '';
         if (!items || items.length === 0) {
-            listEl.innerHTML = `<div class="px-4 py-8 text-center text-gray-400 text-sm">No notifications yet</div>`;
+            listEl.innerHTML = `<div class="px-4 py-8 text-center text-[#8991A0] text-sm">No notifications yet</div>`;
             return;
         }
 
         items.forEach(n => {
             const cfg = typeIcon[n.type] || typeIcon.REQUEST;
-            const unreadClass = n.is_read ? '' : 'bg-blue-50/60';
+            const unreadClass = n.is_read ? '' : 'bg-[#F7F0DD]';
             const item = document.createElement('div');
-            item.className = `flex gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition ${unreadClass}`;
+            item.className = `flex gap-3 px-4 py-3 hover:bg-[#F5F0E2] cursor-pointer transition ${unreadClass}`;
             item.innerHTML = `
                 <div class="w-9 h-9 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0 mt-0.5">
                     <i class="${cfg.icon} ${cfg.color}"></i>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">${escapeHtml(n.title)}</p>
-                    <p class="text-xs text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(n.message)}</p>
-                    <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(n.time_ago)}</p>
+                    <p class="text-sm font-medium text-[#0F2143] truncate">${escapeHtml(n.title)}</p>
+                    <p class="text-xs text-[#5B6678] mt-0.5 line-clamp-2">${escapeHtml(n.message)}</p>
+                    <p class="text-[11px] text-[#8991A0] mt-1">${escapeHtml(n.time_ago)}</p>
                 </div>
-                ${!n.is_read ? '<span class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></span>' : ''}
+                ${!n.is_read ? '<span class="w-2 h-2 bg-[#C9A227] rounded-full flex-shrink-0 mt-2"></span>' : ''}
             `;
             item.addEventListener('click', () => onNotificationClick(n));
             listEl.appendChild(item);

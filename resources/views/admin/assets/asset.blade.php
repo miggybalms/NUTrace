@@ -135,39 +135,14 @@
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
-        <!-- Header -->
-        <div class="topbar sticky top-0 z-10">
-            <div class="px-4 sm:px-8 py-5">
-                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <div class="flex items-center">
-                        <!-- Hamburger, mobile only -->
-                        <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
-                            <i class="ri-menu-line text-2xl"></i>
-                        </button>
-                        <div>
-                            <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900);">Assets</h2>
-                            <div class="flex items-center mt-1.5">
-                                <span class="badge-role inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md">
-                                    <i class="ri-computer-line"></i> Asset Officer
-                                </span>
-                                <p class="text-sm hidden sm:block ml-3" style="color:var(--ink-600);">Manage and track all university assets across departments</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <a href="/admin/inventory-download" class="btn-ghost flex-1 sm:flex-none justify-center inline-flex items-center text-sm" download>
-                            <i class="ri-download-line mr-1.5"></i>
-                            <span class="whitespace-nowrap">Download Inventory</span>
-                        </a>
-                        <a href="/admin/assets/registry" class="btn-gold flex-1 sm:flex-none justify-center inline-flex items-center text-sm">
-                            <i class="ri-add-line mr-1.5"></i>
-                            <span class="whitespace-nowrap">Add New Asset</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Status Legend -->
+        <!-- Header (shared admin header) -->
+        @include('admin.partials.header', [
+            'adminHeaderPage'     => 'assets',
+            'adminHeaderTitle'    => 'Assets',
+            'adminHeaderSubtitle' => 'Manage and track all university assets across departments',
+            'adminHeaderIcon'     => 'ri-computer-line',
+            'adminHeaderBadge'    => 'Asset Officer',
+        ])
             <div class="px-4 sm:px-8 py-3.5" style="background:var(--paper-2); border-top:1px solid var(--line);">
                 <p class="eyebrow mb-2.5">Asset Lifecycle Statuses</p>
                 <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-5 gap-y-2">
@@ -201,7 +176,6 @@
                     </div>
                 </div>
             </div>
-        </div>
 
             <!-- Content -->
             <div class="p-4 sm:p-8">
@@ -588,5 +562,6 @@
             }, 3000);
         }
     </script>
+    </div><!-- /main content column -->
 </body>
 </html>

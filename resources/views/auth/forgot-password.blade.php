@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - University Asset Management</title>
+    <title>Forgot Password - University Asset Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
     <style>
@@ -62,13 +62,32 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
             border-radius: 20px;
-            padding: 2.5rem 2rem;
+            padding: 2.25rem 2rem;
             width: 100%;
         }
 
-        .form-group {
-            margin-bottom: 1.25rem;
+        .step-title {
+            color: var(--white);
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.01em;
         }
+
+        .step-desc {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 1.4rem;
+        }
+
+        .step-desc strong {
+            color: var(--gold-light);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .form-group { margin-bottom: 1.25rem; }
 
         label {
             display: block;
@@ -92,13 +111,17 @@
             font-family: 'Inter', sans-serif;
         }
 
-        input:focus {
-            border-color: var(--gold);
+        input:focus { border-color: var(--gold); }
+
+        input.code-input {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.5rem;
+            font-family: 'Inter', monospace;
         }
 
-        .password-input-wrapper {
-            position: relative;
-        }
+        .password-input-wrapper { position: relative; }
 
         .password-toggle {
             position: absolute;
@@ -117,33 +140,25 @@
             justify-content: center;
         }
 
-        .password-toggle:hover {
-            color: var(--blue);
-        }
+        .password-toggle:hover { color: var(--blue); }
 
-        .password-input-wrapper input {
-            padding-right: 40px;
-        }
+        .password-input-wrapper input { padding-right: 40px; }
 
-        .forgot {
+        .hint {
             display: block;
-            text-align: right;
             color: var(--muted);
-            font-size: 0.85rem;
-            text-decoration: none;
+            font-size: 0.8rem;
+            line-height: 1.5;
             margin-top: 0.4rem;
-            transition: color 0.2s;
         }
-
-        .forgot:hover { color: var(--gold); }
 
         .btn-row {
             display: flex;
             gap: 0.75rem;
-            margin-top: 1.5rem;
+            margin-top: 1.4rem;
         }
 
-        .btn-login {
+        .btn-primary {
             flex: 1;
             background: var(--gold);
             color: var(--dark);
@@ -156,9 +171,15 @@
             transition: background 0.2s, transform 0.15s;
             font-family: 'Inter', sans-serif;
             letter-spacing: 0.03em;
+            text-align: center;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
         }
 
-        .btn-login:hover {
+        .btn-primary:hover {
             background: var(--gold-light);
             transform: translateY(-1px);
         }
@@ -181,7 +202,7 @@
 
         .btn-back:hover { background: rgba(255,255,255,0.28); }
 
-        .register-link {
+        .back-link {
             display: block;
             text-align: center;
             margin-top: 1.2rem;
@@ -191,9 +212,9 @@
             transition: color 0.2s;
         }
 
-        .register-link:hover { color: var(--gold); }
+        .back-link:hover { color: var(--gold); }
 
-        /* Success message */
+        /* Success / error messages */
         .success-msg {
             background: rgba(38, 179, 120, 0.15);
             border: 1px solid rgba(38, 179, 120, 0.4);
@@ -205,7 +226,6 @@
             line-height: 1.5;
         }
 
-        /* Error messages */
         .error-msg {
             background: rgba(220, 53, 69, 0.15);
             border: 1px solid rgba(220, 53, 69, 0.4);
@@ -214,23 +234,29 @@
             margin-bottom: 1rem;
             color: #ff8a95;
             font-size: 0.88rem;
+            line-height: 1.5;
         }
+
+        .resend-note {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 1.1rem;
+        }
+
+        .resend-note button {
+            background: none;
+            border: none;
+            color: var(--gold-light);
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            padding: 0;
+        }
+
+        .resend-note button:hover { text-decoration: underline; }
     </style>
-    <script>
-        function togglePasswordVisibility(fieldId) {
-            const input = document.getElementById(fieldId);
-            const button = event.currentTarget;
-            const icon = button.querySelector('i');
-            
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.className = 'ri-eye-off-line';
-            } else {
-                input.type = 'password';
-                icon.className = 'ri-eye-line';
-            }
-        }
-    </script>
 </head>
 <body>
 
@@ -240,7 +266,7 @@
 
         <div class="card">
 
-            {{-- Success messages (e.g. account registered / password reset) --}}
+            {{-- Success messages --}}
             @if (session('success'))
                 <div class="success-msg">{{ session('success') }}</div>
             @endif
@@ -254,45 +280,39 @@
                 </div>
             @endif
 
-            <form method="POST" action="/login">
+            <h2 class="step-title">Forgot Password?</h2>
+            <p class="step-desc">
+                No worries — enter the email address you used to register and we'll send you a
+                one-time <strong>6-digit verification code</strong> to reset your password.
+            </p>
+
+            <form method="POST" action="/forgot-password">
                 @csrf
 
                 <div class="form-group">
-                    <label for="email">Username or Email</label>
+                    <label for="email">University Email</label>
                     <input
                         type="email"
                         id="email"
                         name="email"
                         value="{{ old('email') }}"
+                        placeholder="you@nu-lipa.edu.ph"
                         autocomplete="email"
                         autofocus
+                        required
                     />
                 </div>
 
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <div class="password-input-wrapper">
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            autocomplete="current-password"
-                        />
-                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('password')">
-                            <i class="ri-eye-line"></i>
-                        </button>
-                    </div>
-                    <a href="/forgot-password" class="forgot">Forgot Password?</a>
-                </div>
-
                 <div class="btn-row">
-                    <button type="submit" class="btn-login">Login</button>
-                    <a href="/" class="btn-back">Back</a>
+                    <button type="submit" class="btn-primary">
+                        <i class="ri-mail-send-line"></i> Send Verification Code
+                    </button>
+                    <a href="/login" class="btn-back">Back</a>
                 </div>
-
-                <a href="/register" class="register-link">Don't Have An Account?</a>
-
             </form>
+
+            <a href="/login" class="back-link">← Back to Login</a>
+
         </div>
     </div>
 

@@ -177,30 +177,14 @@
 
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
-                <!-- Header -->
-                <div class="topbar sticky top-0 z-10">
-                    <div class="px-4 sm:px-8 py-5">
-                        <div class="flex justify-between items-center">
-                            <div class="flex items-center">
-                                <!-- Hamburger, mobile only -->
-                                <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
-                                    <i class="ri-menu-line text-2xl"></i>
-                                </button>
-                                <a href="#" onclick="window.history.back(); return false;" class="mr-4 transition-transform hover:translate-x-[-2px]" style="color:var(--ink-400);">
-                                    <i class="ri-arrow-left-line text-xl"></i>
-                                </a>
-                                <div>
-                                    <h2 class="font-display text-xl sm:text-2xl font-semibold" style="color:var(--navy-900);">Record Pullout</h2>
-                                    <p class="text-sm mt-1 hidden sm:block" style="color:var(--ink-600);">Manage pulled out assets</p>
-                                </div>
-                            </div>
-                            <button onclick="openScannerAuto()" class="btn-gold">
-                                <i class="ri-add-line sm:mr-2"></i>
-                                <span class="hidden sm:inline">Record Pullout</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Header (shared admin header) -->
+                @include('admin.partials.header', [
+                    'adminHeaderPage'     => 'pullout',
+                    'adminHeaderTitle'    => 'Pullout Records',
+                    'adminHeaderSubtitle' => 'Manage pulled out assets',
+                    'adminHeaderIcon'     => 'ri-logout-box-r-line',
+                    'adminHeaderBadge'    => 'Admin',
+                ])
 
             <!-- Content -->
             <div class="p-8">
@@ -218,12 +202,26 @@
                     </div>
                 </div>
 
+                <!-- Search Pullout Records -->
+                <div class="mb-6">
+                    <div class="relative">
+                        <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-lg" style="color:var(--ink-400);"></i>
+                        <input type="text" id="pulloutRecordSearch" oninput="filterPulloutRecords(this.value)"
+                               placeholder="Search pullouts by asset name, asset code, date, reason, or destination..."
+                               class="form-input w-full" style="padding-left:2.75rem;" />
+                    </div>
+                    <p id="pulloutSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-600);">
+                        <i class="ri-focus-3-line mr-1"></i><span></span>
+                    </p>
+                </div>
+
                 <!-- Pullout Records List -->
                 <div id="pulloutRecordsContainer">
                     @if(isset($pulloutRecords) && count($pulloutRecords) > 0)
                         <div class="grid grid-cols-1 gap-4" id="pulloutRecordsList">
                             @foreach($pulloutRecords as $record)
-                            <div class="pullout-card p-6" data-id="{{ $record->id }}">
+                            <div class="pullout-card p-6" data-id="{{ $record->id }}"
+     data-search="{{ strtolower(($record->asset_name ?? '') . ' ' . $record->asset_codes->implode(' ') . ' ' . ($record->pullout_date ?? '') . ' ' . ($record->status ?? '') . ' ' . ($record->reason ?? '') . ' ' . ($record->destination ?? '')) }}">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1">
                                         <div class="flex items-center mb-3">
@@ -250,11 +248,16 @@
                                                 </p>
                                             </div>
                                         </div>
-                                        @if(($record->asset_count ?? 1) > 1)
-                                        <div class="mb-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" style="background:var(--bronze-tint); color:var(--bronze-dark);">
-                                            {{ $record->asset_count }} assets in one pullout
+                                        {{-- One pill per asset in the group, so any asset is visible at a glance --}}
+                                        <div class="flex flex-wrap gap-1.5 mb-3">
+                                            @foreach($record->asset_names as $i => $name)
+                                            <span class="pullout-asset-pill inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                                                  style="background:var(--paper-2); color:var(--ink-600);"
+                                                  data-search="{{ strtolower(($name ?? '') . ' ' . ($record->asset_codes[$i] ?? '')) }}">
+                                                {{ $name }}@if(isset($record->asset_codes[$i]))<span class="font-mono ml-1.5" style="color:var(--gold-600);">{{ $record->asset_codes[$i] }}</span>@endif
+                                            </span>
+                                            @endforeach
                                         </div>
-                                        @endif
                                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                                             <div>
                                                 <p class="text-xs" style="color:var(--ink-400);">Pullout Date</p>
@@ -487,6 +490,7 @@
 
             <div>
                 <p class="text-sm mb-2" style="color:var(--ink-600);">Select which assets to dispose:</p>
+                <input type="text" id="disposeAssetFilter" oninput="filterDisposeAssetRows(this.value)" placeholder="Filter assets by name or code..." class="form-input mb-2">
                 <div id="disposeAssetList" class="rounded-lg divide-y max-h-56 overflow-y-auto" style="border:1px solid var(--line); border-color:var(--line);">
                     <!-- filled by JS -->
                 </div>
@@ -553,6 +557,7 @@
                     <label class="block text-sm font-medium" style="color:var(--ink-600);">Assets in this pullout *</label>
                     <button type="button" onclick="toggleAllEditAssets(true)" class="text-xs hover:underline" style="color:var(--gold-600);">Select All</button>
                 </div>
+                <input type="text" id="editAssetFilter" oninput="filterEditAssetRows(this.value)" placeholder="Filter assets by name or code..." class="form-input mb-2">
                 <div id="editAssetList" class="rounded-lg max-h-40 overflow-y-auto p-2 space-y-1" style="border:1px solid var(--line);">
                     <!-- Filled by JS -->
                 </div>
@@ -727,7 +732,7 @@ async function loadPulloutAssets(pulloutId) {
             const div = document.createElement('div');
             div.className = 'flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded';
             div.innerHTML = `
-                <input type="checkbox" class="edit-asset-checkbox rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                <input type="checkbox" class="edit-asset-checkbox rounded" style="accent-color:var(--gold-500);">
                     value="${asset.id}" id="edit_asset_${asset.id}" checked>
                 <label for="edit_asset_${asset.id}" class="text-sm cursor-pointer flex-1">
                     <span class="font-medium">${asset.name}</span>
@@ -1062,6 +1067,69 @@ function toggleEditActionFields() {
             }
         }
 
+        // Inline filters for the per-asset checkbox lists inside the modals
+        function filterEditAssetRows(query) {
+            const term = (query || '').trim().toLowerCase();
+            document.querySelectorAll('#editAssetList > div').forEach((row) => {
+                row.style.display = !term || (row.textContent || '').toLowerCase().includes(term) ? '' : 'none';
+            });
+        }
+
+        function filterDisposeAssetRows(query) {
+            const term = (query || '').trim().toLowerCase();
+            document.querySelectorAll('#disposeAssetList > label').forEach((row) => {
+                row.style.display = !term || (row.textContent || '').toLowerCase().includes(term) ? '' : 'none';
+            });
+        }
+
+        function filterPulloutRecords(query) {
+            const term = (query || '').trim().toLowerCase();
+            const list = document.getElementById('pulloutRecordsList');
+            if (!list) return;
+            const cards = list.querySelectorAll('.pullout-card');
+            let visible = 0;
+
+            cards.forEach((card) => {
+                const haystack = (card.dataset.search || '').toLowerCase();
+                const match = !term || haystack.includes(term);
+                card.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+
+            list.querySelectorAll('.pullout-match-hl').forEach((el) => el.remove());
+
+            const hint = document.getElementById('pulloutSearchHint');
+            if (hint) {
+                const span = hint.querySelector('span');
+                if (term && visible === 0) {
+                    span.textContent = 'No pullouts match "' + term + '". Try an asset code or asset name.';
+                    hint.classList.remove('hidden');
+                } else if (term) {
+                    span.textContent = visible + ' pullout' + (visible === 1 ? '' : 's') + ' match — the matching asset is highlighted on each card.';
+                    hint.classList.remove('hidden');
+                } else {
+                    hint.classList.add('hidden');
+                }
+            }
+
+            if (!term) return;
+
+            // Surface the exact asset that matched inside each visible bulk group
+            cards.forEach((card) => {
+                if (card.style.display === 'none') return;
+                card.querySelectorAll('.pullout-asset-pill').forEach((pill) => {
+                    if ((pill.dataset.search || '').includes(term)) {
+                        const hl = document.createElement('span');
+                        hl.className = 'pullout-match-hl inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold';
+                        hl.style.cssText = 'background:rgba(201,162,39,.14); color:var(--gold-600); margin: 0 .4rem .75rem 0;';
+                        hl.innerHTML = '<i class="ri-focus-3-line mr-1"></i>Match: ' + pill.textContent.replace(/\s+/g, ' ').trim();
+                        const header = card.querySelector('.flex.items-center.mb-3');
+                        if (header && header.parentNode) header.parentNode.insertBefore(hl, header.nextSibling);
+                    }
+                });
+            });
+        }
+
         function filterPulloutAssets(query) {
             const select = document.getElementById('pullout_asset_select');
             if (!select) return;
@@ -1379,7 +1447,7 @@ async function openDisposeFromPullout(id) {
 
         document.getElementById('disposeAssetList').innerHTML = data.assets.map(a => `
             <label class="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
-                <input type="checkbox" name="asset_ids[]" value="${a.id}" class="dispose-asset-cb rounded border-gray-300 text-red-600" checked>
+                <input type="checkbox" name="asset_ids[]" value="${a.id}" class="dispose-asset-cb rounded" style="accent-color:var(--gold-500);" checked>
                 <div class="flex-1">
                     <p class="font-medium text-gray-900">${a.name || 'Asset'}</p>
                     <p class="text-xs text-gray-500 font-mono">${a.code || '—'}</p>

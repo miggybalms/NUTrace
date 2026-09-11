@@ -15,7 +15,7 @@
         }
         
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
         }
         
         .sidebar-item {
@@ -48,7 +48,7 @@
         }
         
         .request-item:hover {
-            background-color: #f9fafb;
+            background-color: #F5F0E2;
             transform: translateX(4px);
             border-color: rgba(201, 162, 39, 0.35);
         }
@@ -63,12 +63,12 @@
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('users.partials.sidebar', ['currentUser' => $user])
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             @include('layouts.user_header', [
                 'title' => 'Welcome, ' . (
@@ -100,63 +100,63 @@
                 <!-- Stats Cards (lifecycle status colors — unchanged) -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                     <!-- Acquired -->
-                    <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="stat-card bg-white rounded-xl shadow-sm border border-[#DED2AE] p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm text-gray-500">Acquired</p>
-                            <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-folder-received-line text-yellow-600"></i>
+                            <p class="text-sm text-[#5B6678]">Acquired</p>
+                            <div class="w-8 h-8 bg-[#FBF1DE] rounded-lg flex items-center justify-center">
+                                <i class="ri-folder-received-line text-[#B4791E]"></i>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-gray-900">{{ $stats['acquired']['count'] ?? 0 }}</p>
-                        <p class="text-xs text-gray-500 mt-1">({{ $stats['acquired']['percent'] ?? 0 }}%)</p>
+                        <p class="text-2xl font-bold text-[#0F2143]">{{ $stats['acquired']['count'] ?? 0 }}</p>
+                        <p class="text-xs text-[#5B6678] mt-1">({{ $stats['acquired']['percent'] ?? 0 }}%)</p>
                     </div>
 
                     <!-- Active -->
-                    <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="stat-card bg-white rounded-xl shadow-sm border border-[#DED2AE] p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm text-gray-500">Active</p>
-                            <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-checkbox-circle-line text-green-600"></i>
+                            <p class="text-sm text-[#5B6678]">Active</p>
+                            <div class="w-8 h-8 bg-[#EAF4EE] rounded-lg flex items-center justify-center">
+                                <i class="ri-checkbox-circle-line text-[#2F7A4D]"></i>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-green-600">{{ $stats['active']['count'] ?? 0 }}</p>
-                        <p class="text-xs text-gray-500 mt-1">({{ $stats['active']['percent'] ?? 0 }}%)</p>
+                        <p class="text-2xl font-bold text-[#2F7A4D]">{{ $stats['active']['count'] ?? 0 }}</p>
+                        <p class="text-xs text-[#5B6678] mt-1">({{ $stats['active']['percent'] ?? 0 }}%)</p>
                     </div>
 
                     <!-- For Repair -->
-                    <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="stat-card bg-white rounded-xl shadow-sm border border-[#DED2AE] p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm text-gray-500">For Repair</p>
-                            <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-tools-line text-red-600"></i>
+                            <p class="text-sm text-[#5B6678]">For Repair</p>
+                            <div class="w-8 h-8 bg-[#F7E9E6] rounded-lg flex items-center justify-center">
+                                <i class="ri-tools-line text-[#A23B32]"></i>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-red-600">{{ $stats['for_repair']['count'] ?? 0 }}</p>
-                        <p class="text-xs text-gray-500 mt-1">({{ $stats['for_repair']['percent'] ?? 0 }}%)</p>
+                        <p class="text-2xl font-bold text-[#A23B32]">{{ $stats['for_repair']['count'] ?? 0 }}</p>
+                        <p class="text-xs text-[#5B6678] mt-1">({{ $stats['for_repair']['percent'] ?? 0 }}%)</p>
                     </div>
 
                     <!-- Pulled Out -->
-                    <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="stat-card bg-white rounded-xl shadow-sm border border-[#DED2AE] p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm text-gray-500">Pulled Out</p>
-                            <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-logout-box-r-line text-orange-600"></i>
+                            <p class="text-sm text-[#5B6678]">Pulled Out</p>
+                            <div class="w-8 h-8 bg-[#FBF1DE] rounded-lg flex items-center justify-center">
+                                <i class="ri-logout-box-r-line text-[#B4791E]"></i>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-orange-600">{{ $stats['pulled_out']['count'] ?? 0 }}</p>
-                        <p class="text-xs text-gray-500 mt-1">({{ $stats['pulled_out']['percent'] ?? 0 }}%)</p>
+                        <p class="text-2xl font-bold text-[#B4791E]">{{ $stats['pulled_out']['count'] ?? 0 }}</p>
+                        <p class="text-xs text-[#5B6678] mt-1">({{ $stats['pulled_out']['percent'] ?? 0 }}%)</p>
                     </div>
 
                     <!-- Disposed -->
-                    <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="stat-card bg-white rounded-xl shadow-sm border border-[#DED2AE] p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm text-gray-500">Disposed</p>
-                            <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-delete-bin-line text-gray-600"></i>
+                            <p class="text-sm text-[#5B6678]">Disposed</p>
+                            <div class="w-8 h-8 bg-[#EFE9D8] rounded-lg flex items-center justify-center">
+                                <i class="ri-delete-bin-line text-[#46536B]"></i>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-gray-600">{{ $stats['disposed']['count'] ?? 0 }}</p>
-                        <p class="text-xs text-gray-500 mt-1">({{ $stats['disposed']['percent'] ?? 0 }}%)</p>
+                        <p class="text-2xl font-bold text-[#46536B]">{{ $stats['disposed']['count'] ?? 0 }}</p>
+                        <p class="text-xs text-[#5B6678] mt-1">({{ $stats['disposed']['percent'] ?? 0 }}%)</p>
                     </div>
                 </div>
 
@@ -171,11 +171,11 @@
                 
 
                 <!-- Recent Requests -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                    <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE]">
+                    <div class="flex justify-between items-center p-6 border-b border-[#DED2AE]">
                         <div>
                             <h3 class="text-lg font-semibold text-[#0B1B33]">Recent Requests</h3>
-                            <p class="text-sm text-gray-500 mt-1">Your latest request activities</p>
+                            <p class="text-sm text-[#5B6678] mt-1">Your latest request activities</p>
                         </div>
                             <a href="/user/requests"
                             class="text-[#0B1B33] hover:text-[#C9A227] text-sm font-medium flex items-center transition">
@@ -187,31 +187,31 @@
                         @if(isset($recentRequests) && count($recentRequests) > 0)
                             <div class="space-y-3">
                                 @foreach($recentRequests as $request)
-                                <div class="request-item flex justify-between items-center p-3 rounded-lg border border-gray-100">
+                                <div class="request-item flex justify-between items-center p-3 rounded-lg border border-[#EFE9D8]">
                                     <div class="flex items-center space-x-3">
                                         <div class="w-10 h-10 rounded-full 
-                                            @if($request->type == 'new_asset') bg-blue-100
-                                            @elseif($request->type == 'repair') bg-red-100
-                                            @else bg-orange-100
+                                            @if($request->type == 'new_asset') bg-[#F3E7C4]
+                                            @elseif($request->type == 'repair') bg-[#F7E9E6]
+                                            @else bg-[#FBF1DE]
                                             @endif flex items-center justify-center">
                                             <i class="
-                                                @if($request->type == 'new_asset') ri-add-line text-blue-600
-                                                @elseif($request->type == 'repair') ri-tools-line text-red-600
-                                                @else ri-logout-box-r-line text-orange-600
+                                                @if($request->type == 'new_asset') ri-add-line text-[#A8841E]
+                                                @elseif($request->type == 'repair') ri-tools-line text-[#A23B32]
+                                                @else ri-logout-box-r-line text-[#B4791E]
                                                 @endif"></i>
                                         </div>
                                         <div>
                                             <p class="font-medium text-[#0B1B33]">{{ ucfirst(str_replace('_', ' ', $request->type)) }}</p>
-                                            <p class="text-sm text-gray-500">{{ $request->description }}</p>
+                                            <p class="text-sm text-[#5B6678]">{{ $request->description }}</p>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <span class="text-xs text-gray-400">{{ $request->created_at->diffForHumans() }}</span>
+                                        <span class="text-xs text-[#8991A0]">{{ $request->created_at->diffForHumans() }}</span>
                                         <div class="mt-1">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                                @if($request->status == 'pending') bg-yellow-100 text-yellow-700
-                                                @elseif($request->status == 'approved') bg-green-100 text-green-700
-                                                @else bg-red-100 text-red-700
+                                                @if($request->status == 'pending') bg-[#FBF1DE] text-[#8F5F16]
+                                                @elseif($request->status == 'approved') bg-[#EAF4EE] text-[#245C3B]
+                                                @else bg-[#F7E9E6] text-[#7E2E27]
                                                 @endif">
                                                 {{ ucfirst($request->status) }}
                                             </span>
@@ -225,15 +225,15 @@
                                 <div class="w-16 h-16 bg-[#0B1B33]/5 rounded-full flex items-center justify-center mx-auto mb-3">
                                     <i class="ri-inbox-line text-2xl text-[#C9A227]"></i>
                                 </div>
-                                <p class="text-gray-500">No recent requests</p>
-                                <p class="text-xs text-gray-400 mt-1">Submit a request to get started</p>
+                                <p class="text-[#5B6678]">No recent requests</p>
+                                <p class="text-xs text-[#8991A0] mt-1">Submit a request to get started</p>
                             </div>
                         @endif
                     </div>
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm text-gray-500 mt-8 pt-6 border-t border-gray-200">
+                <div class="text-center text-sm text-[#5B6678] mt-8 pt-6 border-t border-[#DED2AE]">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -248,7 +248,7 @@
 
             function showToast(message, type = 'info') {
                 const toast = document.createElement('div');
-                toast.className = `toast fixed bottom-6 right-6 px-5 py-3 rounded-lg text-white shadow-lg z-50 ${type === 'error' ? 'bg-red-600' : 'bg-[#0B1B33]'}`;
+                toast.className = `toast fixed bottom-6 right-6 px-5 py-3 rounded-lg text-white shadow-lg z-50 ${type === 'error' ? 'bg-[#A23B32]' : 'bg-[#0B1B33]'}`;
                 toast.textContent = message;
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.remove(); }, 6000);

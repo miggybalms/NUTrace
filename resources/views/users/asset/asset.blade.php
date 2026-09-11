@@ -60,13 +60,13 @@
                     <button class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-[#0B1B33] text-white shadow-sm whitespace-nowrap transition" data-filter="all">
                         All Assets
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-gray-500 hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="Active">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="Active">
                         Active
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-gray-500 hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="For Repair">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="For Repair">
                         For Repair
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-gray-500 hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="recent">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="recent">
                         Recently Added
                     </button>
                 </div>
@@ -86,18 +86,18 @@
                         });
                     }
                 @endphp
-                <p class="text-sm text-gray-500 whitespace-nowrap" data-list-count>
+                <p class="text-sm text-[#5B6678] whitespace-nowrap" data-list-count>
                     Showing {{ $visibleAssets->count() ?? 0 }} assets
                 </p>
             </div>
 
             <!-- NEW: Search bar under the filters -->
             <div class="relative max-w-md">
-                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#8991A0] text-sm"></i>
                 <input type="text"
                        id="asset-search-input"
                        placeholder="Search assets..."
-                       class="pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-400 w-full bg-white shadow-sm"
+                       class="pl-9 pr-4 py-2.5 border border-[#DED2AE] rounded-lg text-sm focus:outline-none focus:border-[#C9A227] w-full bg-white shadow-sm"
                        autocomplete="off">
             </div>
         </div>
@@ -106,7 +106,7 @@
         @if(isset($visibleAssets) && $visibleAssets->count() > 0)
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" id="assetsGrid">
             @foreach($visibleAssets as $asset)
-            <div class="asset-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+            <div class="asset-card bg-white rounded-xl shadow-sm border border-[#DED2AE] overflow-hidden"
                  data-status="{{ $asset->Lifecycle_Status ?? '' }}"
                  data-name="{{ strtolower($asset->Asset_name ?? '') }}"
                  data-code="{{ strtolower($asset->Asset_code ?? '') }}"
@@ -119,12 +119,12 @@
                         <img src="{{ $asset->image_url }}" alt="{{ $asset->Asset_name }}"
                              class="w-full h-full object-cover"
                              onerror="this.classList.add('hidden'); this.parentElement.querySelector('.asset-image-fallback')?.classList.remove('hidden');"/>
-                        <div class="asset-image-fallback hidden flex-col items-center text-gray-400 absolute inset-0 flex justify-center">
+                        <div class="asset-image-fallback hidden flex-col items-center text-[#8991A0] absolute inset-0 flex justify-center">
                             <i class="ri-image-line text-4xl mb-1"></i>
                             <span class="text-xs">Image unavailable</span>
                         </div>
                     @else
-                        <div class="flex flex-col items-center text-gray-400">
+                        <div class="flex flex-col items-center text-[#8991A0]">
                             <i class="ri-image-line text-4xl mb-1"></i>
                             <span class="text-xs">No image</span>
                         </div>
@@ -133,11 +133,11 @@
                     {{-- Status badge --}}
                     <div class="absolute top-3 left-3">
                         <span class="px-2 py-1 rounded-full text-xs font-semibold
-                            @if(($asset->Lifecycle_Status ?? '') == 'Active') bg-green-100 text-green-700
-                            @elseif(($asset->Lifecycle_Status ?? '') == 'For Repair') bg-red-100 text-red-700
-                            @elseif(($asset->Lifecycle_Status ?? '') == 'Pullout') bg-orange-100 text-orange-700
-                            @elseif(($asset->Lifecycle_Status ?? '') == 'Disposal') bg-gray-100 text-gray-700
-                            @else bg-yellow-100 text-yellow-700
+                            @if(($asset->Lifecycle_Status ?? '') == 'Active') bg-[#EAF4EE] text-[#245C3B]
+                            @elseif(($asset->Lifecycle_Status ?? '') == 'For Repair') bg-[#F7E9E6] text-[#7E2E27]
+                            @elseif(($asset->Lifecycle_Status ?? '') == 'Pullout') bg-[#FBF1DE] text-[#8F5F16]
+                            @elseif(($asset->Lifecycle_Status ?? '') == 'Disposal') bg-[#EFE9D8] text-[#33425C]
+                            @else bg-[#FBF1DE] text-[#8F5F16]
                             @endif">
                             {{ $asset->Lifecycle_Status ?? 'Acquired' }}
                         </span>
@@ -160,30 +160,30 @@
                 <div class="p-4 sm:p-5">
                     <div class="mb-3">
                         <h3 class="font-semibold text-[#0B1B33] text-base leading-tight">{{ $asset->Asset_name ?? 'Untitled' }}</h3>
-                        <p class="text-xs text-gray-400 font-mono mt-0.5">{{ $asset->Asset_code ?? '' }}</p>
+                        <p class="text-xs text-[#8991A0] font-mono mt-0.5">{{ $asset->Asset_code ?? '' }}</p>
                     </div>
 
                     <div class="space-y-1.5 mb-4">
-                        <div class="flex items-center text-sm text-gray-600">
+                        <div class="flex items-center text-sm text-[#46536B]">
                             <i class="ri-layout-grid-line text-[#C9A227] mr-2 text-xs flex-shrink-0"></i>
                             <span class="truncate">{{ $asset->Category ?? '—' }}</span>
                         </div>
-                        <div class="flex items-center text-sm text-gray-600">
+                        <div class="flex items-center text-sm text-[#46536B]">
                             <i class="ri-calendar-line text-[#C9A227] mr-2 text-xs flex-shrink-0"></i>
                             <span>Assigned: {{ $asset->accusion_date ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y') : '—' }}</span>
                         </div>
-                        <div class="flex items-center text-sm text-gray-600">
+                        <div class="flex items-center text-sm text-[#46536B]">
                             <i class="ri-tools-line text-[#C9A227] mr-2 text-xs flex-shrink-0"></i>
                             <span>Next Maintenance: {{ $asset->next_maintenance_date ? \Carbon\Carbon::parse($asset->next_maintenance_date)->format('M d, Y') : '—' }}</span>
                         </div>
-                        <div class="flex items-center text-sm text-gray-600">
+                        <div class="flex items-center text-sm text-[#46536B]">
                             <i class="ri-map-pin-line text-[#C9A227] mr-2 text-xs flex-shrink-0"></i>
                             <span class="truncate">{{ $asset->asset_location ?? '—' }}</span>
                         </div>
                     </div>
 
                     {{-- Actions --}}
-                    <div class="pt-3 border-t border-gray-100">
+                    <div class="pt-3 border-t border-[#EFE9D8]">
                         <a href="/users/assets/{{ $asset->id }}{{ request()->getQueryString() ? '?' . request()->getQueryString() : '' }}"
                         class="w-full px-3 py-2 bg-[#C9A227]/10 text-[#0B1B33] rounded-lg hover:bg-[#0B1B33] hover:text-[#E8C874] transition text-sm font-medium flex items-center justify-center">
                             <i class="ri-eye-line mr-1.5"></i>
@@ -201,13 +201,13 @@
             <div class="w-16 h-16 sm:w-20 sm:h-20 bg-[#0B1B33]/5 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="ri-inbox-line text-2xl sm:text-3xl text-[#C9A227]"></i>
             </div>
-            <h3 class="text-gray-700 font-semibold text-lg mb-1">No Assets Found</h3>
-            <p class="text-gray-400 text-sm">You have no assigned assets at the moment.</p>
+            <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Assets Found</h3>
+            <p class="text-[#8991A0] text-sm">You have no assigned assets at the moment.</p>
         </div>
         @endif
 
         <!-- Footer -->
-        <div class="text-center text-sm text-gray-400 mt-10 pt-6 border-t border-gray-200">
+        <div class="text-center text-sm text-[#8991A0] mt-10 pt-6 border-t border-[#DED2AE]">
             © {{ date('Y') }} University Asset Management. All rights reserved.
         </div>
     </div>
@@ -231,12 +231,12 @@
         <div class="bg-white rounded-lg p-6 max-w-sm w-full" onclick="event.stopPropagation();">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-[#0B1B33]">Asset QR Code</h3>
-                <button onclick="closeQrModal()" class="text-gray-400 hover:text-[#0B1B33]">
+                <button onclick="closeQrModal()" class="text-[#8991A0] hover:text-[#0B1B33]">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
-            <div id="qrModalCanvas" class="flex items-center justify-center bg-gray-50 rounded-lg p-4"></div>
-            <p id="qrModalAssetId" class="text-sm font-mono text-gray-600 text-center mt-4 break-all"></p>
+            <div id="qrModalCanvas" class="flex items-center justify-center bg-[#F5F0E2] rounded-lg p-4"></div>
+            <p id="qrModalAssetId" class="text-sm font-mono text-[#46536B] text-center mt-4 break-all"></p>
         </div>
     </div>
 
@@ -271,7 +271,7 @@
                 btn.classList.toggle('bg-[#0B1B33]', isActive);
                 btn.classList.toggle('text-white', isActive);
                 btn.classList.toggle('shadow-sm', isActive);
-                btn.classList.toggle('text-gray-500', !isActive);
+                btn.classList.toggle('text-[#5B6678]', !isActive);
             });
 
             function getCardText(card) {
@@ -324,10 +324,10 @@
                 btn.addEventListener('click', function () {
                     filterBtns.forEach(b => {
                         b.classList.remove('active', 'bg-[#0B1B33]', 'text-white', 'shadow-sm');
-                        b.classList.add('text-gray-500');
+                        b.classList.add('text-[#5B6678]');
                     });
                     this.classList.add('active', 'bg-[#0B1B33]', 'text-white', 'shadow-sm');
-                    this.classList.remove('text-gray-500');
+                    this.classList.remove('text-[#5B6678]');
 
                     currentFilter = this.dataset.filter;
                     applyFilters();

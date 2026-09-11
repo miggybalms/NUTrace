@@ -193,29 +193,14 @@
         <!-- Main Content -->
         <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <!-- Header -->
-            <div class="topbar sticky top-0 z-10">
-                <div class="px-4 sm:px-8 py-5">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center">
-                            <!-- Hamburger, mobile only -->
-                            <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400);">
-                                <i class="ri-menu-line text-2xl"></i>
-                            </button>
-                            <a href="#" onclick="window.history.back(); return false;" class="mr-4 transition-transform hover:translate-x-[-2px]" style="color:var(--ink-400);">
-                                <i class="ri-arrow-left-line text-xl"></i>
-                            </a>
-                            <div>
-                                <h2 class="font-display text-xl sm:text-2xl font-semibold" style="color:var(--navy-900);">Disposal</h2>
-                                <p class="text-sm mt-1 hidden sm:block" style="color:var(--ink-600);">Manage disposed assets</p>
-                            </div>
-                        </div>
-                        <button onclick="openScannerAuto()" class="btn-gold">
-                            <i class="ri-add-line sm:mr-2"></i>
-                            <span class="hidden sm:inline">Record Disposal</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+                <!-- Header (shared admin header) -->
+                @include('admin.partials.header', [
+                    'adminHeaderPage'     => 'disposal',
+                    'adminHeaderTitle'    => 'Disposal',
+                    'adminHeaderSubtitle' => 'Manage disposed assets',
+                    'adminHeaderIcon'     => 'ri-delete-bin-line',
+                    'adminHeaderBadge'    => 'Admin',
+                ])
 
             <!-- Content -->
             <div class="p-8">
@@ -233,12 +218,26 @@
                     </div>
                 </div>
 
+                <!-- Search Disposal Records -->
+                <div class="mb-6">
+                    <div class="relative">
+                        <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-lg" style="color:var(--ink-400);"></i>
+                        <input type="text" id="disposalRecordSearch" oninput="filterDisposalRecords(this.value)"
+                               placeholder="Search disposals by asset name, asset code, date, reason, or disposed by..."
+                               class="form-input w-full" style="padding-left:2.75rem;" />
+                    </div>
+                    <p id="disposalSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-600);">
+                        <i class="ri-focus-3-line mr-1"></i><span></span>
+                    </p>
+                </div>
+
                 <!-- Disposal Records List -->
                 <div id="disposalRecordsContainer">
                     @if(isset($disposalRecords) && count($disposalRecords) > 0)
                         <div class="grid grid-cols-1 gap-4" id="disposalRecordsList">
                             @foreach($disposalRecords as $record)
-                            <div class="disposal-card p-6" data-id="{{ $record->id }}">
+                            <div class="disposal-card p-6" data-id="{{ $record->id }}"
+     data-search="{{ strtolower(($record->asset_name ?? '') . ' ' . ($record->asset_code ?? '') . ' ' . ($record->disposal_date ?? '') . ' ' . ($record->reason ?? '') . ' ' . ($record->disposed_by ?? '') . ' ' . ($record->Description ?? '') . ' ' . ($record->notes ?? '')) }}">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1">
                                         <div class="flex items-center mb-3">
@@ -813,6 +812,35 @@ function closeViewDisposalModal() {
     const modal = document.getElementById('viewDisposalModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+}
+
+function filterDisposalRecords(query) {
+    const term = (query || '').trim().toLowerCase();
+    const list = document.getElementById('disposalRecordsList');
+    if (!list) return;
+    const cards = list.querySelectorAll('.disposal-card');
+    let visible = 0;
+
+    cards.forEach((card) => {
+        const haystack = (card.dataset.search || '').toLowerCase();
+        const match = !term || haystack.includes(term);
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+
+    const hint = document.getElementById('disposalSearchHint');
+    if (hint) {
+        const span = hint.querySelector('span');
+        if (term && visible === 0) {
+            span.textContent = 'No disposals match "' + term + '". Try an asset code or asset name.';
+            hint.classList.remove('hidden');
+        } else if (term) {
+            span.textContent = visible + ' disposal' + (visible === 1 ? '' : 's') + ' match.';
+            hint.classList.remove('hidden');
+        } else {
+            hint.classList.add('hidden');
+        }
+    }
 }
 
 async function viewDisposalDetails(id) {

@@ -11,34 +11,42 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
         .sidebar-item { transition: all 0.2s ease; cursor: pointer; }
-        .sidebar-item:hover { background-color: #e5e7eb; color: #1f2937; }
-        .sidebar-item.active { background-color: #eff6ff; color: #3b82f6; border-right: 3px solid #3b82f6; }
+        .sidebar-item:hover { background-color: #142B4D; color: #ffffff; }
+        .sidebar-item.active { background-color: #0B1B33; color: #E8C874; border-right: 3px solid #C9A227; }
         .form-input:focus, .form-select:focus, .form-textarea:focus {
-            outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none; border-color: #C9A227; box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.18);
         }
         .upload-area { transition: all 0.2s ease; }
-        .upload-area:hover { border-color: #3b82f6; background-color: #f9fafb; }
+        .upload-area:hover { border-color: #C9A227; background-color: #F5F0E2; }
         .submit-btn { transition: all 0.3s ease; }
-        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(201, 162, 39, 0.3); }
         .asset-chip { animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body{ background:#F3EEE0 !important; font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif !important; color:#1A2233; }
+        .brand-title{ font-family:'Fraunces',Georgia,serif; }
+        .topbar{ background:#fff; border-bottom:1px solid #DED2AE; position:relative; }
+        .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, #C9A227 20%, #C9A227 80%, transparent); opacity:.7; }
+    </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('users.partials.sidebar')
 
-        <div class="flex-1 overflow-y-auto bg-gray-50">
+        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
-            <div class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+            <div class="topbar sticky top-0 z-10">
                 <div class="px-8 py-5">
                     <div class="flex items-center">
-                        <a href="{{ route('user.requests.index') }}" class="text-gray-500 hover:text-gray-700 mr-4">
+                        <a href="{{ route('user.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] mr-4">
                             <i class="ri-arrow-left-line text-xl"></i>
                         </a>
                         <div>
-                            <h2 class="text-2xl font-bold text-gray-900">Submit Request</h2>
-                            <p class="text-sm text-gray-500 mt-1">Submit a new asset request (single or bulk)</p>
+                            <h2 class="brand-title text-2xl font-semibold text-[#0F2143]">Submit Request</h2>
+                            <p class="text-sm text-[#5B6678] mt-1">Submit a new asset request (single or bulk)</p>
                         </div>
                     </div>
                 </div>
@@ -49,7 +57,7 @@
                     @csrf
 
                     @if(session('success'))
-                        <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800">
+                        <div class="mb-6 rounded-lg border border-[#CFE3D4] bg-[#EAF4EE] px-4 py-3 text-[#1D4A2E]">
                             <div class="flex items-center">
                                 <i class="ri-checkbox-circle-line mr-2 text-lg"></i>
                                 <span>{{ session('success') }}</span>
@@ -58,7 +66,7 @@
                     @endif
 
                     @if($errors->any())
-                        <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+                        <div class="mb-6 rounded-lg border border-[#E8CCC6] bg-[#F7E9E6] px-4 py-3 text-[#7E2E27]">
                             <ul class="list-disc list-inside text-sm">
                                 @foreach($errors->all() as $error)
                                     <li>{{ $error }}</li>
@@ -68,13 +76,13 @@
                     @endif
 
                     <!-- Request Type -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Request Type <span class="text-red-500">*</span>
+                            <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                Request Type <span class="text-[#A23B32]">*</span>
                             </label>
                             <select name="request_type" id="request_type" required
-                                    class="form-select w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                    class="form-select w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                                 <option value="">Select Request Type</option>
                                 <option value="Repair" {{ old('request_type') == 'Repair' ? 'selected' : '' }}>Repair Request</option>
                                 <option value="Disposal" {{ old('request_type') == 'Disposal' ? 'selected' : '' }}>Disposal Request</option>
@@ -86,39 +94,39 @@
                         </div>
 
                         <div id="transferAssignBlock" class="mb-4 hidden">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Assign To (new owner)</label>
+                            <label class="block text-sm font-medium text-[#33425C] mb-2">Assign To (new owner)</label>
                             <select name="assign_to_user_id" id="assign_to_user_id"
-                                    class="form-select w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">
+                                    class="form-select w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                                 <option value="">Select user to assign</option>
                                 @foreach($users ?? [] as $u)
                                     <option value="{{ $u->id }}">{{ $u->Full_Name }} @if(!empty($u->department)) — {{ $u->department }} @endif</option>
                                 @endforeach
                             </select>
-                            <p class="text-xs text-gray-400 mt-1">Choose who should become the new owner if this is a transfer.</p>
+                            <p class="text-xs text-[#8991A0] mt-1">Choose who should become the new owner if this is a transfer.</p>
                         </div>
                     </div>
 
                     <!-- Asset Selection (Bulk) -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900">Assets</h3>
-                            <span id="asset-count-badge" class="text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">0 selected</span>
+                            <h3 class="text-lg font-semibold text-[#0F2143]">Assets</h3>
+                            <span id="asset-count-badge" class="text-xs font-medium bg-[#F3E7C4] text-[#0F2143] px-2.5 py-1 rounded-full">0 selected</span>
                         </div>
 
                         <!-- Scanner + Manual Entry -->
                         <div class="mb-4">
                             <div class="flex items-center space-x-3">
                                 <button type="button" id="toggle-scanner"
-                                        class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
+                                        class="px-3 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition text-sm">
                                     <i class="ri-camera-line mr-1"></i>Scan QR
                                 </button>
 
                                 <div class="flex-1 relative">
                                     <input id="asset_code_input" type="text"
                                            placeholder="Enter Asset Code (e.g. AST-12345) then press Enter or click Add"
-                                           class="form-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition pr-24">
+                                           class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition pr-24">
                                     <button type="button" id="add-asset-btn"
-                                            class="absolute right-1 top-1 bottom-1 px-3 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition">
+                                            class="absolute right-1 top-1 bottom-1 px-3 bg-[#C9A227] text-[#0A1830] text-sm rounded-md hover:bg-[#E0BC44] transition">
                                         Add
                                     </button>
                                 </div>
@@ -129,14 +137,14 @@
                         </div>
 
                         <!-- Draft Asset List -->
-                        <div id="draft-list-container" class="border border-gray-200 rounded-lg overflow-hidden">
-                            <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        <div id="draft-list-container" class="border border-[#DED2AE] rounded-lg overflow-hidden">
+                            <div class="bg-[#F5F0E2] px-4 py-2 border-b border-[#DED2AE] text-xs font-medium text-[#5B6678] uppercase tracking-wide">
                                 Selected Assets (Draft)
                             </div>
-                            <div id="draft-list" class="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                            <div id="draft-list" class="divide-y divide-[#EFE9D8] max-h-72 overflow-y-auto">
                                 <!-- filled by JS -->
                             </div>
-                            <div id="empty-draft" class="px-4 py-8 text-center text-gray-400 text-sm">
+                            <div id="empty-draft" class="px-4 py-8 text-center text-[#8991A0] text-sm">
                                 <i class="ri-inbox-line text-3xl mb-2 block"></i>
                                 No assets added yet. Scan a QR code or enter an Asset Code above.
                             </div>
@@ -147,40 +155,40 @@
                     </div>
 
                     <!-- Reason / Notes -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
-                            Reason / Notes / Specific Instructions <span class="text-red-500">*</span>
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
+                        <label class="block text-sm font-medium text-[#33425C] mb-2">
+                            Reason / Notes / Specific Instructions <span class="text-[#A23B32]">*</span>
                         </label>
                         <textarea name="notes" rows="5" required
                                   placeholder="Please describe your concerns, reason for the request, or any specific instructions..."
-                                  class="form-textarea w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 transition">{{ old('notes') }}</textarea>
+                                  class="form-textarea w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">{{ old('notes') }}</textarea>
                     </div>
 
                     <!-- Attach Photo -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-8">
+                        <label class="block text-sm font-medium text-[#33425C] mb-2">
                             Attach Photo (Optional)
                         </label>
-                        <div class="upload-area border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer"
+                        <div class="upload-area border-2 border-dashed border-[#CFC4A4] rounded-lg p-6 text-center cursor-pointer"
                              onclick="document.getElementById('photo-upload').click()">
-                            <i class="ri-image-line text-3xl text-gray-400 mb-2 block"></i>
-                            <p class="text-sm text-gray-600">Click to upload or drag and drop</p>
-                            <p class="text-xs text-gray-400 mt-1">PNG, JPG up to 10MB</p>
+                            <i class="ri-image-line text-3xl text-[#8991A0] mb-2 block"></i>
+                            <p class="text-sm text-[#46536B]">Click to upload or drag and drop</p>
+                            <p class="text-xs text-[#8991A0] mt-1">PNG, JPG up to 10MB</p>
                             <input type="file" id="photo-upload" name="attachment" class="hidden" accept="image/*" onchange="previewPhoto(this)">
                         </div>
                         <div id="photo-preview" class="mt-3 hidden">
-                            <img id="photo-preview-img" class="h-32 w-auto rounded-lg border border-gray-200" alt="Photo Preview">
+                            <img id="photo-preview-img" class="h-32 w-auto rounded-lg border border-[#DED2AE]" alt="Photo Preview">
                         </div>
                     </div>
 
                     <!-- Actions -->
                     <div class="flex items-center justify-end space-x-4">
                         <button type="button" onclick="window.history.back()"
-                                class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+                                class="px-6 py-2 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition">
                             Cancel
                         </button>
                         <button id="request-submit" type="submit"
-                                class="submit-btn px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                class="submit-btn px-6 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition flex items-center shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled>
                             <i class="ri-send-plane-line mr-2"></i>
                             Submit Request
@@ -188,7 +196,7 @@
                     </div>
                 </form>
 
-                <div class="text-center text-sm text-gray-500 mt-8 pt-6 border-t border-gray-200">
+                <div class="text-center text-sm text-[#5B6678] mt-8 pt-6 border-t border-[#DED2AE]">
                     © 2026 University Asset Management
                 </div>
             </div>
@@ -218,9 +226,9 @@
         function showFeedback(msg, type = 'info') {
             assetFeedback.textContent = msg;
             assetFeedback.className = 'text-xs mt-2 ' + (
-                type === 'success' ? 'text-green-600' :
-                type === 'error'   ? 'text-red-600'   :
-                                     'text-gray-500'
+                type === 'success' ? 'text-[#2F7A4D]' :
+                type === 'error'   ? 'text-[#A23B32]'   :
+                                     'text-[#5B6678]'
             );
         }
 
@@ -230,8 +238,8 @@
             // Badge
             countBadge.textContent = count + ' selected';
             countBadge.className = count > 0
-                ? 'text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full'
-                : 'text-xs font-medium bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full';
+                ? 'text-xs font-medium bg-[#F3E7C4] text-[#0F2143] px-2.5 py-1 rounded-full'
+                : 'text-xs font-medium bg-[#EFE9D8] text-[#5B6678] px-2.5 py-1 rounded-full';
 
             // Empty state
             emptyDraft.style.display = count === 0 ? 'block' : 'none';
@@ -253,17 +261,17 @@
             draftList.innerHTML = '';
             draftAssets.forEach((asset) => {
                 const row = document.createElement('div');
-                row.className = 'asset-chip flex items-center justify-between px-4 py-3 hover:bg-gray-50';
+                row.className = 'asset-chip flex items-center justify-between px-4 py-3 hover:bg-[#F5F0E2]';
                 row.innerHTML = `
                     <div class="min-w-0">
-                        <div class="font-medium text-gray-900 truncate">${escapeHtml(asset.name || 'Unnamed')}</div>
-                        <div class="text-xs text-gray-500 mt-0.5">
+                        <div class="font-medium text-[#0F2143] truncate">${escapeHtml(asset.name || 'Unnamed')}</div>
+                        <div class="text-xs text-[#5B6678] mt-0.5">
                             ${escapeHtml(asset.code)}
                             ${asset.category ? ' · ' + escapeHtml(asset.category) : ''}
                             ${asset.lifecycle_status ? ' · ' + escapeHtml(asset.lifecycle_status) : ''}
                         </div>
                     </div>
-                    <button type="button" class="remove-asset ml-3 text-red-500 hover:text-red-700 p-1 rounded"
+                    <button type="button" class="remove-asset ml-3 text-[#A23B32] hover:text-[#7E2E27] p-1 rounded"
                             data-id="${asset.id}" title="Remove">
                         <i class="ri-close-line text-lg"></i>
                     </button>

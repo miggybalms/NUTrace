@@ -141,6 +141,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Landing page that explains what the system does (linked from the welcome page)
+Route::get('/learn-more', function () {
+    return view('learn-more');
+});
+
 // Auth views (simple GET routes so header buttons load the pages)
 Route::get('/login', function () {
     return view('auth.login');
@@ -223,6 +228,192 @@ Route::post('/register', function (Request $request) {
     }
 
     return redirect('/login')->with('success', 'Registration successful. Please login.');
+});
+
+// ============================================================================
+// Forgot Password (self-service account recovery)
+// Flow: enter university email -> verify account -> send 6-digit code ->
+//       validate code (expiry + single use) -> set new password -> return to login
+// ============================================================================
+Route::get('/forgot-password', function () {
+    return view('auth.forgot-password');
+});
+
+// Step 1: email submitted -> check the account -> generate + email a 6-digit code
+Route::post('/forgot-password', function (Request $request) {
+    $validated = $request->validate([
+        'email' => 'required|email|max:100',
+    ]);
+
+    // If the email is not registered, show an error and do not continue recovery.
+    $user = User::where('email', $validated['email'])->first();
+    if (!$user || ($user->status ?? 'Active') === 'Inactive') {
+        return back()
+            ->withErrors(['email' => 'No account is registered with that email address. Please use the email you used to register.'])
+            ->withInput(['email' => $request->email]);
+    }
+
+    // Generate a fresh single-use 6-digit code (previous codes for this email are invalidated)
+    $code = (string) random_int(100000, 999999);
+    try {
+        DB::table('password_resets')->where('email', $user->email)->delete();
+        DB::table('password_resets')->insert([
+            'email'      => $user->email,
+            'token'      => Hash::make($code),
+            'expires_at' => now()->addMinutes(15),
+            'used'       => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Could not store password reset code: ' . $e->getMessage());
+        return back()->withErrors(['error' => 'We could not start a password reset right now. If this keeps happening, make sure the database is reachable and the "password_resets" table exists (run: php artisan migrate).']);
+    }
+
+    // Send the code to the user's registered email address
+    try {
+        \Illuminate\Support\Facades\Mail::raw(
+            "Hello,\n\n" .
+            "You requested to reset your NU TRACE password.\n\n" .
+            "Your verification code is: " . $code . "\n\n" .
+            "This code is valid for 15 minutes and can only be used once.\n" .
+            "If you did not request a password reset, you can safely ignore this email.\n\n" .
+            "— NU TRACE Asset Management System",
+            function ($message) use ($user) {
+                $message->to($user->email)
+                        ->subject('NU TRACE - Password Reset Verification Code');
+            }
+        );
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::warning('Could not send password reset email to ' . $user->email . ': ' . $e->getMessage());
+
+        // Tell the user honestly that delivery failed instead of pretending it worked.
+        $appPassword = (string) config('mail.mailers.smtp.password');
+        if (str_contains($appPassword, 'PASTE-YOUR') || $appPassword === '') {
+            $request->session()->flash('mail_error', 'Your Gmail App Password is not set yet. Open the .env file, find MAIL_PASSWORD (line 55), and paste the 16-character App Password from your Google Account (Security → 2-Step Verification → App passwords). Then restart the app and click "Resend code".');
+        } else {
+            $request->session()->flash('mail_error', 'The email could not be delivered (' . class_basename($e) . '). Please verify the MAIL_USERNAME / MAIL_PASSWORD settings in your .env file, then click "Resend code".');
+        }
+
+        // Local dev fallback: if no mail server is reachable, still show the code
+        // so the flow can be tested. Never displayed outside the local environment.
+        if (app()->environment('local')) {
+            $request->session()->flash('dev_code', $code);
+        }
+    }
+
+    $request->session()->put('password_reset_email', $user->email);
+
+    return redirect('/forgot-password/verify')
+        ->with('success', 'A 6-digit verification code has been sent to ' . $user->email . '. It expires in 15 minutes.');
+});
+
+// Step 2a: show the code-entry form
+Route::get('/forgot-password/verify', function () {
+    if (!session('password_reset_email')) {
+        return redirect('/forgot-password');
+    }
+    return view('auth.verify-code', ['email' => session('password_reset_email')]);
+});
+
+// Step 2b: validate the code (correct, not expired, not already used)
+Route::post('/forgot-password/verify', function (Request $request) {
+    $email = session('password_reset_email');
+    if (!$email) {
+        return redirect('/forgot-password');
+    }
+
+    $validated = $request->validate([
+        'code' => 'required|digits:6',
+    ]);
+
+    $record = DB::table('password_resets')->where('email', $email)->orderByDesc('id')->first();
+
+    if (!$record || !Hash::check($validated['code'], $record->token)) {
+        return back()->withErrors(['code' => 'The verification code you entered is incorrect. Please try again.']);
+    }
+
+    if ((int) $record->used === 1) {
+        return back()->withErrors(['code' => 'This verification code has already been used. Please request a new code.']);
+    }
+
+    if (!$record->expires_at || Carbon::parse($record->expires_at)->isPast()) {
+        return back()->withErrors(['code' => 'This verification code has expired. Please request a new code.']);
+    }
+
+    // Remember which code was validated so the reset step re-checks it before saving
+    $request->session()->put('password_reset_code', $validated['code']);
+
+    return redirect('/forgot-password/reset');
+});
+
+// Step 3a: show the new-password form
+Route::get('/forgot-password/reset', function () {
+    if (!session('password_reset_email') || !session('password_reset_code')) {
+        return redirect('/forgot-password');
+    }
+    return view('auth.reset-password', ['email' => session('password_reset_email')]);
+});
+
+// Step 3b: validate + confirm the new password, update it, invalidate the code
+Route::post('/forgot-password/reset', function (Request $request) {
+    $email = session('password_reset_email');
+    $code  = session('password_reset_code');
+    if (!$email || !$code) {
+        return redirect('/forgot-password');
+    }
+
+    $validated = $request->validate([
+        'password' => 'required|confirmed|min:6',
+    ]);
+
+    $record = DB::table('password_resets')->where('email', $email)->orderByDesc('id')->first();
+
+    $invalid = !$record
+        || !Hash::check($code, $record->token)
+        || (int) $record->used === 1
+        || ($record->expires_at && Carbon::parse($record->expires_at)->isPast());
+
+    if ($invalid) {
+        $request->session()->forget(['password_reset_email', 'password_reset_code']);
+        return redirect('/forgot-password')
+            ->withErrors(['email' => 'Your verification session is no longer valid. Please start the password reset again.']);
+    }
+
+    $user = User::where('email', $email)->first();
+    if (!$user) {
+        $request->session()->forget(['password_reset_email', 'password_reset_code']);
+        return redirect('/forgot-password')
+            ->withErrors(['email' => 'Your account could not be found. Please contact the administrator.']);
+    }
+
+    try {
+        DB::transaction(function () use ($user, $validated, $email) {
+            // Securely update the password
+            $user->password = Hash::make($validated['password']);
+            $user->save();
+
+            // Invalidate the code so it cannot be reused
+            DB::table('password_resets')->where('email', $email)->delete();
+
+            // Keep an audit trail of the account change
+            DB::table('audit_logs')->insert([
+                'user_id'             => $user->id,
+                'action_type'         => 'UPDATE',
+                'action_description'  => 'User reset their password through the forgot-password flow',
+                'notes'               => 'Password was changed for account ' . $user->email,
+                'created_at'          => now(),
+                'updated_at'          => now(),
+            ]);
+        });
+    } catch (\Exception $e) {
+        return back()->withErrors(['error' => 'Password reset failed: ' . $e->getMessage()]);
+    }
+
+    $request->session()->forget(['password_reset_email', 'password_reset_code']);
+
+    return redirect('/login')
+        ->with('success', 'Your password has been changed successfully. You can now sign in with your new password.');
 });
 
 // Users area -> render users.dashboard and show assigned assets when logged in
@@ -1105,6 +1296,7 @@ Route::get('/admin/audit-logs/export', function () {
 })->middleware('auth');
 
 // Admin maintenance alerts API endpoint
+// NOTE: Disposal assets are excluded — they have been thrown away and will never be maintained again.
 Route::get('/admin/api/maintenance-alerts', function () {
     $user = Auth::user();
     if (!$user || ($user->role ?? '') !== 'Admin') {
@@ -1117,6 +1309,7 @@ Route::get('/admin/api/maintenance-alerts', function () {
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->whereNotNull('assets.next_maintenance_date')
         ->whereDate('assets.next_maintenance_date', '<=', now()->toDateString())
+        ->whereNotIn('assets.Lifecycle_Status', ['Disposal'])
         ->select(
             'assets.id',
             'assets.Asset_code',
@@ -1138,6 +1331,7 @@ Route::get('/admin/api/maintenance-alerts', function () {
 });
 
 // Admin lifespan expiration alerts API endpoint
+// NOTE: Disposal assets are excluded — their lifespan no longer matters once thrown away.
 Route::get('/admin/api/lifespan-alerts', function () {
     $user = Auth::user();
     if (!$user || ($user->role ?? '') !== 'Admin') {
@@ -1151,6 +1345,7 @@ Route::get('/admin/api/lifespan-alerts', function () {
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->whereNotNull('assets.expiration_date')
         ->whereDate('assets.expiration_date', '<=', now()->toDateString())
+        ->whereNotIn('assets.Lifecycle_Status', ['Disposal'])
         ->select(
             'assets.id',
             'assets.Asset_code',
@@ -1185,10 +1380,12 @@ Route::post('/admin/api/assets/check-and-transition', function () {
 
         DB::transaction(function () use ($today, &$transitionedCount) {
             // 1. Find and transition assets with expired lifespan
+            // Disposal assets are excluded — they are thrown away and never evaluated again.
             $expiredAssets = DB::table('assets')
                 ->whereNotNull('expiration_date')
                 ->whereDate('expiration_date', '<=', $today)
                 ->where('Lifecycle_Status', '=', 'Active')
+                ->whereNotIn('Lifecycle_Status', ['Disposal'])
                 ->get();
 
             foreach ($expiredAssets as $asset) {
@@ -1210,10 +1407,12 @@ Route::post('/admin/api/assets/check-and-transition', function () {
             }
 
             // 2. Find and transition assets with overdue maintenance
+            // Disposal assets are excluded — no maintenance is ever performed on disposed assets.
             $maintenanceOverdueAssets = DB::table('assets')
                 ->whereNotNull('next_maintenance_date')
                 ->whereDate('next_maintenance_date', '<=', $today)
                 ->where('Lifecycle_Status', '=', 'Active')
+                ->whereNotIn('Lifecycle_Status', ['Disposal'])
                 ->get();
 
             foreach ($maintenanceOverdueAssets as $asset) {
@@ -1580,6 +1779,148 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
             'message' => 'Failed to evaluate asset: ' . $e->getMessage(),
         ], 500);
     }
+});
+
+// Admin API: Extend asset lifespan directly from the dashboard lifespan panel.
+// Works for any asset that has an expiration_date and is NOT Disposal.
+// If the asset was auto-transitioned to "For Checking" because its lifespan expired,
+// and the new expiration date is now in the future, it is restored to Active.
+Route::post('/admin/api/assets/{id}/extend-lifespan', function ($id, \Illuminate\Http\Request $request) {
+    $user = Auth::user();
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
+    $asset = DB::table('assets')->where('id', $id)->first();
+    if (!$asset) {
+        return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
+    }
+
+    if (($asset->Lifecycle_Status ?? '') === 'Disposal') {
+        return response()->json(['success' => false, 'message' => 'Disposed assets cannot have their lifespan extended.'], 422);
+    }
+
+    $validated = $request->validate([
+        'extension_months' => 'required|integer|min:1|max:120',
+        'notes'            => 'nullable|string|max:1000',
+    ]);
+
+    $extensionMonths = (int) $validated['extension_months'];
+    $notes = $validated['notes'] ?? '';
+
+    try {
+        $result = DB::transaction(function () use ($id, $asset, $extensionMonths, $notes) {
+            $baseDate = !empty($asset->expiration_date)
+                ? \Carbon\Carbon::parse($asset->expiration_date)
+                : now();
+            // Always extend from the later of (current expiration, today) so repeated
+            // extensions after expiry accumulate from today instead of the past date.
+            if ($baseDate->isPast()) {
+                $baseDate = \Carbon\Carbon::now();
+            }
+            $newExpiration = $baseDate->copy()->addMonths($extensionMonths);
+
+            $currentStatus = $asset->Lifecycle_Status ?? 'Active';
+            $newStatus = $currentStatus;
+            if ($currentStatus === 'For Checking' && $newExpiration->isFuture()) {
+                // Restore to Active — the only reason this asset was flagged was its expired lifespan.
+                $newStatus = 'Active';
+            }
+
+            DB::table('assets')->where('id', $id)->update([
+                'expiration_date'  => $newExpiration->toDateString(),
+                'Lifecycle_Status' => $newStatus,
+                'updated_at'       => now(),
+            ]);
+
+            DB::table('audit_logs')->insert([
+                'asset_id'           => $id,
+                'user_id'            => Auth::id(),
+                'action_type'        => 'UPDATE',
+                'action_description' => 'Asset lifespan extended',
+                'notes'              => 'Lifespan extended by ' . $extensionMonths . ' months. New expiration date: '
+                    . $newExpiration->toDateString()
+                    . ($newStatus !== $currentStatus ? '. Status restored to ' . $newStatus . '.' : '')
+                    . ($notes ? "\nNotes: " . $notes : ''),
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+
+            return [
+                'expiration_date'  => $newExpiration->toDateString(),
+                'lifecycle_status' => $newStatus,
+                'status_restored'  => $newStatus !== $currentStatus,
+            ];
+        });
+
+        return response()->json([
+            'success'          => true,
+            'message'          => 'Lifespan extended by ' . $extensionMonths . ' months. New expiration: '
+                . $result['expiration_date']
+                . ($result['status_restored'] ? ' (asset returned to Active)' : ''),
+            'asset_id'         => $id,
+            'expiration_date'  => $result['expiration_date'],
+            'lifecycle_status' => $result['lifecycle_status'],
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json(['success' => false, 'message' => $e->validator->errors()->first()], 422);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Lifespan extension error: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Failed to extend lifespan: ' . $e->getMessage()], 500);
+    }
+});
+
+// Admin API: Request notifications feed for the admin notification bell.
+// Shows recent requests submitted by users (employees / department heads),
+// pending ones first, so the admin gets notified when someone submits a request.
+Route::get('/admin/api/request-notifications', function () {
+    $user = Auth::user();
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
+    $limit = min((int) request()->query('limit', 15), 50);
+
+    $requests = DB::table('requests')
+        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->select(
+            'requests.id',
+            'requests.request_type',
+            'requests.status',
+            'requests.Note',
+            'requests.created_at',
+            'assets.Asset_name as asset_name',
+            'assets.Asset_code as asset_code',
+            'employee_numbers.Full_Name as submitted_by'
+        )
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+        ->orderByDesc('requests.created_at')
+        ->limit($limit)
+        ->get()
+        ->map(function ($r) {
+            return [
+                'id'           => $r->id,
+                'request_type' => $r->request_type,
+                'status'       => $r->status,
+                'note'         => $r->Note,
+                'asset_name'   => $r->asset_name ?? 'General request',
+                'asset_code'   => $r->asset_code,
+                'submitted_by' => $r->submitted_by ?? 'Unknown',
+                'time_ago'     => \Carbon\Carbon::parse($r->created_at)->diffForHumans(),
+            ];
+        });
+
+    $pendingCount = DB::table('requests')
+        ->whereRaw('LOWER(status) = ?', ['pending'])
+        ->count();
+
+    return response()->json([
+        'success'       => true,
+        'count'         => $pendingCount,
+        'requests'      => $requests,
+    ]);
 });
 
 // Admin asset detail view
@@ -2093,6 +2434,31 @@ Route::post('/api/notifications/read-all', function () {
         ]);
 
     return response()->json(['success' => true]);
+})->middleware('auth');
+
+// Compatibility endpoint used by the employee dashboard toast poller:
+// returns the current user's repair request statuses so it can detect changes.
+Route::get('/api/notifications/user', function () {
+    $user = Auth::user();
+    if (!$user) {
+        return response()->json(['repairs' => []], 401);
+    }
+
+    $repairs = DB::table('repairs')
+        ->join('assets', 'repairs.Asset_id', '=', 'assets.id')
+        ->where('assets.user_id', $user->id)
+        ->orderByDesc('repairs.created_at')
+        ->limit(20)
+        ->get(['repairs.id', 'repairs.Repair_status', 'assets.Asset_name'])
+        ->map(function ($r) {
+            return [
+                'id'         => $r->id,
+                'status'     => strtolower((string) $r->Repair_status),
+                'Asset_name' => $r->Asset_name,
+            ];
+        });
+
+    return response()->json(['repairs' => $repairs]);
 })->middleware('auth');
 
 // Admin disposal page
