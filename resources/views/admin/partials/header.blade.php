@@ -84,7 +84,7 @@
 
                     {{-- Asset Registry form --}}
                     @case('asset_registry')
-                        <button type="button" class="btn-ghost" title="Fill in the form and save to register an asset">
+                        <button type="button" class="btn-ghost" onclick="openRegistryHelp()" title="Guided walkthrough: how to fill in the Asset Registry form">
                             <i class="ri-question-line mr-2"></i>
                             Help
                         </button>

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Http\Controllers\UserRequestController;
 use Carbon\Carbon;
 
@@ -2893,7 +2894,34 @@ Route::get('/admin/repair', function () {
         'Cancelled'   => 'cancelled',
     ];
 
-    $repairs = $repairsRaw->map(function ($r) use ($statusMap) {
+    // Load servicing/evaluation records keyed by repair id.
+    // Guarded: if the table isn't migrated yet, the page still renders with
+    // blank servicing fields instead of a 500.
+    try {
+        $evaluations = Schema::hasTable('repair_evaluations')
+            ? DB::table('repair_evaluations')
+                ->leftJoin('users', 'repair_evaluations.recorded_by', '=', 'users.id')
+                ->select(
+                    'repair_evaluations.*',
+                    'users.email as recorded_by_email'
+                )
+                ->get()
+                ->keyBy('repair_id')
+            : collect();
+    } catch (\Throwable $e) {
+        \Log::warning('Could not load repair evaluations: ' . $e->getMessage());
+        $evaluations = collect();
+    }
+
+    $resultMap = [
+        'Repairable'       => 'repaired',
+        'Beyond Repair'    => 'beyond_repair',
+        'For Replacement'  => 'for_replacement',
+    ];
+
+    $repairs = $repairsRaw->map(function ($r) use ($statusMap, $evaluations, $resultMap) {
+        $ev = $evaluations->get($r->id);
+
         return [
             'id'              => $r->id,
             'asset_id'        => $r->asset_id,
@@ -2907,8 +2935,6 @@ Route::get('/admin/repair', function () {
             'department'      => $r->department ?? '—',
             'date_requested'  => $r->date_requested ? date('Y-m-d', strtotime($r->date_requested)) : date('Y-m-d'),
             'estimated_cost'  => $r->estimated_cost ? (float) $r->estimated_cost : null,
-            'technician'      => null,
-            'completion_date' => null,
             'notes'           => $r->notes,
             'serial_number'   => $r->serial_number,
             'condition'       => $r->condition,
@@ -2917,6 +2943,21 @@ Route::get('/admin/repair', function () {
             'asset_location'  => $r->asset_location,
             'supplier'        => null,
             'model'           => null,
+
+            // Servicing & evaluation data (null when not yet documented)
+            'technician'          => $ev->technician_provider ?? null,
+            'actual_cost'         => ($ev && $ev->repair_cost !== null) ? (float) $ev->repair_cost : null,
+            'repair_result'       => ($ev && $ev->repair_result) ? ($resultMap[$ev->repair_result] ?? strtolower(str_replace(' ', '_', $ev->repair_result))) : null,
+            'expected_completion' => $ev->expected_completion ?? null,
+            'parts_replaced'      => $ev->parts_replaced ?? null,
+            'inspection_findings' => $ev->inspection_findings ?? null,
+            'admin_remarks'       => $ev->admin_remarks ?? null,
+            'recorded_by'         => $ev->recorded_by_email ?? null,
+
+            // For completed repairs, the evaluation's last update is the completion moment
+            'completion_date'     => ($r->status === 'Completed' && $ev && !empty($ev->updated_at))
+                                        ? date('Y-m-d', strtotime($ev->updated_at))
+                                        : null,
         ];
     });
 
@@ -2930,11 +2971,19 @@ $availableAssets = DB::table('assets')
 })->middleware('auth');
 
 
+
 // Admin update repair status endpoint
 Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Request $request) {
     $newStatus = $request->input('status');
-    $valid = ['pending', 'in_progress', 'completed', 'cancelled'];
-    
+    $valid = ['pending', 'in_progress', 'cancelled'];
+
+    if ($newStatus === 'completed') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Use “Complete Repair” to finish a repair — a documented servicing result is required.'
+        ], 422);
+    }
+
     if (!in_array($newStatus, $valid)) {
         return response()->json(['success' => false, 'message' => 'Invalid status'], 400);
     }
@@ -3059,6 +3108,204 @@ Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Reques
         ], 500);
     }
 });
+
+// =====================================================================
+// Repair Servicing & Evaluation endpoints
+// =====================================================================
+
+// Save pre-repair servicing information (technician, expected completion,
+// estimated cost, description, initial remarks) — allowed before/while Pending.
+Route::post('/admin/repairs/{id}/servicing', function ($id, \Illuminate\Http\Request $request) {
+    $repair = DB::table('repairs')->where('Repair_id', $id)->first();
+    if (!$repair) {
+        return response()->json(['success' => false, 'message' => 'Repair not found'], 404);
+    }
+
+    if (in_array($repair->status, ['Completed', 'Cancelled'], true)) {
+        return response()->json(['success' => false, 'message' => 'This repair is already closed and can no longer be edited.'], 422);
+    }
+
+    $technician         = trim((string) $request->input('technician', ''));
+    $expectedCompletion = trim((string) $request->input('expected_completion', ''));
+    $estimatedCost      = $request->input('estimated_cost');
+    $repairDescription  = trim((string) $request->input('repair_description', ''));
+    $adminRemarks       = trim((string) $request->input('admin_remarks', ''));
+
+    if ($technician === '') {
+        return response()->json(['success' => false, 'message' => 'Technician / Provider is required before starting the repair.'], 422);
+    }
+
+    try {
+        $now = now();
+        $data = [
+            'technician_provider' => $technician,
+            'expected_completion' => $expectedCompletion !== '' ? $expectedCompletion : null,
+            'repair_cost'         => ($estimatedCost !== null && $estimatedCost !== '') ? (float) $estimatedCost : null,
+            'admin_remarks'       => $adminRemarks !== '' ? $adminRemarks : null,
+            'recorded_by'         => Auth::id(),
+            'updated_at'          => $now,
+        ];
+
+        $existing = DB::table('repair_evaluations')->where('repair_id', $id)->first();
+        if ($existing) {
+            DB::table('repair_evaluations')->where('repair_id', $id)->update($data);
+        } else {
+            $data['repair_id']  = $id;
+            $data['created_at'] = $now;
+            DB::table('repair_evaluations')->insert($data);
+        }
+
+        // Keep the repair description in sync with what was documented
+        if ($repairDescription !== '' && $repairDescription !== $repair->Repair_Description) {
+            DB::table('repairs')->where('Repair_id', $id)->update([
+                'Repair_Description' => $repairDescription,
+                'updated_at'         => $now,
+            ]);
+        }
+
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'asset_id'           => $repair->Assets_id,
+            'request_id'         => $repair->Request_id,
+            'action_type'        => 'REPAIR',
+            'notes'              => 'Pre-repair servicing information saved. Technician: ' . $technician,
+            'action_description' => 'Repair #' . $id . ' servicing info recorded by ' . (Auth::user()?->email ?? 'admin'),
+            'created_at'         => $now,
+            'updated_at'         => $now,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servicing information saved.',
+            'servicing' => [
+                'technician'          => $technician,
+                'expected_completion' => $data['expected_completion'],
+                'estimated_cost'      => $data['repair_cost'],
+                'recorded_by'         => Auth::user()?->email ?? 'admin',
+            ],
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('Repair servicing save failed: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Failed to save servicing information: ' . $e->getMessage()], 500);
+    }
+})->middleware('auth');
+
+// Complete the repair with final evaluation. The result drives the lifecycle:
+//   repaired         → asset back to Active
+//   for_replacement  → admin proceeds with the Replacement process
+//   beyond_repair    → admin proceeds toward Disposal or Replacement
+Route::post('/admin/repairs/{id}/complete', function ($id, \Illuminate\Http\Request $request) {
+    $repair = DB::table('repairs')->where('Repair_id', $id)->first();
+    if (!$repair) {
+        return response()->json(['success' => false, 'message' => 'Repair not found'], 404);
+    }
+
+    if ($repair->status === 'Completed') {
+        return response()->json(['success' => false, 'message' => 'This repair is already completed.'], 422);
+    }
+    if ($repair->status === 'Cancelled') {
+        return response()->json(['success' => false, 'message' => 'A cancelled repair cannot be completed.'], 422);
+    }
+
+    $resultMap = [
+        'repaired'        => 'Repairable',
+        'beyond_repair'   => 'Beyond Repair',
+        'for_replacement' => 'For Replacement',
+    ];
+
+    $resultKey = $request->input('repair_result');
+    if (!$resultKey || !isset($resultMap[$resultKey])) {
+        return response()->json(['success' => false, 'message' => 'A repair result is required to complete a repair.'], 422);
+    }
+
+    $actualCost          = $request->input('actual_cost');
+    $partsReplaced       = trim((string) $request->input('parts_replaced', ''));
+    $inspectionFindings  = trim((string) $request->input('inspection_findings', ''));
+    $adminRemarks        = trim((string) $request->input('admin_remarks', ''));
+
+    try {
+        $now = now();
+        $dbResult = $resultMap[$resultKey];
+
+        // Upsert the evaluation with the final documentation
+        $evaluationData = [
+            'repair_result'       => $dbResult,
+            'repair_cost'         => ($actualCost !== null && $actualCost !== '') ? (float) $actualCost : null,
+            'parts_replaced'      => $partsReplaced !== '' ? $partsReplaced : null,
+            'inspection_findings' => $inspectionFindings !== '' ? $inspectionFindings : null,
+            'admin_remarks'       => $adminRemarks !== '' ? $adminRemarks : null,
+            'recorded_by'         => Auth::id(),
+            'updated_at'          => $now,
+        ];
+
+        $existing = DB::table('repair_evaluations')->where('repair_id', $id)->first();
+        if ($existing) {
+            // Keep the technician/expected completion already documented pre-repair
+            unset($evaluationData['technician_provider'], $evaluationData['expected_completion']);
+            DB::table('repair_evaluations')->where('repair_id', $id)->update($evaluationData);
+        } else {
+            $evaluationData['repair_id']  = $id;
+            $evaluationData['created_at'] = $now;
+            DB::table('repair_evaluations')->insert($evaluationData);
+        }
+
+        // Repair record: Completed + final result
+        DB::table('repairs')->where('Repair_id', $id)->update([
+            'status'        => 'Completed',
+            'Repair_result' => $dbResult,
+            'Repair_Cost'   => ($actualCost !== null && $actualCost !== '') ? (float) $actualCost : $repair->Repair_Cost,
+            'updated_at'    => $now,
+        ]);
+
+        // Asset lifecycle: only a successfully repaired asset returns to Active
+        $asset = DB::table('assets')->where('id', $repair->Assets_id)->first();
+        if ($resultKey === 'repaired' && $asset) {
+            DB::table('assets')->where('id', $asset->id)->update([
+                'Lifecycle_Status' => 'Active',
+                'updated_at'       => $now,
+            ]);
+        }
+
+        // Notify the owner / requester
+        if ($asset && !empty($asset->user_id)) {
+            $assetLabel = ($asset->Asset_name ?? 'Asset') . ($asset->Asset_code ? ' (' . $asset->Asset_code . ')' : '');
+            $resultMessages = [
+                'repaired'        => "Your {$assetLabel} has been successfully repaired and is Active again.",
+                'for_replacement' => "Your {$assetLabel} was evaluated For Replacement. The Asset Management Office will begin the replacement process.",
+                'beyond_repair'   => "Your {$assetLabel} was evaluated as Beyond Repair and will proceed to disposal or replacement.",
+            ];
+            createNotification(
+                (int) $asset->user_id,
+                'Repair Completed',
+                $resultMessages[$resultKey],
+                'REPAIR',
+                (int) $id,
+                'repair'
+            );
+        }
+
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'asset_id'           => $repair->Assets_id,
+            'request_id'         => $repair->Request_id,
+            'action_type'        => 'REPAIR',
+            'notes'              => 'Repair completed. Result: ' . $dbResult . ($actualCost !== null && $actualCost !== '' ? '. Actual cost: ₱' . number_format((float) $actualCost, 2) : ''),
+            'action_description' => 'Repair #' . $id . ' completed with result "' . $dbResult . '" by ' . (Auth::user()?->email ?? 'admin'),
+            'created_at'         => $now,
+            'updated_at'         => $now,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Repair completed. Result: ' . $dbResult,
+            'result'  => $resultKey,
+            'asset_status' => $resultKey === 'repaired' ? 'Active' : ($asset->Lifecycle_Status ?? null),
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('Repair completion failed: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Failed to complete repair: ' . $e->getMessage()], 500);
+    }
+})->middleware('auth');
 
 Route::post('/admin/replacements/create', function (\Illuminate\Http\Request $request) {
     $requestId         = $request->input('request_id');

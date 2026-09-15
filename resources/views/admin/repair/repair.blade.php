@@ -346,6 +346,7 @@
         let repairs = @json($repairs ?? []);
 
         let currentFilter = "all";
+        let currentSearchTerm = "";
 
         function priorityBadgeClasses(priority) {
             switch (priority) {
@@ -383,7 +384,17 @@
 
             let filteredRepairs = repairs;
             if (currentFilter !== "all") {
-                filteredRepairs = repairs.filter(r => r.status === currentFilter);
+                filteredRepairs = filteredRepairs.filter(r => r.status === currentFilter);
+            }
+            if (currentSearchTerm) {
+                const q = currentSearchTerm.toLowerCase();
+                filteredRepairs = filteredRepairs.filter(r =>
+                    (r.asset_name || '').toLowerCase().includes(q) ||
+                    (r.asset_code || '').toLowerCase().includes(q) ||
+                    (r.requested_by || '').toLowerCase().includes(q) ||
+                    (r.issue || '').toLowerCase().includes(q) ||
+                    (r.technician || '').toLowerCase().includes(q)
+                );
             }
 
             if (filteredRepairs.length === 0) {
@@ -468,9 +479,20 @@
             document.getElementById('completedRepairs').textContent = repairs.filter(r => r.status === 'completed').length;
         }
 
+        function overdueChip(repair) {
+            const active = repair.status !== 'completed' && repair.status !== 'cancelled';
+            if (!active || !repair.expected_completion) return '';
+            if (new Date(repair.expected_completion) >= new Date(new Date().toDateString())) return '';
+            return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style="background:var(--brick-tint); color:var(--brick-dark);"><i class="ri-alarm-warning-line mr-1"></i>Past due</span>`;
+        }
+
         function viewRepairDetails(id) {
             const repair = repairs.find(r => r.id === id);
             if (repair) {
+                const isActive = repair.status !== 'completed' && repair.status !== 'cancelled';
+                const isPending = repair.status === 'pending';
+                const isInProgress = repair.status === 'in_progress';
+                const isOverdue = isActive && repair.expected_completion && (new Date(repair.expected_completion) < new Date(new Date().toDateString()));
                 const content = `
                     <div class="space-y-6">
                         <div class="flex items-start justify-between pb-5" style="border-bottom:1px solid var(--line);">
@@ -513,7 +535,7 @@
                             </div>
                             ${repair.technician ? `
                             <div class="detail-field">
-                                <dt>Assigned Technician</dt>
+                                <dt>Technician / Provider</dt>
                                 <dd>${repair.technician}</dd>
                             </div>
                             ` : ''}
@@ -521,6 +543,18 @@
                             <div class="detail-field">
                                 <dt>Estimated Cost</dt>
                                 <dd>₱${repair.estimated_cost.toFixed(2)}</dd>
+                            </div>
+                            ` : ''}
+                            ${repair.actual_cost !== null && repair.actual_cost !== undefined ? `
+                            <div class="detail-field">
+                                <dt>Actual Repair Cost</dt>
+                                <dd>₱${repair.actual_cost.toFixed(2)}</dd>
+                            </div>
+                            ` : ''}
+                            ${repair.expected_completion ? `
+                            <div class="detail-field">
+                                <dt>Expected Completion</dt>
+                                <dd>${new Date(repair.expected_completion).toLocaleDateString()}${isOverdue ? ' <span class="text-xs font-semibold" style="color:var(--brick);">(Past due)</span>' : ''}</dd>
                             </div>
                             ` : ''}
                             ${repair.completion_date ? `
@@ -550,29 +584,138 @@
                             </div>
                         </div>
 
+                        ${(repair.technician || repair.expected_completion || repair.actual_cost !== null && repair.actual_cost !== undefined || repair.repair_result || repair.recorded_by) ? `
+                        <div class="pt-5" style="border-top:1px solid var(--line);">
+                            <h4 class="eyebrow mb-3">Servicing & Evaluation Record</h4>
+                            <div class="rounded-xl p-4 grid grid-cols-2 gap-x-6 gap-y-4" style="background:var(--paper-2);">
+                                ${repair.technician ? `<div class="detail-field"><dt>Technician / Provider</dt><dd class="font-normal">${repair.technician}</dd></div>` : ''}
+                                ${repair.expected_completion ? `<div class="detail-field"><dt>Expected Completion</dt><dd class="font-normal">${repair.expected_completion}</dd></div>` : ''}
+                                ${repair.parts_replaced ? `<div class="detail-field"><dt>Parts Replaced</dt><dd class="font-normal">${repair.parts_replaced}</dd></div>` : ''}
+                                ${repair.inspection_findings ? `<div class="detail-field col-span-2"><dt>Inspection Findings</dt><dd class="font-normal">${repair.inspection_findings}</dd></div>` : ''}
+                                ${repair.admin_remarks ? `<div class="detail-field col-span-2"><dt>Admin Remarks</dt><dd class="font-normal">${repair.admin_remarks}</dd></div>` : ''}
+                                ${repair.repair_result ? `<div class="detail-field"><dt>Repair Result</dt><dd><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="${resultBadgeClasses(repair.repair_result)}">${displayResultLabel(repair.repair_result)}</span></dd></div>` : ''}
+                                ${repair.recorded_by ? `<div class="detail-field"><dt>Recorded By</dt><dd class="font-normal">${repair.recorded_by}</dd></div>` : ''}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${isActive && isPending ? `
+                        <!-- Step 1: Pre-repair servicing information (Pending) -->
+                        <div class="pt-5" style="border-top:1px solid var(--line);">
+                            <h4 class="eyebrow mb-1">Pre-Repair Servicing Information</h4>
+                            <p class="text-xs mb-3" style="color:var(--ink-400);">Record who will handle the repair and what is expected before servicing starts.</p>
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Technician / Provider <span style="color:var(--brick);">*</span></label>
+                                        <input type="text" id="svc-technician-${repair.id}" class="form-input text-sm" placeholder="e.g., ABC Repair Services" value="${repair.technician ?? ''}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Expected Completion Date</label>
+                                        <input type="date" id="svc-expected-${repair.id}" class="form-input text-sm" value="${repair.expected_completion ?? ''}">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Repair Description</label>
+                                    <textarea id="svc-description-${repair.id}" rows="2" class="form-input text-sm resize-none" placeholder="What is expected to be performed...">${repair.issue ?? ''}</textarea>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Estimated / Initial Repair Cost</label>
+                                        <input type="number" step="0.01" min="0" id="svc-estimated-${repair.id}" class="form-input text-sm" placeholder="0.00" value="${repair.estimated_cost ?? ''}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Initial Admin Remarks</label>
+                                        <input type="text" id="svc-remarks-${repair.id}" class="form-input text-sm" placeholder="Initial assessment notes..." value="${repair.admin_remarks ?? ''}">
+                                    </div>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                                    <button onclick="saveServicing(${repair.id})" class="btn-ghost text-sm flex-1">Save Servicing Info</button>
+                                    <button onclick="startRepair(${repair.id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style="background:var(--steel); color:#fff;">
+                                        <i class="ri-play-circle-line mr-1.5"></i>Start Repair
+                                    </button>
+                                </div>
+                                <p class="text-xs" style="color:var(--ink-400);">Start Repair changes this request from <b>Pending</b> to <b>In Progress</b> and records that servicing has officially started.</p>
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${isActive && isInProgress ? `
+                        <!-- Step 2: Servicing documentation + final evaluation (In Progress) -->
+                        <div class="pt-5" style="border-top:1px solid var(--line);">
+                            <h4 class="eyebrow mb-1">Record Actual Servicing</h4>
+                            <p class="text-xs mb-3" style="color:var(--ink-400);">Document what was discovered, what was repaired or replaced, and what resources were used.</p>
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Parts Replaced</label>
+                                        <input type="text" id="done-parts-${repair.id}" class="form-input text-sm" placeholder="e.g., Office Chair Wheel" value="${repair.parts_replaced ?? ''}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Actual Repair Cost</label>
+                                        <input type="number" step="0.01" min="0" id="done-cost-${repair.id}" class="form-input text-sm" placeholder="0.00" value="${repair.actual_cost ?? repair.estimated_cost ?? ''}">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Inspection Findings</label>
+                                    <textarea id="done-findings-${repair.id}" rows="2" class="form-input text-sm resize-none" placeholder="e.g., Damaged wheel assembly">${repair.inspection_findings ?? ''}</textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Admin Remarks</label>
+                                    <textarea id="done-remarks-${repair.id}" rows="2" class="form-input text-sm resize-none" placeholder="e.g., Replacement wheel installed and tested.">${repair.admin_remarks ?? ''}</textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Repair Result <span style="color:var(--brick);">*</span></label>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <label class="flex items-center gap-2 p-3 rounded-lg cursor-pointer text-sm transition-colors" style="border:1px solid var(--line);" onmouseover="this.style.background='var(--forest-tint)'" onmouseout="this.style.background='transparent'">
+                                            <input type="radio" name="repair-result-${repair.id}" value="repaired" class="w-4 h-4" style="accent-color:var(--forest);" onchange="toggleLifecycleHint(${repair.id})">
+                                            <span><b>Repaired</b><br/><span class="text-xs" style="color:var(--ink-400);">Usable — asset returns to Active</span></span>
+                                        </label>
+                                        <label class="flex items-center gap-2 p-3 rounded-lg cursor-pointer text-sm transition-colors" style="border:1px solid var(--line);" onmouseover="this.style.background='var(--plum-tint)'" onmouseout="this.style.background='transparent'">
+                                            <input type="radio" name="repair-result-${repair.id}" value="for_replacement" class="w-4 h-4" style="accent-color:var(--plum);" onchange="toggleLifecycleHint(${repair.id})">
+                                            <span><b>For Replacement</b><br/><span class="text-xs" style="color:var(--ink-400);">Start the replacement process</span></span>
+                                        </label>
+                                        <label class="flex items-center gap-2 p-3 rounded-lg cursor-pointer text-sm transition-colors" style="border:1px solid var(--line);" onmouseover="this.style.background='var(--brick-tint)'" onmouseout="this.style.background='transparent'">
+                                            <input type="radio" name="repair-result-${repair.id}" value="beyond_repair" class="w-4 h-4" style="accent-color:var(--brick);" onchange="toggleLifecycleHint(${repair.id})">
+                                            <span><b>Beyond Repair</b><br/><span class="text-xs" style="color:var(--ink-400);">Proceed to disposal / replacement</span></span>
+                                        </label>
+                                    </div>
+                                    <div id="lifecycle-hint-${repair.id}" class="hidden mt-2 rounded-lg p-3 text-xs" style="background:var(--gold-100); color:var(--gold-600);"></div>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                                    <button onclick="completeRepair(${repair.id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors" style="background:var(--forest); color:#fff;">
+                                        <i class="ri-checkbox-circle-line mr-1.5"></i>Complete Repair
+                                    </button>
+                                    <button onclick="changeRepairStatus(${repair.id}, 'pending')" class="btn-ghost text-sm flex-1">Send Back to Pending</button>
+                                </div>
+                                ${overdueChip(repair)}
+                            </div>
+                        </div>
+                        ` : ''}
+
                         <div class="pt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style="border-top:1px solid var(--line);">
                             <button onclick="closeViewRepairModal()" class="btn-ghost order-2 sm:order-1 text-sm">Close</button>
-                                ${(repair.status !== 'completed' && repair.status !== 'cancelled') ? `
-                                    <div class="order-1 sm:order-2 flex flex-wrap items-center gap-2">
-                                        <span class="text-xs mr-1 hidden sm:inline" style="color:var(--ink-400);">Set status:</span>
-                                        <button onclick="changeRepairStatus(${repair.id}, 'pending')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style="background:var(--bronze-tint); color:var(--bronze-dark);">Pending</button>
-                                        <button onclick="changeRepairStatus(${repair.id}, 'in_progress')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style="background:var(--steel-tint); color:var(--steel-dark);">In Progress</button>
-                                        <button onclick="changeRepairStatus(${repair.id}, 'completed')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style="background:var(--forest-tint); color:var(--forest-dark);">Completed</button>
-                                        <button onclick="changeRepairStatus(${repair.id}, 'cancelled')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style="background:var(--paper-2); color:var(--ink-600);">Cancelled</button>
-                                    </div>
-                                ` : ''}
+                            ${isActive ? `
+                                <div class="order-1 sm:order-2 flex flex-wrap items-center gap-2">
+                                    <span class="text-xs mr-1 hidden sm:inline" style="color:var(--ink-400);">Cancel repair:</span>
+                                    <button onclick="changeRepairStatus(${repair.id}, 'cancelled')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style="background:var(--paper-2); color:var(--ink-600);">Cancelled</button>
+                                </div>
+                            ` : ''}
                         </div>
 
-                        ${(repair.status !== 'completed' && repair.status !== 'cancelled') ? `
-                        <div class="pt-5 flex flex-col sm:flex-row gap-3" style="border-top:1px solid var(--line);">
-                            <button onclick="sendAssetToReplacement(${repair.id}, ${repair.asset_id}, ${repair.request_id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center" style="background:var(--plum-tint); color:var(--plum-dark);">
-                                <i class="ri-refresh-line mr-2"></i>
-                                Send to Replacement
-                            </button>
-                            <button onclick="sendAssetToDisposal(${repair.id}, ${repair.asset_id}, ${repair.request_id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center" style="background:var(--brick-tint); color:var(--brick-dark);">
-                                <i class="ri-delete-bin-line mr-2"></i>
-                                Send to Disposal
-                            </button>
+                        ${(repair.status === 'completed' && (repair.repair_result === 'for_replacement' || repair.repair_result === 'beyond_repair')) ? `
+                        <div class="pt-5" style="border-top:1px solid var(--line);">
+                            <p class="text-xs mb-3" style="color:var(--ink-400);">The evaluation result is <b>${displayResultLabel(repair.repair_result)}</b> — proceed with the ${repair.repair_result === 'for_replacement' ? 'replacement' : 'disposal or replacement'} process below.</p>
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <button onclick="sendAssetToReplacement(${repair.id}, ${repair.asset_id}, ${repair.request_id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center" style="background:var(--plum-tint); color:var(--plum-dark);">
+                                    <i class="ri-refresh-line mr-2"></i>
+                                    Send to Replacement
+                                </button>
+                                <button onclick="sendAssetToDisposal(${repair.id}, ${repair.asset_id}, ${repair.request_id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center" style="background:var(--brick-tint); color:var(--brick-dark);">
+                                    <i class="ri-delete-bin-line mr-2"></i>
+                                    Send to Disposal
+                                </button>
+                            </div>
                         </div>
                     ` : ''}
                     </div>
@@ -637,6 +780,160 @@
                 });
             }
 
+        function resultBadgeClasses(result) {
+            switch (result) {
+                case 'repaired': return 'background:var(--forest-tint); color:var(--forest-dark);';
+                case 'for_replacement': return 'background:var(--plum-tint); color:var(--plum-dark);';
+                case 'beyond_repair': return 'background:var(--brick-tint); color:var(--brick-dark);';
+                default: return 'background:var(--paper-2); color:var(--ink-600);';
+            }
+        }
+
+        function displayResultLabel(result) {
+            switch (result) {
+                case 'repaired': return 'Repaired';
+                case 'for_replacement': return 'For Replacement';
+                case 'beyond_repair': return 'Beyond Repair';
+                default: return result || '—';
+            }
+        }
+
+        function toggleLifecycleHint(id) {
+            const hint = document.getElementById('lifecycle-hint-' + id);
+            const chosen = document.querySelector('input[name="repair-result-' + id + '"]:checked');
+            if (!hint) return;
+            if (!chosen) { hint.classList.add('hidden'); return; }
+            const messages = {
+                repaired: 'Completing will mark the asset <b>Active</b> again and notify its owner.',
+                for_replacement: 'Completing will mark the asset <b>For Replacement</b> — after completing, “Send to Replacement” will appear to start the replacement process.',
+                beyond_repair: 'Completing will keep the asset out of Active — after completing, “Send to Disposal” / “Send to Replacement” will appear next.'
+            };
+            hint.innerHTML = messages[chosen.value] || '';
+            hint.classList.remove('hidden');
+        }
+
+        function saveServicing(id) {
+            const payload = {
+                technician: document.getElementById('svc-technician-' + id)?.value.trim() || '',
+                expected_completion: document.getElementById('svc-expected-' + id)?.value || '',
+                repair_description: document.getElementById('svc-description-' + id)?.value.trim() || '',
+                estimated_cost: document.getElementById('svc-estimated-' + id)?.value || '',
+                admin_remarks: document.getElementById('svc-remarks-' + id)?.value.trim() || ''
+            };
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            fetch(`/admin/repairs/${id}/servicing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'Accept': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const repair = repairs.find(r => r.id === id);
+                    if (repair) {
+                        repair.technician = data.servicing.technician;
+                        repair.expected_completion = data.servicing.expected_completion;
+                        repair.estimated_cost = data.servicing.estimated_cost;
+                        repair.recorded_by = data.servicing.recorded_by;
+                        if (payload.repair_description) repair.issue = payload.repair_description;
+                    }
+                    renderRepairs();
+                    viewRepairDetails(id);
+                    alert('Servicing information saved.');
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save servicing information'));
+                }
+            })
+            .catch(err => alert('Error saving servicing information: ' + err.message));
+        }
+
+        function startRepair(id) {
+            const technician = document.getElementById('svc-technician-' + id)?.value.trim() || '';
+            if (!technician) {
+                alert('A Technician / Provider is required before starting the repair.');
+                return;
+            }
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            // Save servicing info first, then flip the status to In Progress
+            fetch(`/admin/repairs/${id}/servicing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    technician,
+                    expected_completion: document.getElementById('svc-expected-' + id)?.value || '',
+                    repair_description: document.getElementById('svc-description-' + id)?.value.trim() || '',
+                    estimated_cost: document.getElementById('svc-estimated-' + id)?.value || '',
+                    admin_remarks: document.getElementById('svc-remarks-' + id)?.value.trim() || ''
+                })
+            })
+            .then(res => res.json())
+            .then(saved => {
+                if (!saved.success) throw new Error(saved.message || 'Failed to save servicing information');
+                return fetch(`/admin/repairs/${id}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'Accept': 'application/json' },
+                    body: JSON.stringify({ status: 'in_progress' })
+                }).then(res => res.json());
+            })
+            .then(data => {
+                if (data.success) {
+                    const repair = repairs.find(r => r.id === id);
+                    if (repair) {
+                        repair.status = 'in_progress';
+                    }
+                    renderRepairs();
+                    viewRepairDetails(id);
+                    alert('Repair started — status is now In Progress.');
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to start repair'));
+                }
+            })
+            .catch(err => alert('Error starting repair: ' + err.message));
+        }
+
+        function completeRepair(id) {
+            const chosen = document.querySelector('input[name="repair-result-' + id + '"]:checked');
+            if (!chosen) {
+                alert('Select a Repair Result (Repaired, For Replacement, or Beyond Repair) before completing.');
+                return;
+            }
+            if (!confirm('Complete this repair with result: ' + displayResultLabel(chosen.value) + '?')) return;
+
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            fetch(`/admin/repairs/${id}/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf || '', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    repair_result: chosen.value,
+                    actual_cost: document.getElementById('done-cost-' + id)?.value || '',
+                    parts_replaced: document.getElementById('done-parts-' + id)?.value.trim() || '',
+                    inspection_findings: document.getElementById('done-findings-' + id)?.value.trim() || '',
+                    admin_remarks: document.getElementById('done-remarks-' + id)?.value.trim() || ''
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const repair = repairs.find(r => r.id === id);
+                    if (repair) {
+                        repair.status = 'completed';
+                        repair.repair_result = chosen.value;
+                        repair.completion_date = new Date().toISOString().split('T')[0];
+                        repair.actual_cost = parseFloat(document.getElementById('done-cost-' + id)?.value) || repair.actual_cost;
+                        repair.parts_replaced = document.getElementById('done-parts-' + id)?.value.trim() || repair.parts_replaced;
+                        repair.inspection_findings = document.getElementById('done-findings-' + id)?.value.trim() || repair.inspection_findings;
+                        repair.admin_remarks = document.getElementById('done-remarks-' + id)?.value.trim() || repair.admin_remarks;
+                    }
+                    renderRepairs();
+                    viewRepairDetails(id);
+                    alert(data.message || 'Repair completed.');
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to complete repair'));
+                }
+            })
+            .catch(err => alert('Error completing repair: ' + err.message));
+        }
+
         function deleteRepair(id) {
             if (confirm('Are you sure you want to delete this repair request?')) {
                 repairs = repairs.filter(r => r.id !== id);
@@ -658,26 +955,10 @@
             });
         });
 
-        // Search functionality
+        // Search functionality (delegates to renderRepairs so cards render fully)
         document.getElementById('searchRepairs')?.addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const filtered = repairs.filter(r =>
-                r.asset_name.toLowerCase().includes(searchTerm) ||
-                r.asset_code.toLowerCase().includes(searchTerm) ||
-                r.requested_by.toLowerCase().includes(searchTerm) ||
-                r.issue.toLowerCase().includes(searchTerm)
-            );
-
-            const repairsList = document.getElementById('repairsList');
-            if (filtered.length === 0) {
-                repairsList.innerHTML = '<div class="text-center py-12" style="background:#fff; border-radius:14px; border:1px solid var(--line);"><p class="text-sm" style="color:var(--ink-400);">No matching repair requests found</p></div>';
-            } else {
-                repairsList.innerHTML = filtered.map(repair => `
-                    <div class="repair-card p-5">
-                        <!-- Same card structure as above -->
-                    </div>
-                `).join('');
-            }
+            currentSearchTerm = e.target.value.trim();
+            renderRepairs();
         });
 
         // Modal functions

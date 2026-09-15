@@ -331,7 +331,7 @@
                         @endif
 
                         <div class="mt-8">
-                            <a href="/admin/assets" class="btn-ghost inline-flex items-center">&larr; Back to assets</a>
+                            <a href="/admin/assets" onclick="if (window.history.length > 1) { window.history.back(); return false; }" class="btn-ghost inline-flex items-center">&larr; Back</a>
                         </div>
                     </div>
                 </div>

@@ -1499,6 +1499,176 @@
         });
     </script>
 
+    <!-- Registry Help Walkthrough -->
+    <div id="registryHelpModal" class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background:rgba(10,24,48,.55);" onclick="if (event.target === this) closeRegistryHelp()">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[88vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="px-6 py-5 flex justify-between items-center rounded-t-2xl" style="background:#0F2143;">
+                <div>
+                    <h3 class="font-display text-lg font-semibold text-white">How to Register an Asset</h3>
+                    <p class="text-xs mt-0.5" style="color:#F3E7C4;">A guided walkthrough — every field explained, with a ready example</p>
+                </div>
+                <button onclick="closeRegistryHelp()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            <div id="registry-help-body" class="p-6 overflow-y-auto"></div>
+            <div class="px-6 py-4 border-t flex flex-wrap items-center gap-3" style="border-color:#DED2AE;">
+                <button type="button" id="registry-help-prev" onclick="registryHelpNav(-1)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#EAE2C9; color:#0F2143;">&larr; Back</button>
+                <div id="registry-help-dots" class="flex items-center gap-1.5 flex-1 justify-center"></div>
+                <button type="button" onclick="fillRegistryExample()" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#F3E7C4; color:#A8841E; border:1px solid #EADFC0;">
+                    <i class="ri-magic-line mr-1"></i>Fill with Example
+                </button>
+                <button type="button" id="registry-help-next" onclick="registryHelpNav(1)" class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors" style="background:#C9A227;">Next &rarr;</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const REGISTRY_HELP_STEPS = [
+            {
+                title: 'Basic Information', icon: 'ri-information-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li><b>Asset Name *</b> — the official item name. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">Dell Laptop i7-12th Gen</span></li>
+                        <li><b>Category *</b> — pick the closest match (e.g., “Info and Equipment” for laptops). The category drives the auto-generated asset code prefix.</li>
+                        <li><b>Supplier</b> — the vendor or store it was bought from. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">DLB Trading Corp.</span></li>
+                        <li><b>Condition *</b> — <b>New</b>: brand-new purchase · <b>Good</b>: works with minor wear · <b>Fair</b>: usable with visible defects · <b>Poor</b>: barely functional, repair soon.</li>
+                    </ul>`
+            },
+            {
+                title: 'Assignment & Location', icon: 'ri-user-location-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li><b>Assign to (Name/Department)</b> — optional. Type in the box to search registered users by name or department, then click a result to select the custodian. This is what creates asset accountability.</li>
+                        <li><b>Location</b> — where the asset physically lives. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">Room 301, Engineering Building</span></li>
+                        <li class="text-xs" style="color:#8991A0;">Tip: an asset assigned to a user can be tracked, pulled out, and included in that department's asset page.</li>
+                    </ul>`
+            },
+            {
+                title: 'Acquisition Details', icon: 'ri-money-peso-circle-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li><b>Date Acquired *</b> — the purchase/received date (required). It drives the auto-calculated expiration date.</li>
+                        <li><b>Purchase Price</b> — in pesos, numbers only. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">48500</span></li>
+                        <li><b>Warranty (months)</b> — coverage period from purchase. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">24</span> for a two-year warranty.</li>
+                    </ul>`
+            },
+            {
+                title: 'Additional Information', icon: 'ri-sticky-note-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li><b>Serial Number</b> — copy it from the physical unit. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">SN-DL-2026-88412</span></li>
+                        <li><b>Asset Photo</b> — optional, but a clear photo makes the asset easy to identify during audits (PNG/JPG up to 10MB).</li>
+                        <li><b>Notes</b> — anything worth remembering. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">Includes charger and laptop bag.</span></li>
+                    </ul>`
+            },
+            {
+                title: 'Lifespan & Maintenance', icon: 'ri-heart-pulse-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li><b>Lifespan (months)</b> — how long the asset is expected to last. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">60</span> (5 years). The <b>Expiration Date</b> is auto-calculated as Date Acquired + Lifespan.</li>
+                        <li><b>Last Maintenance Date</b> — when it was last serviced. Leave it empty and the next maintenance is based on the registration date.</li>
+                        <li><b>Maintenance Interval (months)</b> — how often it should be serviced. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">6</span>. The <b>Next Maintenance Date</b> is auto-calculated.</li>
+                    </ul>`
+            },
+            {
+                title: 'QR Code & Quantity', icon: 'ri-qr-code-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li><b>Asset Code & QR</b> — generated automatically as you fill the form. Check the preview at the bottom of the page.</li>
+                        <li><b>Quantity</b> — register identical items in one go (e.g., 30 identical office chairs). Each copy gets its own unique asset code and QR label, which you can print after saving.</li>
+                    </ul>`
+            },
+            {
+                title: 'Save & After', icon: 'ri-checkbox-circle-line',
+                html: `
+                    <ul class="space-y-3 text-sm" style="color:#33425C;">
+                        <li>Review everything, then press <b>Register Assets</b> at the bottom of the page.</li>
+                        <li>On success a green toast appears and the assets are saved to the inventory — find them under <b>Assets</b> (and under the assigned user's department page).</li>
+                        <li>Print the QR labels right after registration and stick them on the physical units.</li>
+                    </ul>
+                    <div class="mt-4 p-3 rounded-lg text-xs" style="background:#F3E7C4; color:#A8841E;">
+                        Use <b>“Fill with Example”</b> (bottom bar) to see every field filled with a realistic laptop example, then replace the values with your own.
+                    </div>`
+            },
+        ];
+        let registryHelpStep = 0;
+
+        function openRegistryHelp() {
+            registryHelpStep = 0;
+            const modal = document.getElementById('registryHelpModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            renderRegistryHelpStep();
+        }
+
+        function closeRegistryHelp() {
+            const modal = document.getElementById('registryHelpModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function renderRegistryHelpStep() {
+            const step = REGISTRY_HELP_STEPS[registryHelpStep];
+            const body = document.getElementById('registry-help-body');
+            body.innerHTML = `
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:#F3E7C4;">
+                        <i class="${step.icon} text-lg" style="color:#A8841E;"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold" style="color:#A8841E;">STEP ${registryHelpStep + 1} OF ${REGISTRY_HELP_STEPS.length}</p>
+                        <h4 class="font-display text-base font-semibold" style="color:#0F2143;">${step.title}</h4>
+                    </div>
+                </div>
+                ${step.html}`;
+            document.getElementById('registry-help-prev').disabled = registryHelpStep === 0;
+            document.getElementById('registry-help-prev').style.opacity = registryHelpStep === 0 ? .45 : 1;
+            const nextBtn = document.getElementById('registry-help-next');
+            nextBtn.innerHTML = registryHelpStep === REGISTRY_HELP_STEPS.length - 1 ? 'Done <i class="ri-check-line ml-1"></i>' : 'Next &rarr;';
+            document.getElementById('registry-help-dots').innerHTML = REGISTRY_HELP_STEPS.map((_, i) =>
+                `<span class="rounded-full transition-all" style="width:${i === registryHelpStep ? 18 : 7}px; height:7px; background:${i === registryHelpStep ? '#C9A227' : '#DED2AE'};"></span>`
+            ).join('');
+        }
+
+        function registryHelpNav(dir) {
+            if (dir > 0 && registryHelpStep === REGISTRY_HELP_STEPS.length - 1) { closeRegistryHelp(); return; }
+            registryHelpStep = Math.min(Math.max(registryHelpStep + dir, 0), REGISTRY_HELP_STEPS.length - 1);
+            renderRegistryHelpStep();
+        }
+
+        function fillRegistryExample() {
+            const today = new Date().toISOString().slice(0, 10);
+            const set = (sel, val, ev) => {
+                const el = document.querySelector(sel);
+                if (!el) return;
+                el.value = val;
+                el.dispatchEvent(new Event(ev || 'input', { bubbles: true }));
+            };
+            set('input[name="name"]', 'Dell Laptop i7-12th Gen', 'change');
+            set('#asset-category', 'Info and Equipment', 'change');
+            set('input[name="supplier"]', 'DLB Trading Corp.');
+            set('input[name="location"]', 'Room 301, Engineering Building', 'change');
+            const cond = document.querySelector('input[name="condition"][value="new"]');
+            if (cond) { cond.checked = true; cond.dispatchEvent(new Event('change', { bubbles: true })); }
+            set('input[name="acquisition_date"]', today, 'change');
+            set('input[name="purchase_price"]', '48500');
+            set('input[name="warranty_months"]', '24', 'change');
+            set('input[name="serial_number"]', 'SN-DL-2026-88412');
+            set('textarea[name="notes"]', 'Includes charger and laptop bag.');
+            set('#lifespan-months', '60', 'change');
+            set('#last-maintenance-date', today, 'change');
+            set('#maintenance-interval', '6', 'change');
+            if (typeof showToast === 'function') showToast('Example values filled in — review and adjust, then press Register Assets.', 'success');
+            if (typeof updateQRCode === 'function') updateQRCode();
+            closeRegistryHelp();
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeRegistryHelp();
+        });
+    </script>
+
     <!-- Toast markup -->
     <div id="toast" class="hidden fixed bottom-6 right-6 z-50 max-w-sm">
         <div id="toast-inner" class="w-full flex items-start space-x-3 rounded-lg p-4">
