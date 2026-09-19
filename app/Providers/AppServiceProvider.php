@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rules\Password;
 use App\Models\Asset;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,6 +25,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // One password policy for the whole app: account activation (registration)
+        // and password reset both use Password::default().
+        // At least 8 characters with an uppercase letter, a lowercase letter,
+        // a number and a symbol.
+        Password::defaults(fn () => Password::min(8)->mixedCase()->numbers()->symbols());
+
         // Share the currently authenticated user with all views, but guard against DB errors
         try {
             $user = Auth::user();

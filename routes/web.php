@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rules\Password;
 use App\Http\Controllers\UserRequestController;
 use Carbon\Carbon;
 
@@ -109,6 +110,38 @@ if (!function_exists('createPulloutTransaction')) {
     }
 }
 
+if (!function_exists('passwordIsBasedOnIdentity')) {
+    /**
+     * Blocks passwords built out of the person's own details (name words, email
+     * address, employee number) - the easiest thing for someone else to guess.
+     * Any word of 4+ characters found inside the password is rejected.
+     */
+    function passwordIsBasedOnIdentity(string $password, array $identityFragments): bool
+    {
+        $password = Str::lower($password);
+
+        if ($password === '') {
+            return false;
+        }
+
+        foreach ($identityFragments as $fragment) {
+            if (!is_string($fragment) || $fragment === '') {
+                continue;
+            }
+
+            $words = preg_split('/[^a-z0-9]+/i', Str::lower($fragment)) ?: [];
+
+            foreach ($words as $word) {
+                if (Str::length($word) >= 4 && Str::contains($password, $word)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
 // Handle login form submission
 Route::post('/login', function (Request $request) {
     $credentials = $request->validate([
@@ -164,7 +197,7 @@ Route::post('/register', function (Request $request) {
     $validated = $request->validate([
         'unit_heads_number' => 'required|string|max:20',
         'email' => 'required|email|max:100|unique:users,email',
-        'password' => 'required|confirmed|min:6',
+        'password' => ['required', 'confirmed', Password::default()],
         'profile_photo' => 'nullable|image|max:2048',
     ]);
 
@@ -175,6 +208,17 @@ Route::post('/register', function (Request $request) {
     
     if (!$employee) {
         return back()->withErrors(['unit_heads_number' => 'Employee number not found in the system. Please contact the administrator.'])->withInput();
+    }
+
+    // The password must not be built out of the employee's own details
+    if (passwordIsBasedOnIdentity($validated['password'], [
+        $employee->Full_Name,
+        Str::before($validated['email'], '@'),
+        $validated['unit_heads_number'],
+    ])) {
+        return back()->withErrors([
+            'password' => 'Your password must not contain your name, email address, or employee number.',
+        ])->withInput();
     }
 
     // Check if this employee number is already registered
@@ -365,7 +409,7 @@ Route::post('/forgot-password/reset', function (Request $request) {
     }
 
     $validated = $request->validate([
-        'password' => 'required|confirmed|min:6',
+        'password' => ['required', 'confirmed', Password::default()],
     ]);
 
     $record = DB::table('password_resets')->where('email', $email)->orderByDesc('id')->first();
@@ -386,6 +430,16 @@ Route::post('/forgot-password/reset', function (Request $request) {
         $request->session()->forget(['password_reset_email', 'password_reset_code']);
         return redirect('/forgot-password')
             ->withErrors(['email' => 'Your account could not be found. Please contact the administrator.']);
+    }
+
+    // The new password must not be built out of the account's own details
+    if (passwordIsBasedOnIdentity($validated['password'], [
+        $user->display_name,
+        Str::before($user->email, '@'),
+    ])) {
+        return back()->withErrors([
+            'password' => 'Your password must not contain your name or email address.',
+        ]);
     }
 
     try {
