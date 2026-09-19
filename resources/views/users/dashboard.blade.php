@@ -19,18 +19,19 @@
         }
         
         .sidebar-item {
+            border-left: 3px solid transparent;
             transition: all 0.2s ease;
             cursor: pointer;
         }
         
         .sidebar-item:hover {
-            background-color: #142B4D;
+            background-color: rgba(255, 255, 255, 0.05);
         }
         
         .sidebar-item.active {
-            background-color: #0B1B33;
-            color: #E8C874;
-            border-right: 3px solid #C9A227;
+            background-color: rgba(201, 162, 39, 0.10);
+            color: #E9C766;
+            border-left-color: #C9A227;
         }
         
         .stat-card {
@@ -83,14 +84,14 @@
             <div class="p-8">
                 <!-- Total Assets Section -->
                 <div class="mb-8">
-                    <div class="bg-gradient-to-br from-[#0B1B33] to-[#1C3A63] rounded-xl shadow-lg p-6 text-white">
+                    <div class="bg-gradient-to-br from-[#0A1830] to-[#15305B] rounded-xl shadow-lg p-6 text-white">
                         <div class="flex justify-between items-center mb-4">
                             <div>
                                 <h3 class="text-lg font-semibold">Total Assets</h3>
                                 <p class="text-sm text-white/70 mt-1">Your assigned equipment and devices</p>
                             </div>
                             <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center">
-                                <i class="ri-computer-line text-[#E8C874] text-xl"></i>
+                                <i class="ri-computer-line text-[#E9C766] text-xl"></i>
                             </div>
                         </div>
                         <p class="text-4xl font-bold">{{ $totalAssets ?? 0 }}</p>
@@ -162,7 +163,7 @@
 
                 <!-- Quick Actions -->
                 <div class="mb-8">
-                    <a href="{{ route('user.request-asset') }}" class="submit-btn bg-[#C9A227] text-[#0B1B33] px-6 py-3 rounded-lg hover:bg-[#E8C874] transition-all inline-flex items-center shadow-md font-semibold">
+                    <a href="{{ route('user.request-asset') }}" class="submit-btn bg-[#C9A227] text-[#0A1830] px-6 py-3 rounded-lg hover:bg-[#E9C766] transition-all inline-flex items-center shadow-md font-semibold">
                         <i class="ri-add-line mr-2 text-lg"></i>
                         Submit Request
                     </a>
@@ -174,11 +175,11 @@
                 <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE]">
                     <div class="flex justify-between items-center p-6 border-b border-[#DED2AE]">
                         <div>
-                            <h3 class="text-lg font-semibold text-[#0B1B33]">Recent Requests</h3>
+                            <h3 class="text-lg font-semibold text-[#0A1830]">Recent Requests</h3>
                             <p class="text-sm text-[#5B6678] mt-1">Your latest request activities</p>
                         </div>
                             <a href="/user/requests"
-                            class="text-[#0B1B33] hover:text-[#C9A227] text-sm font-medium flex items-center transition">
+                            class="text-[#0A1830] hover:text-[#C9A227] text-sm font-medium flex items-center transition">
                                 View All
                                 <i class="ri-arrow-right-line ml-1"></i>
                             </a>
@@ -201,7 +202,7 @@
                                                 @endif"></i>
                                         </div>
                                         <div>
-                                            <p class="font-medium text-[#0B1B33]">{{ ucfirst(str_replace('_', ' ', $request->type)) }}</p>
+                                            <p class="font-medium text-[#0A1830]">{{ ucfirst(str_replace('_', ' ', $request->type)) }}</p>
                                             <p class="text-sm text-[#5B6678]">{{ $request->description }}</p>
                                         </div>
                                     </div>
@@ -222,7 +223,7 @@
                             </div>
                         @else
                             <div class="text-center py-12">
-                                <div class="w-16 h-16 bg-[#0B1B33]/5 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <div class="w-16 h-16 bg-[#0A1830]/5 rounded-full flex items-center justify-center mx-auto mb-3">
                                     <i class="ri-inbox-line text-2xl text-[#C9A227]"></i>
                                 </div>
                                 <p class="text-[#5B6678]">No recent requests</p>
@@ -248,7 +249,7 @@
 
             function showToast(message, type = 'info') {
                 const toast = document.createElement('div');
-                toast.className = `toast fixed bottom-6 right-6 px-5 py-3 rounded-lg text-white shadow-lg z-50 ${type === 'error' ? 'bg-[#A23B32]' : 'bg-[#0B1B33]'}`;
+                toast.className = `toast fixed bottom-6 right-6 px-5 py-3 rounded-lg text-white shadow-lg z-50 ${type === 'error' ? 'bg-[#A23B32]' : 'bg-[#0A1830]'}`;
                 toast.textContent = message;
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.remove(); }, 6000);

@@ -10,9 +10,10 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
-        .sidebar-item { transition: all 0.2s ease; cursor: pointer; }
-        .sidebar-item:hover { background-color: #142B4D; color: #ffffff; }
-        .sidebar-item.active { background-color: #0B1B33; color: #E8C874; border-right: 3px solid #C9A227; }
+        .sidebar-item {
+            border-left: 3px solid transparent; transition: all 0.2s ease; cursor: pointer; }
+        .sidebar-item:hover { background-color: rgba(255, 255, 255, 0.05); color: #F3EFE3; }
+        .sidebar-item.active { background-color: rgba(201, 162, 39, 0.10); color: #E9C766; border-left-color: #C9A227; }
         .form-input:focus, .form-select:focus, .form-textarea:focus {
             outline: none; border-color: #C9A227; box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.18);
         }

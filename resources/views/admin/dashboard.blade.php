@@ -19,7 +19,7 @@
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
             --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
-            --paper:#FAF7F0; --paper-2:#F2ECDD;
+            --paper:#F3EEE0; --paper-2:#EAE2C9;
             --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
             --line:#E6DFCD;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
@@ -40,19 +40,20 @@
         .field-label{ font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-400); }
 
         .sidebar-item {
+            border-left: 3px solid transparent;
             transition: all 0.2s ease;
             cursor: pointer;
         }
 
         .sidebar-item:hover {
-            background-color: #374151;
+            background-color: rgba(255, 255, 255, 0.05);
             padding-left: 1.5rem;
         }
 
         .sidebar-item.active {
-            background-color: #1f2937;
-            color: #3b82f6;
-            border-right: 3px solid #3b82f6;
+            background-color: rgba(201, 162, 39, 0.10);
+            color: #E9C766;
+            border-left-color: #C9A227;
         }
 
         .scrollbar-hide::-webkit-scrollbar {

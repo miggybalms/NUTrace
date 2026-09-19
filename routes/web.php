@@ -2097,37 +2097,10 @@ Route::get('/admin/assets/registry', function () {
     return view('admin.assets.asset_registry', compact('bulkQrLabels', 'bulkRegisteredCount'));
 });
 
-Route::get('/admin/assets/{id}/qr-sticker', function ($id) {
-    $asset = DB::table('assets')->where('id', $id)->first();
-    if (!$asset) abort(404);
-
-    return view('admin.assets.qr-sticker', [
-        'assetName'    => $asset->Asset_name,
-        'assetCode'    => $asset->Asset_code,
-        'acquiredDate' => $asset->accusion_date
-            ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y')
-            : '—',
-        'qrUrl'        => $asset->qr_code_path
-            ? Storage::url($asset->qr_code_path)
-            : null,
-    ]);
-})->middleware('auth')->where('id', '[0-9]+');
-
-Route::get('/admin/assets/{id}/qr-sticker', function ($id) {
-    $asset = DB::table('assets')->where('id', $id)->first();
-    if (!$asset) abort(404);
-
-    return view('admin.assets.qr-sticker', [
-        'assetName'    => $asset->Asset_name,
-        'assetCode'    => $asset->Asset_code,
-        'acquiredDate' => $asset->accusion_date
-            ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y')
-            : '—',
-        'qrUrl'        => $asset->qr_code_path
-            ? \Illuminate\Support\Facades\Storage::url($asset->qr_code_path)
-            : null,
-    ]);
-})->middleware('auth')->where('id', '[0-9]+');
+// NOTE: the legacy /admin/assets/{id}/qr-sticker routes were removed.
+// They returned view('admin.assets.qr-sticker'), which does not exist, and two
+// identical copies were registered. QR stickers are rendered client-side
+// (asset_registry / department_asset / replacement), and nothing linked to them.
 
 // Admin asset detail view - must come before wildcard routes
 Route::get('/admin/assets/{id}', function ($id) {

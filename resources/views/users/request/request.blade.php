@@ -23,8 +23,8 @@
             <div class="bg-white rounded-xl border border-[#DED2AE] shadow-sm p-4 sm:p-5">
                 <div class="flex items-center justify-between mb-2">
                     <p class="text-xs sm:text-sm text-[#5B6678]">Total Requests</p>
-                    <div class="w-8 h-8 sm:w-9 sm:h-9 bg-[#0B1B33]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <i class="ri-file-list-line text-[#0B1B33]"></i>
+                    <div class="w-8 h-8 sm:w-9 sm:h-9 bg-[#0A1830]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i class="ri-file-list-line text-[#0A1830]"></i>
                     </div>
                 </div>
                 <p class="text-2xl sm:text-3xl font-bold text-[#0F2143]">{{ $totalRequests ?? 0 }}</p>
@@ -64,7 +64,7 @@
 <!-- Tabs + Search under them -->
             <div class="px-4 sm:px-6 pt-5 pb-4 border-b border-[#EFE9D8] space-y-3">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="inline-flex items-center gap-1 bg-[#0B1B33]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                    <div class="inline-flex items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
                         @php
                             $currentStatus = $status ?? request('status', 'all');
                             $currentSearch = $search ?? request('q', '');
@@ -80,8 +80,8 @@
                             <a href="{{ request()->fullUrlWithQuery(['status' => $value, 'page' => 1, 'q' => $currentSearch ?: null]) }}"
                                class="filter-tab px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
                                       {{ $currentStatus === $value
-                                            ? 'active bg-[#0B1B33] text-white shadow-sm'
-                                            : 'text-[#5B6678] hover:text-[#0B1B33]' }}">
+                                            ? 'active bg-[#0A1830] text-white shadow-sm'
+                                            : 'text-[#5B6678] hover:text-[#0A1830]' }}">
                                 {{ $label }}
                             </a>
                         @endforeach
@@ -149,7 +149,7 @@
                             {{-- Request Info --}}
                             <div class="flex-1 min-w-0">
                                 <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
-                                    <h4 class="font-semibold text-[#0B1B33]">{{ $request->request_type }} Request</h4>
+                                    <h4 class="font-semibold text-[#0A1830]">{{ $request->request_type }} Request</h4>
                                     <span class="text-xs text-[#8991A0] hidden sm:inline">•</span>
                                     <span class="text-xs text-[#8991A0] font-mono">REQ-{{ str_pad($request->id, 5, '0', STR_PAD_LEFT) }}</span>
                                 </div>
@@ -216,13 +216,13 @@
                 @empty
                 {{-- Empty state --}}
                 <div class="text-center py-12 sm:py-16">
-                    <div class="w-16 h-16 sm:w-20 sm:h-20 bg-[#0B1B33]/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div class="w-16 h-16 sm:w-20 sm:h-20 bg-[#0A1830]/5 rounded-full flex items-center justify-center mx-auto mb-4">
                         <i class="ri-file-list-line text-2xl sm:text-3xl text-[#C9A227]"></i>
                     </div>
                     <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Requests Found</h3>
                     <p class="text-[#8991A0] text-sm mb-4">You haven't submitted any requests yet.</p>
                     <a href="{{ route('user.request-asset') }}"
-                       class="inline-flex items-center px-4 py-2 bg-[#C9A227] text-[#0B1B33] rounded-lg hover:bg-[#E8C874] transition text-sm font-semibold">
+                       class="inline-flex items-center px-4 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E9C766] transition text-sm font-semibold">
                         <i class="ri-add-line mr-2"></i>
                         Submit Your First Request
                     </a>
@@ -247,11 +247,11 @@
     </div>
 
     <!-- View Modal -->
-    <div id="viewModal" class="hidden fixed inset-0 bg-[#0B1B33]/60 z-50 flex items-center justify-center p-4">
+    <div id="viewModal" class="hidden fixed inset-0 bg-[#0A1830]/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div class="p-4 sm:p-6 border-b border-[#DED2AE] flex justify-between items-center sticky top-0 bg-white">
-                <h3 class="text-lg font-bold text-[#0B1B33]">Request Details</h3>
-                <button onclick="closeViewModal()" class="text-[#8991A0] hover:text-[#0B1B33]">
+                <h3 class="text-lg font-bold text-[#0A1830]">Request Details</h3>
+                <button onclick="closeViewModal()" class="text-[#8991A0] hover:text-[#0A1830]">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -275,7 +275,7 @@
                                 @else ri-file-list-line text-[#46536B] @endif"></i>
                         </div>
                         <div class="min-w-0">
-                            <h4 class="font-bold text-[#0B1B33]">{{ $request->request_type }} Request</h4>
+                            <h4 class="font-bold text-[#0A1830]">{{ $request->request_type }} Request</h4>
                             <p class="text-xs text-[#8991A0] font-mono">REQ-{{ str_pad($request->id, 5, '0', STR_PAD_LEFT) }}</p>
                         </div>
                         <span class="ml-auto px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap
@@ -315,7 +315,7 @@
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
                             <p class="text-xs text-[#8991A0] mb-1">Attached File</p>
                             <a href="{{ asset('storage/' . $request->file_path) }}" target="_blank"
-                               class="text-sm text-[#0B1B33] hover:text-[#C9A227] hover:underline flex items-center transition">
+                               class="text-sm text-[#0A1830] hover:text-[#C9A227] hover:underline flex items-center transition">
                                 <i class="ri-file-line mr-1.5"></i>
                                 {{ $request->file_name ?? 'View File' }}
                             </a>

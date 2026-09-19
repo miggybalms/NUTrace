@@ -17,36 +17,36 @@
 
         <!-- Summary Stats -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <div class="bg-gradient-to-br from-[#0B1B33] to-[#1C3A63] rounded-xl shadow-lg p-5 sm:p-6 text-white">
+            <div class="bg-gradient-to-br from-[#0A1830] to-[#15305B] rounded-xl shadow-lg p-5 sm:p-6 text-white">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium opacity-80">Total Assets</p>
                         <p class="text-3xl font-bold mt-2">{{ $totalAssets ?? 0 }}</p>
                     </div>
                     <div class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i class="ri-computer-line text-2xl text-[#E8C874]"></i>
+                        <i class="ri-computer-line text-2xl text-[#E9C766]"></i>
                     </div>
                 </div>
             </div>
-            <div class="bg-gradient-to-br from-[#C9A227] to-[#E8C874] rounded-xl shadow-lg p-5 sm:p-6 text-[#0B1B33]">
+            <div class="bg-gradient-to-br from-[#C9A227] to-[#E9C766] rounded-xl shadow-lg p-5 sm:p-6 text-[#0A1830]">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium opacity-80">Active Assets</p>
                         <p class="text-3xl font-bold mt-2">{{ $activeAssets ?? 0 }}</p>
                     </div>
-                    <div class="w-12 h-12 bg-[#0B1B33]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i class="ri-checkbox-circle-line text-2xl text-[#0B1B33]"></i>
+                    <div class="w-12 h-12 bg-[#0A1830]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i class="ri-checkbox-circle-line text-2xl text-[#0A1830]"></i>
                     </div>
                 </div>
             </div>
-            <div class="bg-gradient-to-br from-[#142B4D] to-[#0B1B33] rounded-xl shadow-lg p-5 sm:p-6 text-white">
+            <div class="bg-gradient-to-br from-[#142442] to-[#0A1830] rounded-xl shadow-lg p-5 sm:p-6 text-white">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium opacity-80">Pending Requests</p>
                         <p class="text-3xl font-bold mt-2">{{ $pendingRequests ?? 0 }}</p>
                     </div>
                     <div class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i class="ri-time-line text-2xl text-[#E8C874]"></i>
+                        <i class="ri-time-line text-2xl text-[#E9C766]"></i>
                     </div>
                 </div>
             </div>
@@ -55,20 +55,20 @@
         <!-- Filter Tabs + Search (search is now under the tabs) -->
         <div class="mb-6 space-y-3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div class="inline-flex items-center gap-1 bg-[#0B1B33]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
-                    <button class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-[#0B1B33] text-white shadow-sm whitespace-nowrap transition" data-filter="all">
+                <div class="inline-flex items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                    <button class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-[#0A1830] text-white shadow-sm whitespace-nowrap transition" data-filter="all">
                         All Assets
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="Active">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="Active">
                         Active
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="For Repair">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Repair">
                         For Repair
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="recent">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="recent">
                         Recently Added
                     </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0B1B33] whitespace-nowrap transition" data-filter="department">
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="department">
                         My Personal Assets
                     </button>
                 </div>
@@ -140,12 +140,12 @@
                     {{-- QR icon --}}
                     <div class="absolute top-3 right-3">
                         <a href="javascript:void(0)"
-                           class="w-8 h-8 bg-white/85 rounded-lg flex items-center justify-center hover:bg-[#E8C874]/90 transition"
+                           class="w-8 h-8 bg-white/85 rounded-lg flex items-center justify-center hover:bg-[#E9C766]/90 transition"
                            title="View QR Code"
                            data-qr-url="{{ $asset->qr_code_url ?? (isset($asset->qr_code_path) ? Storage::url($asset->qr_code_path) : '') }}"
                            data-asset-code="{{ $asset->Asset_code ?? '' }}"
                            onclick="openQrModal(this)">
-                            <i class="ri-qr-code-line text-[#0B1B33] text-sm"></i>
+                            <i class="ri-qr-code-line text-[#0A1830] text-sm"></i>
                         </a>
                     </div>
                 </div>
@@ -153,7 +153,7 @@
                 {{-- Card Body --}}
                 <div class="p-4 sm:p-5">
                     <div class="mb-3">
-                        <h3 class="font-semibold text-[#0B1B33] text-base leading-tight">{{ $asset->Asset_name ?? 'Untitled' }}</h3>
+                        <h3 class="font-semibold text-[#0A1830] text-base leading-tight">{{ $asset->Asset_name ?? 'Untitled' }}</h3>
                         <p class="text-xs text-[#8991A0] font-mono mt-0.5">{{ $asset->Asset_code ?? '' }}</p>
                     </div>
 
@@ -179,7 +179,7 @@
                     {{-- Actions – carry current filter/search so back button can restore them --}}
                     <div class="pt-3 border-t border-[#EFE9D8]">
                         <a href="/department-head/assets/{{ $asset->id }}{{ request()->getQueryString() ? '?' . request()->getQueryString() : '' }}"
-                           class="w-full px-3 py-2 bg-[#C9A227]/10 text-[#0B1B33] rounded-lg hover:bg-[#0B1B33] hover:text-[#E8C874] transition text-sm font-medium flex items-center justify-center">
+                           class="w-full px-3 py-2 bg-[#C9A227]/10 text-[#0A1830] rounded-lg hover:bg-[#0A1830] hover:text-[#E9C766] transition text-sm font-medium flex items-center justify-center">
                             <i class="ri-eye-line mr-1.5"></i>
                             View
                         </a>
@@ -192,7 +192,7 @@
         @else
         {{-- Empty state --}}
         <div class="text-center py-12 sm:py-16">
-            <div class="w-16 h-16 sm:w-20 sm:h-20 bg-[#0B1B33]/5 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div class="w-16 h-16 sm:w-20 sm:h-20 bg-[#0A1830]/5 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="ri-inbox-line text-2xl sm:text-3xl text-[#C9A227]"></i>
             </div>
             <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Assets Found</h3>
@@ -219,11 +219,11 @@
     </style>
 
     <!-- QR Modal -->
-    <div id="qrModal" class="fixed inset-0 bg-[#0B1B33]/60 hidden items-center justify-center z-50 p-4" onclick="closeQrModal()">
+    <div id="qrModal" class="fixed inset-0 bg-[#0A1830]/60 hidden items-center justify-center z-50 p-4" onclick="closeQrModal()">
         <div class="bg-white rounded-lg p-6 max-w-sm w-full" onclick="event.stopPropagation();">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-[#0B1B33]">Asset QR Code</h3>
-                <button onclick="closeQrModal()" class="text-[#8991A0] hover:text-[#0B1B33]">
+                <h3 class="text-lg font-semibold text-[#0A1830]">Asset QR Code</h3>
+                <button onclick="closeQrModal()" class="text-[#8991A0] hover:text-[#0A1830]">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -261,7 +261,7 @@
             filterBtns.forEach(btn => {
                 const isActive = btn.dataset.filter === currentFilter;
                 btn.classList.toggle('active', isActive);
-                btn.classList.toggle('bg-[#0B1B33]', isActive);
+                btn.classList.toggle('bg-[#0A1830]', isActive);
                 btn.classList.toggle('text-white', isActive);
                 btn.classList.toggle('shadow-sm', isActive);
                 btn.classList.toggle('text-[#5B6678]', !isActive);
@@ -322,10 +322,10 @@
             filterBtns.forEach(btn => {
                 btn.addEventListener('click', function () {
                     filterBtns.forEach(b => {
-                        b.classList.remove('active', 'bg-[#0B1B33]', 'text-white', 'shadow-sm');
+                        b.classList.remove('active', 'bg-[#0A1830]', 'text-white', 'shadow-sm');
                         b.classList.add('text-[#5B6678]');
                     });
-                    this.classList.add('active', 'bg-[#0B1B33]', 'text-white', 'shadow-sm');
+                    this.classList.add('active', 'bg-[#0A1830]', 'text-white', 'shadow-sm');
                     this.classList.remove('text-[#5B6678]');
 
                     currentFilter = this.dataset.filter;
@@ -360,7 +360,7 @@
                     text: code,
                     width: 220,
                     height: 220,
-                    colorDark: "#0B1B33",
+                    colorDark: "#0A1830",
                     colorLight: "#ffffff",
                     correctLevel: QRCode.CorrectLevel.H
                 });

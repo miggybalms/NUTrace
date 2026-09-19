@@ -13,7 +13,7 @@
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
             --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
-            --paper:#FAF7F0; --paper-2:#F2ECDD;
+            --paper:#F3EEE0; --paper-2:#EAE2C9;
             --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
             --line:#E6DFCD;
             --forest:#2F7A4D; --forest-dark:#245C3B;

@@ -22,6 +22,7 @@
 
         /* Sidebar item styles so the active nav highlights correctly */
         .sidebar-item {
+            border-left: 3px solid transparent;
             transition: all 0.15s ease;
             cursor: pointer;
             display: flex;
@@ -31,14 +32,14 @@
         .sidebar-item i { margin-right: 0.75rem; color: #9ca3af; }
 
         .sidebar-item:hover {
-            background-color: #0f1724; /* slightly lighter than bg */
-            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.05); /* slightly lighter than bg */
+            color: #F3EFE3;
         }
 
         .sidebar-item.active {
-            background-color: #0b1220;
+            background-color: rgba(201, 162, 39, 0.10);
             color: #E9C766;
-            border-right: 3px solid #C9A227;
+            border-left-color: #C9A227;
         }
 
         .sidebar-item.active i {
