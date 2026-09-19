@@ -183,7 +183,7 @@
                     </div>
 
                     {{-- Actions --}}
-                    <div class="pt-3 border-t border-[#EFE9D8]">
+                    <div class="pt-5 border-t border-[#EFE9D8]">
                         <a href="/users/assets/{{ $asset->id }}{{ request()->getQueryString() ? '?' . request()->getQueryString() : '' }}"
                         class="w-full px-3 py-2 bg-[#C9A227]/10 text-[#0A1830] rounded-lg hover:bg-[#0A1830] hover:text-[#E9C766] transition text-sm font-medium flex items-center justify-center">
                             <i class="ri-eye-line mr-1.5"></i>

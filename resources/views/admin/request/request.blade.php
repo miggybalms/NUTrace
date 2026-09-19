@@ -326,7 +326,7 @@
                                 </div>
                                 
                                 <!-- Action Buttons -->
-                                <div class="mt-6 pt-4 flex gap-3" style="border-top:1px solid var(--line);" id="detail-actions">
+                                <div class="mt-6 pt-5 flex gap-3" style="border-top:1px solid var(--line);" id="detail-actions">
                                     <button onclick="approveCurrentRequest()" class="flex-1 text-white px-4 py-2 rounded-lg transition flex items-center justify-center" style="background:var(--forest);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                                         <i class="ri-checkbox-circle-line mr-2"></i>
                                         Approve
@@ -342,7 +342,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm mt-8 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -521,7 +521,7 @@
                 'disposal': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--paper-2); color:var(--ink-600);"><i class="ri-delete-bin-line mr-1 text-xs"></i>Disposal</span>',
                 'transfer': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--gold-100); color:var(--navy-900);"><i class="ri-arrow-left-right-line mr-1 text-xs"></i>Transfer</span>',
                 'replacement': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--plum-tint); color:var(--plum-dark);"><i class="ri-refresh-line mr-1 text-xs"></i>Replacement</span>',
-                'pullout': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--bronze-tint); color:var(--bronze-dark);"><i class="ri-logout-box-line mr-1 text-xs"></i>Pullout</span>',
+                'pullout': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--bronze-tint); color:var(--bronze-dark);"><i class="ri-archive-drawer-line mr-1 text-xs"></i>Pullout</span>',
                 'other': '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--paper-2); color:var(--ink-600);"><i class="ri-file-list-3-line mr-1 text-xs"></i>Other</span>'
             };
             if (badges[type]) {

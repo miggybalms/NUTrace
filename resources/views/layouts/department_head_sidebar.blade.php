@@ -57,7 +57,7 @@
             <i class="ri-menu-line"></i>
         </button>
     <h1 class="text-lg font-bold flex items-center text-white">
-        <i class="ri-dashboard-line mr-2 text-[#E9C766]"></i>
+        <i class="ri-stack-line mr-2 text-[#E9C766]"></i>
         NU Trace
     </h1>
     </div>
@@ -77,7 +77,7 @@
             <div class="px-5 py-5 border-b border-[#C9A227]/15 flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#C9A227] to-[#8f7015] flex items-center justify-center flex-shrink-0">
-                        <i class="ri-dashboard-line text-[#0B1220] text-base"></i>
+                        <i class="ri-stack-line text-[#0B1220] text-base"></i>
                     </div>
                     <h1 class="text-[17px] font-medium text-[#F3EFE3]">NU Trace</h1>
                 </div>
@@ -128,7 +128,7 @@
                         <p class="text-xs text-[#7C86A0] truncate">{{ $user?->email ?? 'user@user.com' }}</p>
                     </div>                    </div>
                 <a href="/logout" class="w-full flex items-center px-3 py-2 text-sm text-[#B7BFD4] rounded-lg hover:bg-white/5 transition">
-                    <i class="ri-logout-box-line mr-3 text-lg"></i>
+                    <i class="ri-logout-box-r-line mr-3 text-lg"></i>
                     <span>Logout</span>
                 </a>
             </div>

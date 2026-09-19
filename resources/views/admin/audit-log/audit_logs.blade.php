@@ -228,7 +228,7 @@
 
             <!-- Pagination -->
             @if(isset($logs) && $logs->hasPages())
-            <div class="px-6 py-4 border-t border-[#EFE9D8]">
+            <div class="px-6 py-5 border-t border-[#EFE9D8]">
                 {{ $logs->links() }}
             </div>
             @endif

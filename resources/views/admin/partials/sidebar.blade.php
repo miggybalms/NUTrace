@@ -15,9 +15,9 @@
     <div class="px-5 py-5 border-b border-[#C9A227]/15 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
             <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#C9A227] to-[#8f7015] flex items-center justify-center flex-shrink-0">
-                <i class="ri-dashboard-line text-[#0B1220] text-base"></i>
+                <i class="ri-stack-line text-[#0B1220] text-base"></i>
             </div>
-            <h1 class="text-[17px] font-medium text-[#F3EFE3]">Dashboard</h1>
+            <h1 class="text-[17px] font-medium text-[#F3EFE3]">NU Trace</h1>
         </div>
         <!-- Close button, mobile only -->
         <button onclick="closeSidebar()" class="lg:hidden text-[#7C86A0] hover:text-white">
@@ -85,7 +85,7 @@
                       {{ request()->is('admin/pullout*')
                           ? 'border-l-[3px] border-[#C9A227] rounded-l-none bg-[#C9A227]/10 text-[#E9C766] font-medium pl-[9px]'
                           : 'text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]' }}">
-                <i class="ri-logout-box-r-line text-lg"></i>
+                <i class="ri-archive-drawer-line text-lg"></i>
                 <span>Pullout</span>
             </a>
         </div>
@@ -108,7 +108,7 @@
             </div>
         </div>
         <a href="/logout" class="flex items-center gap-3 px-3 py-2 text-sm text-[#9AA3B8] rounded-lg hover:bg-white/5 hover:text-[#F3EFE3] transition-colors">
-            <i class="ri-logout-box-line text-lg"></i>
+            <i class="ri-logout-box-r-line text-lg"></i>
             <span>Logout</span>
         </a>
     </div>

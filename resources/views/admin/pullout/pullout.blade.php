@@ -183,7 +183,7 @@
                     'adminHeaderPage'     => 'pullout',
                     'adminHeaderTitle'    => 'Pullout Records',
                     'adminHeaderSubtitle' => 'Manage pulled out assets',
-                    'adminHeaderIcon'     => 'ri-logout-box-r-line',
+                    'adminHeaderIcon'     => 'ri-archive-drawer-line',
                     'adminHeaderBadge'    => 'Admin',
                 ])
 
@@ -198,7 +198,7 @@
                             <p class="text-xs mt-2" style="color:#C7D2E3;">Complete log of pulled out institutional assets</p>
                         </div>
                         <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(180,121,30,.35); border:1px solid rgba(255,255,255,.15);">
-                            <i class="ri-logout-box-r-line text-4xl" style="color:#F3DCB0;"></i>
+                            <i class="ri-archive-drawer-line text-4xl" style="color:#F3DCB0;"></i>
                         </div>
                     </div>
                 </div>
@@ -227,7 +227,7 @@
                                     <div class="flex-1">
                                         <div class="flex items-center mb-3">
                                             <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" style="background:var(--bronze-tint);">
-                                                <i class="ri-logout-box-r-line text-xl" style="color:var(--bronze);"></i>
+                                                <i class="ri-archive-drawer-line text-xl" style="color:var(--bronze);"></i>
                                             </div>
                                             <div>
                                                 <h3 class="font-semibold" style="color:var(--navy-900);">
@@ -285,7 +285,7 @@
                                             </div>
                                         </div>
                                         @if($record->destination ?? false)
-                                        <div class="mt-3 pt-3" style="border-top:1px solid var(--line);">
+                                        <div class="mt-3 pt-5" style="border-top:1px solid var(--line);">
                                             <p class="text-xs" style="color:var(--ink-400);">Destination / New Location</p>
                                             <p class="text-sm" style="color:var(--ink-600);">{{ $record->destination }}</p>
                                         </div>
@@ -314,7 +314,7 @@
                     @else
                         <div id="emptyState" class="p-12 text-center" style="background:#fff; border-radius:14px; border:1px solid var(--line);">
                             <div class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--paper-2);">
-                                <i class="ri-logout-box-r-line text-4xl" style="color:var(--ink-400);"></i>
+                                <i class="ri-archive-drawer-line text-4xl" style="color:var(--ink-400);"></i>
                             </div>
                             <h3 class="text-lg font-semibold mb-2" style="color:var(--navy-900);">No pullout records yet</h3>
                             <p style="color:var(--ink-400);">There are currently no pullout reports to show.</p>
@@ -327,7 +327,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm mt-8 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -388,7 +388,7 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 flex justify-end" style="border-top:1px solid var(--line);">
+        <div class="px-6 py-5 flex justify-end" style="border-top:1px solid var(--line);">
             <button type="button" onclick="closeViewPullout()" class="btn-ghost">
                 Close
             </button>
@@ -464,7 +464,7 @@
                         <textarea name="notes" rows="3" placeholder="Any additional information about the pullout..." class="form-input"></textarea>
                     </div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6 pt-4" style="border-top:1px solid var(--line);">
+                <div class="flex justify-end space-x-3 mt-6 pt-5" style="border-top:1px solid var(--line);">
                     <button type="button" onclick="closePulloutModal()" class="btn-ghost">Cancel</button>
                     <button type="submit" class="btn-gold">Record Pullout</button>
                 </div>
@@ -523,7 +523,7 @@
                 <textarea name="notes" rows="2" class="form-input" placeholder="Any additional notes..."></textarea>
             </div>
 
-            <div class="flex justify-end gap-3 pt-4" style="border-top:1px solid var(--line);">
+            <div class="flex justify-end gap-3 pt-5" style="border-top:1px solid var(--line);">
                 <button type="button" onclick="closeDisposeFromPullout()" class="btn-ghost">
                     Cancel
                 </button>
@@ -624,7 +624,7 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 flex justify-end gap-3" style="border-top:1px solid var(--line);">
+        <div class="px-6 py-5 flex justify-end gap-3" style="border-top:1px solid var(--line);">
             <button type="button" onclick="closeEditPullout()" class="btn-ghost">Cancel</button>
             <button type="button" onclick="submitEditPullout()" class="btn-gold">Save</button>
         </div>

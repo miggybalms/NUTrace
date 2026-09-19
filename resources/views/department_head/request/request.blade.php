@@ -146,7 +146,7 @@
                                     @elseif($request->request_type == 'Disposal') ri-delete-bin-line text-[#46536B]
                                     @elseif($request->request_type == 'Transfer') ri-swap-line text-[#A8841E]
                                     @elseif($request->request_type == 'Replacement') ri-refresh-line text-[#6B4C82]
-                                    @elseif($request->request_type == 'Pullout') ri-logout-box-r-line text-[#B4791E]
+                                    @elseif($request->request_type == 'Pullout') ri-archive-drawer-line text-[#B4791E]
                                     @else ri-file-list-line text-[#46536B]
                                     @endif"></i>
                             </div>
@@ -218,12 +218,12 @@
 
                     {{-- Approved/Rejected note (status colors — unchanged) --}}
                     @if($request->status == 'Approved')
-                    <div class="mt-3 pt-3 border-t border-[#EFE9D8] flex items-center text-xs text-[#2F7A4D]">
+                    <div class="mt-5 pt-5 border-t border-[#EFE9D8] flex items-center text-xs text-[#2F7A4D]">
                         <i class="ri-checkbox-circle-fill mr-1.5"></i>
                         Your request has been approved and is being processed.
                     </div>
                     @elseif($request->status == 'Rejected')
-                    <div class="mt-3 pt-3 border-t border-[#EFE9D8] flex items-center text-xs text-[#A23B32]">
+                    <div class="mt-5 pt-5 border-t border-[#EFE9D8] flex items-center text-xs text-[#A23B32]">
                         <i class="ri-close-circle-fill mr-1.5"></i>
                         Your request was rejected. Click to see details.
                     </div>
@@ -250,7 +250,7 @@
 
             <!-- Pagination -->
             @if(isset($requests) && $requests->hasPages())
-            <div class="px-4 sm:px-6 py-4 border-t border-[#EFE9D8] overflow-x-auto">
+            <div class="px-4 sm:px-6 py-5 border-t border-[#EFE9D8] overflow-x-auto">
                 {{ $requests->links() }}
             </div>
             @endif
@@ -288,7 +288,7 @@
                                 @elseif($request->request_type == 'Disposal') ri-delete-bin-line text-[#46536B]
                                 @elseif($request->request_type == 'Transfer') ri-swap-line text-[#A8841E]
                                 @elseif($request->request_type == 'Replacement') ri-refresh-line text-[#6B4C82]
-                                @elseif($request->request_type == 'Pullout') ri-logout-box-r-line text-[#B4791E]
+                                @elseif($request->request_type == 'Pullout') ri-archive-drawer-line text-[#B4791E]
                                 @else ri-file-list-line text-[#46536B] @endif"></i>
                         </div>
                         <div class="min-w-0">
@@ -342,7 +342,7 @@
                 </div>
                 @endforeach
             </div>
-            <div class="p-4 sm:p-6 border-t border-[#EFE9D8] flex justify-end sticky bottom-0 bg-white">
+            <div class="px-4 sm:px-6 py-5 border-t border-[#EFE9D8] flex justify-end sticky bottom-0 bg-white">
                 <button onclick="closeViewModal()"
                     class="px-4 py-2 bg-[#EFE9D8] text-[#33425C] rounded-lg hover:bg-[#E4DAC0] transition text-sm font-medium">
                     Close

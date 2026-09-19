@@ -192,7 +192,7 @@
 </form>
                     </div>
 
-                    <div class="mt-5 pt-5 border-t border-[#EFE9D8] flex items-center justify-between gap-3 flex-wrap">
+                    <div class="mt-6 pt-6 border-t border-[#EFE9D8] flex items-center justify-between gap-3 flex-wrap">
                         <p class="text-sm text-[#5B6678]">Only assets with <span class="font-semibold text-[#245C3B]">Active</span> lifecycle stage can be selected for pullout.</p>
                         <div class="flex items-center gap-2">
                             <button type="button" class="px-4 py-2 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition-colors text-sm font-medium" onclick="selectAllVisibleActiveAssets()">
@@ -238,7 +238,7 @@
 
                 <!-- Assets Table -->
                 <div class="bg-white rounded-xl border border-[#DED2AE] overflow-hidden">
-                    <div class="px-5 sm:px-6 py-4 border-b border-[#EFE9D8]">
+                    <div class="px-5 sm:px-6 py-5 border-b border-[#EFE9D8]">
                         <h3 class="font-display text-lg font-semibold text-[#0F2143]">Assets in {{ $departmentName ?? 'Department' }}</h3>
                         <p class="text-sm text-[#5B6678] mt-0.5">Showing all assets from {{ $departmentName ?? 'selected' }} Department</p>
                     </div>
@@ -333,7 +333,7 @@
                     </div>
                     
                     <!-- Pagination -->
-                    <div class="px-5 sm:px-6 py-4 border-t border-[#EFE9D8] flex flex-col sm:flex-row gap-3 justify-between items-center">
+                    <div class="px-5 sm:px-6 py-5 border-t border-[#EFE9D8] flex flex-col sm:flex-row gap-3 justify-between items-center">
     <p class="text-sm text-[#5B6678]">
         Showing
         <span class="font-medium text-[#33425C]">{{ $assets->firstItem() ?? 0 }}</span>
@@ -395,7 +395,7 @@
 
     <div id="bulkPulloutAssetSummary" class="p-3.5 bg-[#F5F0E2] border border-[#DED2AE] rounded-lg text-sm text-[#33425C]"></div>
 
-    <div class="flex justify-end space-x-3 pt-2 border-t border-[#EFE9D8]">
+    <div class="flex justify-end space-x-3 pt-5 border-t border-[#EFE9D8]">
         <button type="button" onclick="closeBulkPulloutModal()"
             class="px-4 py-2.5 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition-colors text-sm font-medium">Cancel</button>
         <button type="submit" class="px-4 py-2.5 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition-colors text-sm font-medium shadow-sm">Submit Pullout</button>

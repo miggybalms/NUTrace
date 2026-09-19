@@ -257,7 +257,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-xs mt-10 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                <div class="text-center text-xs mt-12 pt-8" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>

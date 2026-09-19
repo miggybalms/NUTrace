@@ -1513,7 +1513,7 @@
                 </button>
             </div>
             <div id="registry-help-body" class="p-6 overflow-y-auto"></div>
-            <div class="px-6 py-4 border-t flex flex-wrap items-center gap-3" style="border-color:#DED2AE;">
+            <div class="px-6 py-5 border-t flex flex-wrap items-center gap-3" style="border-color:#DED2AE;">
                 <button type="button" id="registry-help-prev" onclick="registryHelpNav(-1)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#EAE2C9; color:#0F2143;">&larr; Back</button>
                 <div id="registry-help-dots" class="flex items-center gap-1.5 flex-1 justify-center"></div>
                 <button type="button" onclick="fillRegistryExample()" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#F3E7C4; color:#A8841E; border:1px solid #EADFC0;">

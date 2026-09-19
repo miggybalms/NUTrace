@@ -309,7 +309,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm mt-8 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -369,7 +369,7 @@
                         <textarea name="notes" rows="3" placeholder="Any additional information about the disposal..." class="form-input"></textarea>
                     </div>
                 </div>
-                <div class="flex justify-end space-x-3 mt-6 pt-4" style="border-top:1px solid var(--line);">
+                <div class="flex justify-end space-x-3 mt-6 pt-5" style="border-top:1px solid var(--line);">
                     <button type="button" onclick="closeDisposalModal()" class="btn-ghost">Cancel</button>
                     <button type="submit" class="btn-gold">Record Disposal</button>
                 </div>
@@ -390,7 +390,7 @@
         <div class="p-6" id="viewDisposalContent">
             <!-- filled by JS -->
         </div>
-        <div class="p-6 flex justify-end" style="border-top:1px solid var(--line);">
+        <div class="px-6 py-5 flex justify-end" style="border-top:1px solid var(--line);">
             <button onclick="closeViewDisposalModal()" class="btn-ghost">Close</button>
         </div>
     </div>

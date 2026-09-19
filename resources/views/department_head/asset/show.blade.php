@@ -51,7 +51,7 @@
             <hr class="border-t border-[#EFE9D8] mx-6 mt-5">
 
             {{-- Assigned To --}}
-            <div class="flex items-center gap-3 px-6 py-4 border-b border-[#EFE9D8]">
+            <div class="flex items-center gap-3 px-6 py-5 border-b border-[#EFE9D8]">
                 <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                     <i class="ri-user-follow-line text-base"></i>
                 </div>
@@ -70,7 +70,7 @@
             <div class="grid grid-cols-2">
 
                 {{-- Acquisition Date --}}
-                <div class="flex items-center gap-3 px-6 py-4 border-b border-r border-[#EFE9D8]">
+                <div class="flex items-center gap-3 px-6 py-5 border-b border-r border-[#EFE9D8]">
                     <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                         <i class="ri-calendar-event-line text-base"></i>
                     </div>
@@ -81,7 +81,7 @@
                 </div>
 
                 {{-- Purchase Price --}}
-                <div class="flex items-center gap-3 px-6 py-4 border-b border-[#EFE9D8]">
+                <div class="flex items-center gap-3 px-6 py-5 border-b border-[#EFE9D8]">
                     <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                         <i class="ri-money-peso-circle-line text-base"></i>
                     </div>
@@ -105,7 +105,7 @@
                 </div>
 
                 {{-- Location --}}
-                <div class="flex items-center gap-3 px-6 py-4 border-b border-[#EFE9D8]">
+                <div class="flex items-center gap-3 px-6 py-5 border-b border-[#EFE9D8]">
                     <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                         <i class="ri-map-pin-2-line text-base"></i>
                     </div>
@@ -136,7 +136,7 @@
 
             {{-- Repair History Button (only if this asset has repair records) --}}
             @if(isset($repairs) && $repairs->count() > 0)
-            <div class="px-6 py-4 border-t border-[#EFE9D8]">
+            <div class="px-6 py-5 border-t border-[#EFE9D8]">
                 <button type="button" onclick="openRepairHistoryModal()"
                     class="inline-flex items-center gap-2 px-4 py-2.5 bg-[#FBF1DE] text-[#8F5F16] rounded-lg hover:bg-[#FDF0E3] transition text-sm font-medium border border-[#EAD9B4]">
                     <i class="ri-tools-fill"></i>
@@ -157,7 +157,7 @@
     @if(isset($repairs) && $repairs->count() > 0)
     <div id="repairHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
-            <div class="px-6 py-4 border-b border-[#DED2AE] flex items-center justify-between">
+            <div class="px-6 py-5 border-b border-[#DED2AE] flex items-center justify-between">
                 <div>
                     <h3 class="text-lg font-bold text-[#0F2143]">Repair History</h3>
                     <p class="text-sm text-[#5B6678] mt-0.5">{{ $asset->Asset_name ?? 'Asset' }} · {{ $asset->Asset_code ?? '' }}</p>

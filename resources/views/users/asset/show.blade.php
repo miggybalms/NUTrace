@@ -51,7 +51,7 @@
             <hr class="border-t border-[#EFE9D8] mx-6 mt-5">
 
             {{-- Assigned To --}}
-            <div class="flex items-center gap-3 px-6 py-4 border-b border-[#EFE9D8]">
+            <div class="flex items-center gap-3 px-6 py-5 border-b border-[#EFE9D8]">
                 <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                     <i class="ri-user-follow-line text-base"></i>
                 </div>
@@ -70,7 +70,7 @@
             <div class="grid grid-cols-2">
 
                 {{-- Acquisition Date --}}
-                <div class="flex items-center gap-3 px-6 py-4 border-b border-r border-[#EFE9D8]">
+                <div class="flex items-center gap-3 px-6 py-5 border-b border-r border-[#EFE9D8]">
                     <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                         <i class="ri-calendar-event-line text-base"></i>
                     </div>
@@ -81,7 +81,7 @@
                 </div>
 
                 {{-- Purchase Price --}}
-                <div class="flex items-center gap-3 px-6 py-4 border-b border-[#EFE9D8]">
+                <div class="flex items-center gap-3 px-6 py-5 border-b border-[#EFE9D8]">
                     <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                         <i class="ri-money-peso-circle-line text-base"></i>
                     </div>
@@ -105,7 +105,7 @@
                 </div>
 
                 {{-- Location --}}
-                <div class="flex items-center gap-3 px-6 py-4 border-b border-[#EFE9D8]">
+                <div class="flex items-center gap-3 px-6 py-5 border-b border-[#EFE9D8]">
                     <div class="w-8 h-8 rounded-lg bg-[#EFE9D8] flex items-center justify-center text-[#5B6678]">
                         <i class="ri-map-pin-2-line text-base"></i>
                     </div>

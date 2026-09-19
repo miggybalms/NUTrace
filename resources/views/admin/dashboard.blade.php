@@ -363,7 +363,7 @@
                         </a>
                         <a href="/admin/pullout" class="quicklink-tile block group" style="border-top-color:var(--steel);">
                             <div class="quicklink-icon" style="background:var(--steel);">
-                                <i class="ri-logout-box-r-line text-2xl"></i>
+                                <i class="ri-archive-drawer-line text-2xl"></i>
                             </div>
                             <p class="font-display font-semibold" style="color:var(--navy-900);">Record Pullout</p>
                             <p class="text-xs mt-1" style="color:var(--ink-400);">Log pulled out assets</p>
@@ -423,7 +423,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-sm mt-8 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
@@ -769,7 +769,7 @@
                         'Disposal': 'ri-delete-bin-line',
                         'Transfer': 'ri-swap-line',
                         'Replacement': 'ri-refresh-line',
-                        'Pullout': 'ri-logout-box-r-line',
+                        'Pullout': 'ri-archive-drawer-line',
                         'Other': 'ri-file-list-3-line',
                     };
 

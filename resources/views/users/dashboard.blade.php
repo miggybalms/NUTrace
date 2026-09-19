@@ -141,7 +141,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <p class="text-sm text-[#5B6678]">Pulled Out</p>
                             <div class="w-8 h-8 bg-[#FBF1DE] rounded-lg flex items-center justify-center">
-                                <i class="ri-logout-box-r-line text-[#B4791E]"></i>
+                                <i class="ri-archive-drawer-line text-[#B4791E]"></i>
                             </div>
                         </div>
                         <p class="text-2xl font-bold text-[#B4791E]">{{ $stats['pulled_out']['count'] ?? 0 }}</p>
@@ -198,7 +198,7 @@
                                             <i class="
                                                 @if($request->type == 'new_asset') ri-add-line text-[#A8841E]
                                                 @elseif($request->type == 'repair') ri-tools-line text-[#A23B32]
-                                                @else ri-logout-box-r-line text-[#B4791E]
+                                                 @else ri-archive-drawer-line text-[#B4791E]
                                                 @endif"></i>
                                         </div>
                                         <div>

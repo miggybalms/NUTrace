@@ -139,7 +139,7 @@
 
                         <!-- Lifespan Information -->
                         @if($asset->lifespan_months || $asset->expiration_date)
-                        <div class="mt-8 pt-6" style="border-top:1px solid var(--line);">
+                        <div class="mt-10 pt-7" style="border-top:1px solid var(--line);">
                             <p class="eyebrow mb-1">Lifecycle</p>
                             <h3 class="section-title mb-4">Asset Lifespan</h3>
                             <div class="grid grid-cols-2 gap-4">
@@ -173,7 +173,7 @@
 
                         <!-- Maintenance Information -->
                         @if($asset->maintenance_interval || $asset->next_maintenance_date)
-                        <div class="mt-8 pt-6" style="border-top:1px solid var(--line);">
+                        <div class="mt-10 pt-7" style="border-top:1px solid var(--line);">
                             <div class="flex justify-between items-center mb-4">
                                 <div>
                                     <p class="eyebrow mb-1">Upkeep</p>
@@ -236,7 +236,7 @@
                         @endphp
 
                         @if($isExpired)
-                        <div class="mt-8 pt-6" style="border-top:1px solid var(--line);">
+                        <div class="mt-10 pt-7" style="border-top:1px solid var(--line);">
                             <div class="rounded-xl p-6" style="background:#FBF3F0; border:1px solid #E7C9C1;">
                                 <div class="flex items-start gap-3 mb-5">
                                     <div class="icon-badge flex-shrink-0" style="background:var(--brick); width:2.5rem; height:2.5rem;">

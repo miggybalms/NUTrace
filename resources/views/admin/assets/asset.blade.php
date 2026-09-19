@@ -94,12 +94,17 @@
         .collapse-content {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.4s ease-out;
+            transition: max-height 0.4s ease-out, margin-top 0.4s ease-out;
+            /* Kept transparent (not removed) so no stray divider shows under a collapsed card */
+            border-top: 1px solid transparent;
         }
 
         .collapse-content.expanded {
             max-height: 2000px;
-            transition: max-height 0.5s ease-in;
+            transition: max-height 0.5s ease-in, margin-top 0.4s ease-in;
+            /* Breathing room above the divider that separates header from panel */
+            margin-top: 1.5rem;
+            border-top-color: var(--line);
         }
 
         .status-badge {
@@ -192,7 +197,7 @@
                 </div>
 
                 <!-- Department Cards -->
-                <div class="space-y-5" id="departmentsContainer">
+                <div class="space-y-6" id="departmentsContainer">
                     @if(count($departments) > 0)
                         @foreach($departments as $dept)
                     <div class="department-card overflow-hidden" data-department="{{ strtolower($dept->name) }}">
@@ -233,8 +238,8 @@
                             </div>
                             
                             <!-- Collapsible Content -->
-                            <div id="content-{{ $dept->id }}" class="collapse-content -mx-4 sm:-mx-6 mt-0" style="border-top:1px solid var(--line);">
-                                <div class="p-4 sm:p-6" style="background:var(--paper-2);">
+                            <div id="content-{{ $dept->id }}" class="collapse-content -mx-4 sm:-mx-6">
+                                <div class="px-4 sm:px-6 pt-6 pb-7" style="background:var(--paper-2);">
                                     <!-- Status Summary Cards -->
                                     @php
                                         $acquired = 0;
@@ -258,8 +263,8 @@
                                         }
                                     @endphp
 
-                                    <div class="mb-4">
-                                        <p class="eyebrow mb-2">Asset Lifecycle Distribution</p>
+                                    <div class="mb-5">
+                                        <p class="eyebrow mb-2.5">Asset Lifecycle Distribution</p>
                                         <div class="h-2.5 w-full rounded-full overflow-hidden flex" style="background:var(--line);">
                                             @if($dept->total_assets > 0)
                                                 @if($acquired > 0)<div class="h-full bg-blue-600" style="width: {{ round(($acquired / $dept->total_assets) * 100) }}%" title="Acquired: {{ $acquired }}"></div>@endif
@@ -326,7 +331,7 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-xs mt-10 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                <div class="text-center text-xs mt-12 pt-8" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>

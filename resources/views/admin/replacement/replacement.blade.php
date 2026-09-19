@@ -349,7 +349,7 @@
             @endif
         </div>
 
-        <div class="text-center text-xs mt-10 pt-6" style="color:var(--ink-400); border-top:1px solid var(--line);">
+        <div class="text-center text-xs mt-12 pt-8" style="color:var(--ink-400); border-top:1px solid var(--line);">
             © {{ date('Y') }} University Asset Management. All rights reserved.
         </div>
     </div>
@@ -459,7 +459,7 @@
                 </div>
                 @endforeach
             </div>
-            <div class="p-6 flex justify-end" style="border-top:1px solid var(--line);">
+            <div class="px-6 py-5 flex justify-end" style="border-top:1px solid var(--line);">
                 <button onclick="closeModal('viewModal')"
                     class="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style="border:1px solid var(--line); color:var(--navy-800);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                     Close
@@ -493,7 +493,7 @@
                     <input type="hidden" name="status" value="Approved"/>
                     <input type="hidden" name="Approve_by" value="{{ Auth::user()->full_name ?? '' }}"/>
                 </div>
-                <div class="p-6 flex justify-end space-x-3" style="border-top:1px solid var(--line);">
+                <div class="px-6 py-5 flex justify-end space-x-3" style="border-top:1px solid var(--line);">
                     <button type="button" onclick="closeModal('approveModal')"
                         class="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors" style="border:1px solid var(--line); color:var(--navy-800);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                         Cancel
@@ -542,7 +542,7 @@
                             </div>
 
                             {{-- Hidden until Generate QR is clicked --}}
-                            <div id="linkQrSection" class="hidden mt-3 pt-3" style="border-top:1px solid var(--line);">
+                            <div id="linkQrSection" class="hidden mt-3 pt-5" style="border-top:1px solid var(--line);">
                                 <div class="flex items-start gap-4">
                                     <div class="w-28 h-28 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0" style="background:#fff; border:1px solid var(--line);">
                                         <img id="generatedQrImg" src="" alt="QR" class="w-full h-full object-contain">
@@ -673,7 +673,7 @@
                         </div>
                         
 
-                        <div class="p-6 flex justify-end space-x-3 sticky bottom-0" style="border-top:1px solid var(--line); background:#fff;">
+                        <div class="px-6 py-5 flex justify-end space-x-3 sticky bottom-0" style="border-top:1px solid var(--line); background:#fff;">
                             <button type="button" onclick="closeModal('linkModal')"
                                 class="px-4 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--line); color:var(--navy-800);">
                                 Cancel
@@ -706,7 +706,7 @@
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="status" value="Received"/>
-                        <div class="p-6 flex justify-center space-x-3" style="border-top:1px solid var(--line);">
+                        <div class="px-6 py-5 flex justify-center space-x-3" style="border-top:1px solid var(--line);">
                             <button type="button" onclick="closeModal('receivedModal')"
                                 class="px-5 py-2.5 rounded-lg text-sm font-medium" style="border:1px solid var(--line); color:var(--navy-800);">
                                 Cancel
@@ -730,7 +730,7 @@
                 <h3 class="font-display text-lg font-semibold mb-2" style="color:var(--navy-900);">Delete Replacement Record?</h3>
                 <p class="text-sm" style="color:var(--ink-600);">This action cannot be undone.</p>
             </div>
-            <div class="p-6 flex justify-center space-x-3" style="border-top:1px solid var(--line);">
+            <div class="px-6 py-5 flex justify-center space-x-3" style="border-top:1px solid var(--line);">
                 <button onclick="closeModal('deleteModal')"
                     class="px-5 py-2.5 rounded-lg text-sm font-medium transition-colors" style="border:1px solid var(--line); color:var(--navy-800);" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
                     Cancel
