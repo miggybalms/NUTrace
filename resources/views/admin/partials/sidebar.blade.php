@@ -1,6 +1,6 @@
 @php
     $user = auth()->user();
-    $initials = $user ? strtoupper(substr($user->full_name, 0, 2)) : 'AO';
+    $initials = $user?->initials ?? 'AO';
 @endphp
 
 <!-- Mobile overlay (click to close sidebar) -->
@@ -103,7 +103,7 @@
                 @endif
             </div>
             <div class="ml-2.5 flex-1 min-w-0">
-                <p class="text-[13px] font-medium text-[#F3EFE3] truncate">{{ $user?->full_name ?? 'Asset Officer' }}</p>
+                <p class="text-[13px] font-medium text-[#F3EFE3] truncate">{{ $user?->display_name ?? 'Asset Officer' }}</p>
                 <p class="text-xs text-[#7C86A0] truncate">{{ $user?->email ?? 'admin@university.edu' }}</p>
             </div>
         </div>

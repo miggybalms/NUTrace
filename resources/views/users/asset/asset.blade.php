@@ -7,7 +7,6 @@
     <!-- Header (no search here anymore) -->
     @include('layouts.user_header', [
         'title'             => 'My Assets',
-        'subtitle'          => 'View and manage your assigned assets',
         'showSearch'        => false,          // ← turned off
         'searchPlaceholder' => 'Search assets...',
         'searchTarget'      => 'assets',

@@ -198,7 +198,6 @@
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'disposal',
                     'adminHeaderTitle'    => 'Disposal',
-                    'adminHeaderSubtitle' => 'Manage disposed assets',
                     'adminHeaderIcon'     => 'ri-delete-bin-line',
                     'adminHeaderBadge'    => 'Admin',
                 ])

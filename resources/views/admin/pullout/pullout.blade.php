@@ -182,7 +182,6 @@
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'pullout',
                     'adminHeaderTitle'    => 'Pullout Records',
-                    'adminHeaderSubtitle' => 'Manage pulled out assets',
                     'adminHeaderIcon'     => 'ri-archive-drawer-line',
                     'adminHeaderBadge'    => 'Admin',
                 ])

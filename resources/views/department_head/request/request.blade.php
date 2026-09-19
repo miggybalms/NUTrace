@@ -6,7 +6,6 @@
 
 @include('layouts.department_head_header', [
     'title'             => 'My Requests',
-    'subtitle'          => 'Track all your submitted asset requests',
     'showSearch'        => false,          // ← off
     'showAction'        => true,
     'actionUrl'         => route('department_head.request-asset'),

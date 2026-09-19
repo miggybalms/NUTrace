@@ -145,7 +145,6 @@
         @include('admin.partials.header', [
             'adminHeaderPage'     => 'assets',
             'adminHeaderTitle'    => 'Assets',
-            'adminHeaderSubtitle' => 'Manage and track all university assets across departments',
             'adminHeaderIcon'     => 'ri-computer-line',
             'adminHeaderBadge'    => 'Asset Officer',
         ])

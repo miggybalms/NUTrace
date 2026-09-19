@@ -4191,7 +4191,8 @@ Route::get('/admin/pullout', function () {
                 ->pluck('pullout_items.asset_id')
                 ->all();
 
-            $availableAssets = Asset::where('Lifecycle_Status', '!=', 'Pullout')
+            $availableAssets = Asset::with('user.employee_numbers')
+                ->where('Lifecycle_Status', '!=', 'Pullout')
                 ->whereNotIn('id', $blockedAssetIds)
                 ->orderBy('Asset_name')
                 ->get()
@@ -4201,7 +4202,7 @@ Route::get('/admin/pullout', function () {
                         'name'             => $a->Asset_name ?? '',
                         'asset_code'       => $a->Asset_code ?? '',
                         'Lifecycle_Status' => $a->Lifecycle_Status ?? '',
-                        'assignedUser'     => (object) ['name' => $a->user?->full_name ?? 'Unassigned'],
+                        'assignedUser'     => (object) ['name' => $a->user?->display_name ?? 'Unassigned'],
                     ];
                 });
         } catch (\Exception $e) {

@@ -50,7 +50,6 @@
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'replacement',
                 'adminHeaderTitle'    => 'Replacement Records',
-                'adminHeaderSubtitle' => 'Manage and track all asset replacement requests',
                 'adminHeaderIcon'     => 'ri-refresh-line',
                 'adminHeaderBadge'    => 'Admin',
             ])
@@ -178,7 +177,7 @@
 
                             {{-- Requested By --}}
                             <td class="px-6 py-4">
-                                <p class="font-medium" style="color:var(--navy-900);">{{ data_get($replacement, 'requested_by') ?? ($replacement->request->user->full_name ?? '—') }}</p>
+                                <p class="font-medium" style="color:var(--navy-900);">{{ data_get($replacement, 'requested_by') ?? ($replacement->request->user?->display_name ?? '—') }}</p>
                                 <p class="text-xs" style="color:var(--ink-400);">{{ data_get($replacement, 'department') ?? ($replacement->request->user->department ?? '—') }}</p>
                             </td>
 
@@ -422,7 +421,7 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
                             <p class="text-xs mb-1" style="color:var(--ink-400);">Requested By</p>
-                            <p class="text-sm font-medium" style="color:var(--navy-900);">{{ data_get($r, 'requested_by') ?? ($r->request->user->full_name ?? '—') }}</p>
+                            <p class="text-sm font-medium" style="color:var(--navy-900);">{{ data_get($r, 'requested_by') ?? ($r->request->user?->display_name ?? '—') }}</p>
                             <p class="text-xs" style="color:var(--ink-400);">{{ data_get($r, 'department') ?? ($r->request->user->department ?? '—') }}</p>
                         </div>
                         <div class="rounded-lg p-3.5" style="background:var(--paper-2);">
@@ -491,7 +490,7 @@
                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm resize-none"></textarea>
                     </div>
                     <input type="hidden" name="status" value="Approved"/>
-                    <input type="hidden" name="Approve_by" value="{{ Auth::user()->full_name ?? '' }}"/>
+                    <input type="hidden" name="Approve_by" value="{{ Auth::user()->display_name }}"/>
                 </div>
                 <div class="px-6 py-5 flex justify-end space-x-3" style="border-top:1px solid var(--line);">
                     <button type="button" onclick="closeModal('approveModal')"

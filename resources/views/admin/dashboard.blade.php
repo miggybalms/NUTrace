@@ -241,7 +241,6 @@
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'dashboard',
                 'adminHeaderTitle'    => 'Dashboard',
-                'adminHeaderSubtitle' => 'Overview of asset management system',
                 'adminHeaderIcon'     => 'ri-dashboard-line',
                 'adminHeaderBadge'    => 'Admin',
             ])
@@ -251,8 +250,7 @@
                 <!-- Quick Summary -->
                 <div class="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                        <h3 class="section-title">Quick summary of key metrics</h3>
-                        <p class="text-sm mt-1" style="color:var(--ink-600);">Real-time overview of your asset inventory</p>
+                        <h3 class="section-title">Quick Summary</h3>
                     </div>
                     <div class="flex items-center space-x-3">
                         <button id="openScannerBtn" class="btn-gold flex items-center space-x-2">

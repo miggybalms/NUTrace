@@ -7,7 +7,6 @@
     <!-- Header (search turned OFF – we put it under the filters) -->
     @include('layouts.department_head_header', [
         'title'             => 'My Assets',
-        'subtitle'          => 'View and manage your assigned assets',
         'showSearch'        => false,
         'searchPlaceholder' => 'Search assets...',
     ])

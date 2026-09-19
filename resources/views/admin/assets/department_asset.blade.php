@@ -142,7 +142,6 @@
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'department_assets',
                 'adminHeaderTitle'    => 'Assets',
-                'adminHeaderSubtitle' => 'Manage and track all university assets',
                 'adminHeaderIcon'     => 'ri-computer-line',
                 'adminHeaderBadge'    => 'Asset Officer',
                 'adminHeaderBackUrl'  => '/admin/assets',

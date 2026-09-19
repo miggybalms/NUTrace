@@ -7,7 +7,6 @@
             <!-- Header – search OFF -->
                 @include('layouts.user_header', [
                     'title'             => 'My Requests',
-                    'subtitle'          => 'Track all your submitted asset requests',
                     'showSearch'        => false,
                     'showAction'        => true,
                     'actionUrl'         => route('user.request-asset'),

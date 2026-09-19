@@ -2,8 +2,7 @@
     Reusable Employee / User header
     Usage:
         @include('layouts.user_header', [
-            'title'             => 'Welcome, ' . ($user?->full_name ?? 'User'),
-            'subtitle'          => null,                    // optional
+            'title'             => 'Welcome, ' . ($user?->display_name ?? 'User'),
             'showSearch'        => false,                   // optional
             'searchPlaceholder' => 'Search...',             // optional
             'searchTarget'      => 'auto',                  // assets | requests | auto
@@ -17,7 +16,6 @@
 @php
     $user = $user ?? Auth::user();
     $title = $title ?? 'Dashboard';
-    $subtitle = $subtitle ?? null;
     $showSearch = $showSearch ?? false;
     $searchPlaceholder = $searchPlaceholder ?? 'Search...';
     $showAction = $showAction ?? false;
@@ -26,9 +24,7 @@
     $actionIcon = $actionIcon ?? 'ri-add-line';
     $searchTarget = $searchTarget ?? 'auto';
 
-    $displayName = $user?->full_name
-        ?? (optional($user?->employee_numbers)->Full_Name ?? null)
-        ?? 'User';
+    $displayName = $user?->display_name ?? 'User';
 
     $deptName = 'N/A';
     if ($user && $user->department_id) {
@@ -37,7 +33,7 @@
             ->value('Name') ?? 'N/A';
     }
 
-    $initial = strtoupper(substr($displayName, 0, 1));
+    $initial = $user?->initials ?? 'U';
 @endphp
 
 <!-- Header -->
@@ -50,22 +46,16 @@
 <div class="brand-topbar bg-white sticky top-0 z-10 shadow-sm">
     <div class="px-4 sm:px-8 py-4 sm:py-5">
         <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
-            {{-- Left: Title + subtitle --}}
+            {{-- Left: page title + who is signed in --}}
             <div>
                 <h2 class="brand-title text-xl sm:text-2xl font-semibold text-[#0F2143]">{{ $title }}</h2>
                 <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                    @if($subtitle)
-                        <span class="text-sm font-semibold text-[#A8841E]">{{ $displayName }}</span>
-                        <span class="text-[#A8AFBC] hidden xs:inline">•</span>
-                        <p class="text-sm text-[#5B6678]">{{ $subtitle }}</p>
-                    @else
-                        <span class="text-sm font-semibold text-[#0F2143]">
-                            {{ $user?->unit_heads_number ?? '' }}
-                            @if($user?->unit_heads_number) – @endif
-                            {{ $user?->role ?? 'Employee' }}
-                        </span>
-                        <span class="mx-1 text-[#A8AFBC]">•</span>
-                        <span class="text-sm font-semibold text-[#A8841E]">{{ $deptName }}</span>
+                    <span class="text-sm font-semibold text-[#0F2143]">{{ $displayName }}</span>
+                    <span class="text-[#A8AFBC]">•</span>
+                    <span class="text-sm text-[#5B6678]">{{ $user?->role ?? 'Employee' }}</span>
+                    @if($deptName !== 'N/A')
+                        <span class="text-[#A8AFBC]">•</span>
+                        <span class="text-sm text-[#5B6678]">{{ $deptName }}</span>
                     @endif
                 </div>
             </div>

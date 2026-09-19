@@ -35,7 +35,6 @@
     @include('admin.partials.header', [
         'adminHeaderPage'     => 'audit_logs',
         'adminHeaderTitle'    => 'Audit Logs',
-        'adminHeaderSubtitle' => 'Track all system activities and actions',
         'adminHeaderIcon'     => 'ri-history-line',
         'adminHeaderBadge'    => 'Admin',
     ])
@@ -133,11 +132,11 @@
                                 <div class="flex items-center space-x-3">
                                     <div class="w-8 h-8 bg-[#0F2143] rounded-full flex items-center justify-center flex-shrink-0">
                                         <span class="text-[#E9C766] text-xs font-semibold">
-                                            {{ strtoupper(substr($log->user_name ?? ($log->user->full_name ?? 'U'), 0, 1)) }}
+                                            {{ strtoupper(substr($log->user_name ?? 'U', 0, 1)) }}
                                         </span>
                                     </div>
                                     <div>
-                                        <p class="font-medium text-[#0F2143]">{{ $log->user_name ?? ($log->user->full_name ?? '—') }}</p>
+                                        <p class="font-medium text-[#0F2143]">{{ $log->user_name ?? '—' }}</p>
                                         <p class="text-xs text-[#8991A0]">{{ $log->user_role ?? ($log->user->role ?? '—') }}</p>
                                     </div>
                                 </div>
@@ -257,11 +256,11 @@
                     <div class="flex items-center space-x-3 p-3 bg-[#F5F0E2] rounded-lg">
                         <div class="w-10 h-10 bg-[#0A1830] border border-[#C9A227] rounded-full flex items-center justify-center">
                             <span class="text-[#E9C766] text-sm font-semibold">
-                                {{ strtoupper(substr($log->user->full_name ?? 'U', 0, 1)) }}
+                                {{ strtoupper(substr($log->user_name ?? 'U', 0, 1)) }}
                             </span>
                         </div>
                         <div>
-                            <p class="font-semibold text-[#0F2143]">{{ $log->user_name ?? ($log->user->full_name ?? '—') }}</p>
+                            <p class="font-semibold text-[#0F2143]">{{ $log->user_name ?? '—' }}</p>
                             <p class="text-xs text-[#5B6678]">{{ $log->user_role ?? ($log->user->role ?? '—') }} • {{ $log->user->department ?? '—' }}</p>
                         </div>
                     </div>

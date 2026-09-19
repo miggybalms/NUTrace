@@ -48,7 +48,7 @@
     @php
         // Prefer explicitly-passed $currentUser, otherwise fall back to the authenticated user
         $user = $currentUser ?? Auth::user();
-        $initial = $user ? strtoupper(substr($user->full_name ?? 'U', 0, 1)) : 'U';
+        $initial = $user?->initials ?? 'U';
     @endphp
 
     <!-- Mobile top bar with hamburger toggle (hidden on lg+) -->
@@ -124,7 +124,7 @@
                         @endif
                     </div>
                     <div class="ml-3 flex-1 min-w-0">
-                        <p class="text-sm font-medium text-white truncate">{{ $user?->full_name ?? 'User' }}</p>
+                        <p class="text-sm font-medium text-white truncate">{{ $user?->display_name ?? 'User' }}</p>
                         <p class="text-xs text-[#7C86A0] truncate">{{ $user?->email ?? 'user@user.com' }}</p>
                     </div>                    </div>
                 <a href="/logout" class="w-full flex items-center px-3 py-2 text-sm text-[#B7BFD4] rounded-lg hover:bg-white/5 transition">

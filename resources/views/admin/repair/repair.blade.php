@@ -162,7 +162,6 @@
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'repair',
                 'adminHeaderTitle'    => 'Repair Management',
-                'adminHeaderSubtitle' => 'Manage and track all repair requests',
                 'adminHeaderIcon'     => 'ri-tools-line',
                 'adminHeaderBadge'    => 'Asset Officer',
             ])

@@ -8,7 +8,6 @@
      @include('admin.partials.header', [
          'adminHeaderPage'     => 'requests',
          'adminHeaderTitle'    => 'Requests',
-         'adminHeaderSubtitle' => 'Manage and process asset requests',
          'adminHeaderIcon'     => 'ri-file-list-3-line',   // optional
          'adminHeaderBadge'    => 'Admin',                  // optional
          'adminHeaderBackUrl'  => '/admin/assets',           // optional: shows back arrow instead of hamburger
@@ -19,6 +18,12 @@
        - audit logs          -> /admin/audit-logs/export    (server CSV)
        - requests            -> exportRequests()            (page's own exporter)
      ============================================================ --}}
+@php
+    $adminUser = Auth::user();
+    $adminName = $adminUser?->display_name ?? 'User';
+    $adminInitials = $adminUser?->initials ?? 'U';
+@endphp
+
 <style>
     .admin-topbar{ background:#fff; border-bottom:1px solid var(--line,#E4DCC6); position:relative; }
     .admin-topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500,#C9A227) 20%, var(--gold-500,#C9A227) 80%, transparent); opacity:.7; }
@@ -45,13 +50,20 @@
                         <i class="ri-menu-line text-2xl"></i>
                     </button>
                 @endif
-                <div class="min-w-0">
-                    <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900,#0F2143);">{{ $adminHeaderTitle }}</h2>
-                    <div class="flex items-center mt-1.5 min-w-0">
-                        <span class="badge-role inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-md flex-shrink-0">
-                            <i class="{{ $adminHeaderIcon ?? 'ri-shield-user-line' }}"></i> {{ $adminHeaderBadge ?? 'Admin' }}
-                        </span>
-                        <p class="text-sm hidden sm:block ml-3 truncate" style="color:var(--ink-600,#5B6678);">{{ $adminHeaderSubtitle }}</p>
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center flex-shrink-0" style="background:var(--gold-100,#F3E7C4);" aria-hidden="true">
+                        <i class="{{ $adminHeaderIcon ?? 'ri-shield-user-line' }} text-lg" style="color:var(--navy-900,#0F2143);"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900,#0F2143);">{{ $adminHeaderTitle }}</h2>
+                        <div class="flex items-center gap-2 mt-1 min-w-0">
+                            <span class="avatar-badge w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">{{ $adminInitials }}</span>
+                            <p class="text-sm truncate">
+                                <span class="font-semibold" style="color:var(--navy-900,#0F2143);">{{ $adminName }}</span>
+                                <span class="mx-1.5" style="color:var(--ink-400,#8991A0);">•</span>
+                                <span style="color:var(--ink-600,#5B6678);">{{ $adminHeaderBadge ?? 'Admin' }}</span>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -105,15 +117,9 @@
                             <input type="text" id="searchInput" placeholder="Search replacements..."
                                 class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
                         </div>
-                        <div class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1 flex-shrink-0" onmouseover="this.style.background='var(--paper-2,#EAE2C9)'" onmouseout="this.style.background='transparent'">
-                            <div class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center">
-                                <span class="text-xs font-semibold">{{ strtoupper(substr(Auth::user()->full_name ?? 'A', 0, 1)) }}</span>
-                            </div>
-                            <i class="ri-arrow-down-s-line hidden sm:block" style="color:var(--ink-400,#8991A0);"></i>
-                        </div>
                         @break
 
-                    {{-- Audit logs: search + date filter + server CSV export + profile --}}
+                    {{-- Audit logs: search + date filter + server CSV export --}}
                     @case('audit_logs')
                         <div class="relative">
                             <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);"></i>
@@ -126,12 +132,6 @@
                             <i class="ri-download-line mr-2"></i>
                             Export
                         </a>
-                        <div class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1" onmouseover="this.style.background='var(--paper-2,#EFE9D8)'" onmouseout="this.style.background='transparent'">
-                            <div class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center">
-                                <span class="text-xs font-semibold">{{ strtoupper(substr(Auth::user()->full_name ?? 'A', 0, 1)) }}</span>
-                            </div>
-                            <i class="ri-arrow-down-s-line" style="color:var(--ink-400,#8991A0);"></i>
-                        </div>
                         @break
 
                     {{-- Pullout --}}

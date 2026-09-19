@@ -153,7 +153,6 @@
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'asset_registry',
                 'adminHeaderTitle'    => 'Asset Registry',
-                'adminHeaderSubtitle' => 'Register new assets to the inventory',
                 'adminHeaderIcon'     => 'ri-qr-code-line',
                 'adminHeaderBadge'    => 'Admin',
                 'adminHeaderBackUrl'  => '/admin/assets',

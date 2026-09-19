@@ -72,12 +72,7 @@
         <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             @include('layouts.user_header', [
-                'title' => 'Welcome, ' . (
-                    $user?->full_name
-                    ?? optional($user?->employee_numbers)->Full_Name
-                    ?? 'User'
-                ),
-                'subtitle' => 'Overview of your assigned assets and requests',
+                'title' => 'Dashboard',
             ])
 
             <!-- Content -->

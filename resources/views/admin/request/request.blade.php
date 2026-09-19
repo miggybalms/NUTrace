@@ -119,7 +119,6 @@
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'requests',
                     'adminHeaderTitle'    => 'Requests',
-                    'adminHeaderSubtitle' => 'Manage and process asset requests',
                     'adminHeaderIcon'     => 'ri-file-list-3-line',
                     'adminHeaderBadge'    => 'Admin',
                 ])
