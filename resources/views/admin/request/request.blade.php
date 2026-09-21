@@ -93,6 +93,18 @@
         .detail-card {
             animation: fadeIn 0.3s ease;
         }
+
+        /* Long unbroken values (notes, codes, emails) must wrap inside the panel
+           instead of widening it and giving the whole page a horizontal scroll. */
+        .detail-value {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .detail-note {
+            white-space: pre-line;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
         
         @keyframes fadeIn {
             from {
@@ -254,7 +266,7 @@
                     </div>
 
                     <!-- Request Details Section -->
-                    <div class="w-full lg:w-96 lg:flex-shrink-0 panel rounded-xl overflow-y-auto" id="request-details-panel">
+                    <div class="w-full lg:w-96 lg:flex-shrink-0 min-w-0 panel rounded-xl overflow-y-auto" id="request-details-panel">
                         <div class="p-6">
                             <h3 class="font-display text-lg font-semibold mb-4 flex items-center" style="color:var(--navy-900);">
                                 <i class="ri-file-info-line mr-2" style="color:var(--gold-600);"></i>
@@ -299,8 +311,8 @@
                                     
                                     <div class="pb-3" style="border-bottom:1px solid var(--line);">
                                         <p class="eyebrow mb-1">Submitted By</p>
-                                        <p class="text-sm" style="color:var(--navy-900);" id="detail-submitter">-</p>
-                                        <p class="text-xs mt-1" style="color:var(--ink-400);" id="detail-email">-</p>
+                                        <p class="text-sm detail-value" style="color:var(--navy-900);" id="detail-submitter">-</p>
+                                        <p class="text-xs mt-1 detail-value" style="color:var(--ink-400);" id="detail-email">-</p>
                                     </div>
                                     
                                     <div class="pb-3" style="border-bottom:1px solid var(--line);">
@@ -315,34 +327,27 @@
 
                                     <div class="pb-3" style="border-bottom:1px solid var(--line); display:none;" id="detail-assigned-block">
                                         <p class="eyebrow mb-1">Transferring To</p>
-                                        <p class="text-sm font-semibold" style="color:var(--navy-900);" id="detail-assigned-to">-</p>
+                                        <p class="text-sm font-semibold detail-value" style="color:var(--navy-900);" id="detail-assigned-to">-</p>
                                     </div>
                                     
                                     <!-- The requester's own statement: shown in full, read-only. -->
                                     <div class="pb-3">
                                         <p class="eyebrow mb-1">User's Note</p>
-                                        <p class="text-sm mt-1 leading-relaxed whitespace-pre-line" style="color:var(--ink-600);" id="detail-description">-</p>
+                                        <p class="text-sm mt-1 leading-relaxed detail-note" style="color:var(--ink-600);" id="detail-description">-</p>
                                         <p class="text-xs mt-2 flex items-center" style="color:var(--ink-400);">
                                             <i class="ri-lock-line mr-1"></i>
                                             Submitted by the requester and cannot be edited.
                                         </p>
                                     </div>
 
-                                    <!-- Admin Remarks: the office's response, stored separately. -->
-                                    <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem;">
-                                        <label for="detail-admin-remarks" class="eyebrow mb-1 block">Admin Remarks</label>
-                                        <textarea id="detail-admin-remarks" rows="3" maxlength="1000"
-                                                  class="w-full px-3 py-2 rounded-lg text-sm"
-                                                  style="border:1px solid var(--line); color:var(--ink-900); resize:vertical;"
-                                                  placeholder="e.g., Request reviewed. Asset will be inspected by the Asset Management Office."></textarea>
-                                        <p class="text-xs mt-1" id="detail-admin-remarks-meta" style="color:var(--ink-400);"></p>
-                                        <div class="flex items-center gap-2 mt-2">
-                                            <button type="button" onclick="saveAdminRemarks()"
-                                                    class="btn-gold text-sm" id="detail-admin-remarks-save">
-                                                <i class="ri-save-line mr-1.5"></i> Save Remarks
-                                            </button>
-                                            <span class="text-xs hidden" id="detail-admin-remarks-status"></span>
-                                        </div>
+                                    <!-- Admin Remarks are recorded only when a request is rejected. -->
+                                    <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem; display:none;" id="detail-admin-remarks-block">
+                                        <p class="eyebrow mb-1">Admin Remarks</p>
+                                        <p class="text-sm detail-note" style="color:var(--ink-600);" id="detail-admin-remarks">—</p>
+                                        <p class="text-xs mt-2 detail-value" style="color:var(--ink-400);" id="detail-admin-remarks-meta"></p>
+                                        <p class="text-xs mt-1" style="color:var(--ink-400);">
+                                            Recorded when this request was rejected.
+                                        </p>
                                     </div>
                                 </div>
                                 
@@ -366,6 +371,40 @@
                 <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Request modal: the reason becomes the request's Admin Remarks -->
+    <div id="rejectModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4"
+         style="background:rgba(10,24,48,.6);" onclick="closeRejectModal()">
+        <div class="panel rounded-xl w-full max-w-md p-6" onclick="event.stopPropagation();">
+            <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Reject Request</h3>
+            <p class="text-sm mt-1 mb-4 detail-value" id="reject-modal-subtitle" style="color:var(--ink-400);">-</p>
+
+            <label for="reject-reason" class="eyebrow mb-1 block">Reason for rejection</label>
+            <textarea id="reject-reason" rows="4" maxlength="500" oninput="updateRejectCounter()"
+                      class="w-full px-3 py-2 rounded-lg text-sm"
+                      style="border:1px solid var(--line); color:var(--ink-900); resize:vertical;"
+                      placeholder="e.g., The asset is still under warranty — submit a repair request instead."></textarea>
+            <div class="flex items-center justify-between gap-3 mt-2">
+                <p class="text-xs" style="color:var(--ink-400);">Shown to the requester as the Admin Remarks.</p>
+                <span id="reject-reason-counter" class="text-xs font-medium whitespace-nowrap" style="color:var(--ink-400);">0 / 500 characters</span>
+            </div>
+
+            <p class="text-xs mt-2 hidden" id="reject-modal-status"></p>
+
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" onclick="closeRejectModal()"
+                        class="px-4 py-2 rounded-lg text-sm font-medium"
+                        style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="reject-modal-confirm" onclick="confirmReject()"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                        style="background:var(--brick);">
+                    <i class="ri-close-circle-line mr-1.5"></i>Reject Request
+                </button>
             </div>
         </div>
     </div>
@@ -443,81 +482,6 @@
         const requestsData = @json($requests ?? []);
         let currentSelectedRequestId = null;
 
-        // ── Admin Remarks ────────────────────────────────────────────────────
-        // Saved to its own column so the user's submitted note is never overwritten.
-        function saveAdminRemarks() {
-            if (!currentSelectedRequestId) return;
-
-            const input   = document.getElementById('detail-admin-remarks');
-            const status  = document.getElementById('detail-admin-remarks-status');
-            const saveBtn = document.getElementById('detail-admin-remarks-save');
-            const remarks = (input?.value || '').trim();
-
-            if (remarks.length > 1000) {
-                if (status) {
-                    status.textContent = 'Admin remarks cannot exceed 1000 characters.';
-                    status.className = 'text-xs';
-                    status.style.color = 'var(--brick)';
-                }
-                return;
-            }
-
-            const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-            if (saveBtn) saveBtn.disabled = true;
-            if (status) {
-                status.textContent = 'Saving...';
-                status.className = 'text-xs';
-                status.style.color = 'var(--ink-400)';
-            }
-
-            fetch(`/admin/requests/${currentSelectedRequestId}/remarks`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token,
-                },
-                body: JSON.stringify({ admin_remarks: remarks }),
-            })
-            .then(async (res) => {
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.message || 'Unable to save remarks.');
-                return data;
-            })
-            .then((data) => {
-                // Keep the table's cached data in sync so re-selecting shows it.
-                const request = requestsData.find(r => r.id == currentSelectedRequestId);
-                if (request) {
-                    request.admin_remarks    = data.admin_remarks || '';
-                    request.admin_remarks_by = data.admin_remarks_by || '';
-                    request.admin_remarks_at = data.admin_remarks_at || '';
-                }
-
-                const meta = document.getElementById('detail-admin-remarks-meta');
-                if (meta) {
-                    meta.textContent = data.admin_remarks
-                        ? `Last recorded by ${data.admin_remarks_by || 'Asset Management Office'}${data.admin_remarks_at ? ' on ' + data.admin_remarks_at : ''}`
-                        : 'Not yet recorded.';
-                }
-
-                if (status) {
-                    status.textContent = data.admin_remarks ? 'Remarks saved.' : 'Remarks cleared.';
-                    status.className = 'text-xs';
-                    status.style.color = 'var(--forest)';
-                }
-            })
-            .catch((error) => {
-                if (status) {
-                    status.textContent = error.message || 'Unable to save remarks.';
-                    status.className = 'text-xs';
-                    status.style.color = 'var(--brick)';
-                }
-            })
-            .finally(() => {
-                if (saveBtn) saveBtn.disabled = false;
-            });
-        }
-
         function selectRequest(requestId) {
             // Remove selected class from all rows
             document.querySelectorAll('.request-row').forEach(row => {
@@ -563,17 +527,19 @@
                 document.getElementById('detail-date').textContent = new Date(request.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
                 document.getElementById('detail-description').textContent = request.description || 'No description provided.';
 
-                // Admin remarks (separate from the user's note)
-                const remarksInput = document.getElementById('detail-admin-remarks');
+                // Admin remarks — read-only, only ever set by a rejection.
+                const remarksBlock = document.getElementById('detail-admin-remarks-block');
+                const remarksEl    = document.getElementById('detail-admin-remarks');
                 const remarksMeta  = document.getElementById('detail-admin-remarks-meta');
-                const remarksState = document.getElementById('detail-admin-remarks-status');
-                if (remarksInput) remarksInput.value = request.admin_remarks || '';
-                if (remarksMeta) {
-                    remarksMeta.textContent = request.admin_remarks
-                        ? `Last recorded by ${request.admin_remarks_by || 'Asset Management Office'}${request.admin_remarks_at ? ' on ' + request.admin_remarks_at : ''}`
-                        : 'Not yet recorded.';
+                if (remarksBlock) {
+                    if (request.admin_remarks) {
+                        remarksEl.textContent = request.admin_remarks;
+                        remarksMeta.textContent = `Recorded by ${request.admin_remarks_by || 'Asset Management Office'}${request.admin_remarks_at ? ' on ' + request.admin_remarks_at : ''}`;
+                        remarksBlock.style.display = 'block';
+                    } else {
+                        remarksBlock.style.display = 'none';
+                    }
                 }
-                if (remarksState) remarksState.classList.add('hidden');
                 
                 // Status badge
                 const statusBadge = document.getElementById('detail-status-badge');
@@ -606,8 +572,8 @@
                         div.className = 'rounded-lg px-3 py-2';
                         div.style.background = 'var(--paper-2)';
                         div.innerHTML = `
-                            <p class="text-sm font-medium" style="color:var(--navy-900);">${escapeHtml(asset.name || 'Unnamed')}</p>
-                            <p class="text-xs font-mono mt-0.5" style="color:var(--ink-400);">${escapeHtml(asset.code || '')}</p>
+                            <p class="text-sm font-medium detail-value" style="color:var(--navy-900);">${escapeHtml(asset.name || 'Unnamed')}</p>
+                            <p class="text-xs font-mono mt-0.5 detail-value" style="color:var(--ink-400);">${escapeHtml(asset.code || '')}</p>
                         `;
                         assetsContainer.appendChild(div);
                     });
@@ -650,7 +616,7 @@
             }
         }
 
-        async function sendRequestAction(requestId, action) {
+        async function sendRequestAction(requestId, action, payload = {}) {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             const response = await fetch(`/admin/requests/${requestId}/${action}`, {
                 method: 'POST',
@@ -659,7 +625,7 @@
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({})
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json().catch(() => ({}));
@@ -682,15 +648,93 @@
             }
         }
         
-        async function rejectRequest(requestId) {
-            if (confirm('Are you sure you want to reject this request?')) {
-                try {
-                    const result = await sendRequestAction(requestId, 'reject');
-                    alert(result.message || `Request #REQ-${String(requestId).padStart(4, '0')} rejected!`);
-                    location.reload();
-                } catch (error) {
-                    alert(error.message || 'Unable to reject request.');
+        // ── Rejection ────────────────────────────────────────────────────────
+        // Rejecting is the only place the Admin records remarks: the reason is
+        // stored as admin_remarks and shown to the requester.
+        let pendingRejectId = null;
+
+        function rejectRequest(requestId) {
+            openRejectModal(requestId);
+        }
+
+        function openRejectModal(requestId) {
+            const modal = document.getElementById('rejectModal');
+            if (!modal) return;
+
+            pendingRejectId = requestId;
+
+            const request = requestsData.find(r => r.id == requestId);
+            const reason  = document.getElementById('reject-reason');
+            const sub     = document.getElementById('reject-modal-subtitle');
+            const status  = document.getElementById('reject-modal-status');
+
+            if (reason) reason.value = '';
+            if (sub) {
+                sub.textContent = request
+                    ? `#REQ-${String(requestId).padStart(4, '0')} · ${request.asset_name || ''}`
+                    : `#REQ-${String(requestId).padStart(4, '0')}`;
+            }
+            if (status) status.classList.add('hidden');
+
+            updateRejectCounter();
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            reason?.focus();
+        }
+
+        function closeRejectModal() {
+            const modal = document.getElementById('rejectModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            pendingRejectId = null;
+        }
+
+        function updateRejectCounter() {
+            const input   = document.getElementById('reject-reason');
+            const counter = document.getElementById('reject-reason-counter');
+            if (!input || !counter) return;
+            const length = input.value.length;
+            counter.textContent = `${length} / 500 characters`;
+            counter.style.color = length >= 500 ? 'var(--brick)' : 'var(--ink-400)';
+        }
+
+        async function confirmReject() {
+            if (!pendingRejectId) return;
+
+            const reason  = (document.getElementById('reject-reason')?.value || '').trim();
+            const status  = document.getElementById('reject-modal-status');
+            const confirm = document.getElementById('reject-modal-confirm');
+
+            if (reason.length > 500) {
+                if (status) {
+                    status.textContent = 'The rejection reason cannot exceed 500 characters.';
+                    status.classList.remove('hidden');
+                    status.style.color = 'var(--brick)';
                 }
+                return;
+            }
+
+            const requestId = pendingRejectId;
+            if (confirm) confirm.disabled = true;
+            if (status) {
+                status.textContent = 'Rejecting...';
+                status.classList.remove('hidden');
+                status.style.color = 'var(--ink-400)';
+            }
+
+            try {
+                const result = await sendRequestAction(requestId, 'reject', { reason });
+                closeRejectModal();
+                alert(result.message || `Request #REQ-${String(requestId).padStart(4, '0')} rejected!`);
+                location.reload();
+            } catch (error) {
+                if (status) {
+                    status.textContent = error.message || 'Unable to reject request.';
+                    status.classList.remove('hidden');
+                    status.style.color = 'var(--brick)';
+                }
+                if (confirm) confirm.disabled = false;
             }
         }
         
@@ -758,6 +802,11 @@
             }
             filterRequests(initialTab);
         })();
+
+        // Escape closes the rejection modal
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeRejectModal();
+        });
     </script>
 </body>
 </html>

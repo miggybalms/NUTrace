@@ -4540,72 +4540,6 @@ Route::post('/admin/assets', function (Request $request) {
         ->with('bulk_registered_count', count($createdAssets));
 })->name('admin.assets.store');
 
-// ─── Admin Remarks ──────────────────────────────────────────────────────────
-// The Asset Management Office's response to a request. It is stored separately
-// from requests.Note so the user's own note is never overwritten.
-Route::post('/admin/requests/{id}/remarks', function (Request $request, $id) {
-    $admin = Auth::user();
-    if (!$admin || ($admin->role ?? '') !== 'Admin') {
-        return response()->json(['success' => false, 'message' => 'Only the Asset Management Office can record remarks.'], 403);
-    }
-
-    $requestRecord = DB::table('requests')->where('id', $id)->first();
-    if (!$requestRecord) {
-        return response()->json(['success' => false, 'message' => 'Request not found.'], 404);
-    }
-
-    $validated = $request->validate([
-        'admin_remarks' => 'nullable|string|max:1000',
-    ], [
-        'admin_remarks.max' => 'Admin remarks cannot exceed 1000 characters.',
-    ]);
-
-    $remarks = trim((string) ($validated['admin_remarks'] ?? ''));
-
-    DB::table('requests')->where('id', $requestRecord->id)->update([
-        'admin_remarks'    => $remarks !== '' ? $remarks : null,
-        'admin_remarks_by' => $remarks !== '' ? (int) $admin->id : null,
-        'admin_remarks_at' => $remarks !== '' ? now() : null,
-        'updated_at'       => now(),
-    ]);
-
-    // Remarks are part of the request history and stay reviewable in the audit trail.
-    try {
-        DB::table('audit_logs')->insert([
-            'user_id'            => $admin->id,
-            'request_id'         => $requestRecord->id,
-            'asset_id'           => $requestRecord->asset_id,
-            'action_type'        => 'UPDATE',
-            'notes'              => $remarks !== ''
-                ? 'Admin remarks recorded for request #' . $requestRecord->id
-                : 'Admin remarks cleared for request #' . $requestRecord->id,
-            'action_description' => 'Request #' . $requestRecord->id . ' admin remarks updated',
-            'created_at'         => now(),
-            'updated_at'         => now(),
-        ]);
-    } catch (\Throwable $e) {
-        \Log::warning('Remarks audit entry failed: ' . $e->getMessage());
-    }
-
-    if ($remarks !== '') {
-        createNotification(
-            (int) $requestRecord->user_id,
-            'Request Update',
-            'The Asset Management Office added remarks to your ' . ucfirst((string) $requestRecord->request_type) . ' request.',
-            'REQUEST',
-            (int) $requestRecord->id,
-            'request'
-        );
-    }
-
-    return response()->json([
-        'success'          => true,
-        'admin_remarks'    => $remarks,
-        'admin_remarks_by' => $admin->display_name ?? $admin->email,
-        'admin_remarks_at' => now()->format('M d, Y h:i A'),
-    ]);
-});
-
 Route::post('/admin/requests/{id}/approve', function ($id) {
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
@@ -4843,7 +4777,12 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
     }
 })->name('admin.requests.approve');
 
-Route::post('/admin/requests/{id}/reject', function ($id) {
+Route::post('/admin/requests/{id}/reject', function (Request $request, $id) {
+    $admin = Auth::user();
+    if (!$admin || ($admin->role ?? '') !== 'Admin') {
+        return response()->json(['message' => 'Only the Asset Management Office can reject a request.'], 403);
+    }
+
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
     if (!$requestRecord) {
@@ -4854,20 +4793,38 @@ Route::post('/admin/requests/{id}/reject', function ($id) {
         return response()->json(['message' => 'Only pending requests can be rejected.'], 422);
     }
 
+    $validated = $request->validate([
+        'reason' => 'nullable|string|max:500',
+    ], [
+        'reason.max' => 'The rejection reason cannot exceed 500 characters.',
+    ]);
+
+    $reason = trim((string) ($validated['reason'] ?? ''));
+
+    // The rejection is the only place an Admin remark is recorded, so it lives in
+    // admin_remarks — kept separate from the requester's own note (requests.Note).
     DB::table('requests')
         ->where('id', $requestRecord->id)
         ->update([
-            'status' => 'Rejected',
-            'updated_at' => now(),
+            'status'           => 'Rejected',
+            'admin_remarks'    => $reason !== '' ? $reason : null,
+            'admin_remarks_by' => $reason !== '' ? (int) $admin->id : null,
+            'admin_remarks_at' => $reason !== '' ? now() : null,
+            'updated_at'       => now(),
         ]);
 
-    // Audit: rejected
+    // Audit: rejected. action_type is NOT NULL on audit_logs — omitting it (as this
+    // route used to) made the insert throw and silently drop both this entry and the
+    // requester's notification.
     try {
         DB::table('audit_logs')->insert([
             'user_id' => Auth::id(),
             'request_id' => $requestRecord->id,
             'asset_id' => $requestRecord->asset_id,
-            'notes' => 'Rejected request (' . ($requestRecord->request_type ?? '') . ')',
+            'action_type' => 'APPROVAL',
+            'notes' => 'Rejected request (' . ($requestRecord->request_type ?? '') . ')'
+                . ($reason !== '' ? ': ' . $reason : ''),
+            'action_description' => 'Request #' . $requestRecord->id . ' rejected',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -4897,14 +4854,16 @@ Route::post('/admin/requests/{id}/reject', function ($id) {
             createNotification(
                 (int) $requestRecord->user_id,
                 'Request Rejected',
-                "Your {$typeLabel} request for {$assetName} has been rejected. Please check your request for more details.",
+                "Your {$typeLabel} request for {$assetName} has been rejected."
+                    . ($reason !== '' ? " Reason: {$reason}" : ' Please check your request for more details.'),
                 'REQUEST',
                 (int) $requestRecord->id,
                 'request'
             );
 
     } catch (\Exception $e) {
-        // ignore
+        // Never let a logging failure block the rejection, but do not hide it either.
+        \Log::warning('Reject audit/notification failed for request #' . $requestRecord->id . ': ' . $e->getMessage());
     }
 
     return response()->json(['message' => 'Request rejected successfully.']);
