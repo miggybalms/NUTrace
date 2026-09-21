@@ -13,6 +13,12 @@ use App\Support\Media;
 class UserRequestController extends Controller
 {
     /**
+     * Maximum length of a user's request note. The note is stored in full —
+     * this is the amount a user is allowed to submit, not a truncation.
+     */
+    public const NOTE_MAX_LENGTH = 500;
+
+    /**
      * Show the user request form
      */
     public function create()
@@ -62,7 +68,7 @@ public function store(HttpRequest $request)
         'request_type'      => 'required|in:Repair,Disposal,Transfer,Replacement,Pullout',
         'asset_ids'         => 'required|array|min:1',
         'asset_ids.*'       => 'required|integer|exists:assets,id',
-        'notes'             => 'required|string',
+        'notes'             => 'required|string|max:' . self::NOTE_MAX_LENGTH,
         'attachment'        => 'nullable|image|max:10240',
         'assign_to_user_id' => 'nullable|exists:users,id',
     ];
@@ -71,7 +77,9 @@ public function store(HttpRequest $request)
         $rules['assign_to_user_id'] = 'required|exists:users,id';
     }
 
-    $validated = $request->validate($rules);
+    $validated = $request->validate($rules, [
+        'notes.max' => 'Your request note cannot exceed ' . self::NOTE_MAX_LENGTH . ' characters.',
+    ]);
 
     $user     = Auth::user();
     $assetIds = array_values(array_unique(array_map('intval', $validated['asset_ids'])));

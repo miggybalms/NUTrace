@@ -318,9 +318,31 @@
                                         <p class="text-sm font-semibold" style="color:var(--navy-900);" id="detail-assigned-to">-</p>
                                     </div>
                                     
+                                    <!-- The requester's own statement: shown in full, read-only. -->
                                     <div class="pb-3">
-                                        <p class="eyebrow mb-1">Description / Reason</p>
-                                        <p class="text-sm mt-1 leading-relaxed" style="color:var(--ink-600);" id="detail-description">-</p>
+                                        <p class="eyebrow mb-1">User's Note</p>
+                                        <p class="text-sm mt-1 leading-relaxed whitespace-pre-line" style="color:var(--ink-600);" id="detail-description">-</p>
+                                        <p class="text-xs mt-2 flex items-center" style="color:var(--ink-400);">
+                                            <i class="ri-lock-line mr-1"></i>
+                                            Submitted by the requester and cannot be edited.
+                                        </p>
+                                    </div>
+
+                                    <!-- Admin Remarks: the office's response, stored separately. -->
+                                    <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem;">
+                                        <label for="detail-admin-remarks" class="eyebrow mb-1 block">Admin Remarks</label>
+                                        <textarea id="detail-admin-remarks" rows="3" maxlength="1000"
+                                                  class="w-full px-3 py-2 rounded-lg text-sm"
+                                                  style="border:1px solid var(--line); color:var(--ink-900); resize:vertical;"
+                                                  placeholder="e.g., Request reviewed. Asset will be inspected by the Asset Management Office."></textarea>
+                                        <p class="text-xs mt-1" id="detail-admin-remarks-meta" style="color:var(--ink-400);"></p>
+                                        <div class="flex items-center gap-2 mt-2">
+                                            <button type="button" onclick="saveAdminRemarks()"
+                                                    class="btn-gold text-sm" id="detail-admin-remarks-save">
+                                                <i class="ri-save-line mr-1.5"></i> Save Remarks
+                                            </button>
+                                            <span class="text-xs hidden" id="detail-admin-remarks-status"></span>
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -420,7 +442,82 @@
         // Sample requests data (replace with your actual data from Laravel)
         const requestsData = @json($requests ?? []);
         let currentSelectedRequestId = null;
-        
+
+        // ── Admin Remarks ────────────────────────────────────────────────────
+        // Saved to its own column so the user's submitted note is never overwritten.
+        function saveAdminRemarks() {
+            if (!currentSelectedRequestId) return;
+
+            const input   = document.getElementById('detail-admin-remarks');
+            const status  = document.getElementById('detail-admin-remarks-status');
+            const saveBtn = document.getElementById('detail-admin-remarks-save');
+            const remarks = (input?.value || '').trim();
+
+            if (remarks.length > 1000) {
+                if (status) {
+                    status.textContent = 'Admin remarks cannot exceed 1000 characters.';
+                    status.className = 'text-xs';
+                    status.style.color = 'var(--brick)';
+                }
+                return;
+            }
+
+            const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            if (saveBtn) saveBtn.disabled = true;
+            if (status) {
+                status.textContent = 'Saving...';
+                status.className = 'text-xs';
+                status.style.color = 'var(--ink-400)';
+            }
+
+            fetch(`/admin/requests/${currentSelectedRequestId}/remarks`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                },
+                body: JSON.stringify({ admin_remarks: remarks }),
+            })
+            .then(async (res) => {
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.message || 'Unable to save remarks.');
+                return data;
+            })
+            .then((data) => {
+                // Keep the table's cached data in sync so re-selecting shows it.
+                const request = requestsData.find(r => r.id == currentSelectedRequestId);
+                if (request) {
+                    request.admin_remarks    = data.admin_remarks || '';
+                    request.admin_remarks_by = data.admin_remarks_by || '';
+                    request.admin_remarks_at = data.admin_remarks_at || '';
+                }
+
+                const meta = document.getElementById('detail-admin-remarks-meta');
+                if (meta) {
+                    meta.textContent = data.admin_remarks
+                        ? `Last recorded by ${data.admin_remarks_by || 'Asset Management Office'}${data.admin_remarks_at ? ' on ' + data.admin_remarks_at : ''}`
+                        : 'Not yet recorded.';
+                }
+
+                if (status) {
+                    status.textContent = data.admin_remarks ? 'Remarks saved.' : 'Remarks cleared.';
+                    status.className = 'text-xs';
+                    status.style.color = 'var(--forest)';
+                }
+            })
+            .catch((error) => {
+                if (status) {
+                    status.textContent = error.message || 'Unable to save remarks.';
+                    status.className = 'text-xs';
+                    status.style.color = 'var(--brick)';
+                }
+            })
+            .finally(() => {
+                if (saveBtn) saveBtn.disabled = false;
+            });
+        }
+
         function selectRequest(requestId) {
             // Remove selected class from all rows
             document.querySelectorAll('.request-row').forEach(row => {
@@ -465,6 +562,18 @@
                 document.getElementById('detail-email').textContent = request.email || '—';
                 document.getElementById('detail-date').textContent = new Date(request.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
                 document.getElementById('detail-description').textContent = request.description || 'No description provided.';
+
+                // Admin remarks (separate from the user's note)
+                const remarksInput = document.getElementById('detail-admin-remarks');
+                const remarksMeta  = document.getElementById('detail-admin-remarks-meta');
+                const remarksState = document.getElementById('detail-admin-remarks-status');
+                if (remarksInput) remarksInput.value = request.admin_remarks || '';
+                if (remarksMeta) {
+                    remarksMeta.textContent = request.admin_remarks
+                        ? `Last recorded by ${request.admin_remarks_by || 'Asset Management Office'}${request.admin_remarks_at ? ' on ' + request.admin_remarks_at : ''}`
+                        : 'Not yet recorded.';
+                }
+                if (remarksState) remarksState.classList.add('hidden');
                 
                 // Status badge
                 const statusBadge = document.getElementById('detail-status-badge');

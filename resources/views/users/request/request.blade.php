@@ -167,6 +167,11 @@
                                     <span class="font-medium text-[#46536B]">Note:</span> {{ $request->Note }}
                                 </p>
                                 @endif
+                                @if(!empty($request->admin_remarks))
+                                <p class="text-xs text-[#8F5F16] mt-1.5 flex items-center">
+                                    <i class="ri-shield-user-line mr-1"></i>Admin remarks available — open for details.
+                                </p>
+                                @endif
                             </div>
                         </div>
 
@@ -306,8 +311,21 @@
                         </div>
                         @if($request->Note)
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Note / Reason</p>
-                            <p class="text-sm text-[#33425C]">{{ $request->Note }}</p>
+                            <p class="text-xs text-[#8991A0] mb-1">Your Request Note</p>
+                            <p class="text-sm text-[#33425C] whitespace-pre-line">{{ $request->Note }}</p>
+                        </div>
+                        @endif
+                        @if(!empty($request->admin_remarks))
+                        <div class="rounded-lg p-3 border border-[#EAD9B4] bg-[#FBF7EA]">
+                            <p class="text-xs font-medium text-[#8F5F16] mb-1">
+                                <i class="ri-shield-user-line mr-1"></i>Admin Remarks
+                            </p>
+                            <p class="text-sm text-[#33425C] whitespace-pre-line">{{ $request->admin_remarks }}</p>
+                            @if(!empty($request->admin_remarks_at))
+                            <p class="text-xs text-[#8991A0] mt-2">
+                                Asset Management Office · {{ \Carbon\Carbon::parse($request->admin_remarks_at)->format('M d, Y h:i A') }}
+                            </p>
+                            @endif
                         </div>
                         @endif
                         @if($request->file_path)

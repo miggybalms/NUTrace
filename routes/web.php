@@ -574,7 +574,8 @@ Route::get('/users', function () {
         $recentRequests = $raw->map(function ($r) {
             return (object) [
                 'type' => strtolower(str_replace(' ', '_', $r->request_type ?? 'other')),
-                'description' => $r->Note ?? ($r->asset_name ?? ''),
+                // Dashboard preview only — the full note lives on the request itself.
+                'description' => \Illuminate\Support\Str::limit((string) ($r->Note ?? $r->asset_name ?? ''), 100),
                 'status' => strtolower($r->status ?? 'pending'),
                 'created_at' => \Illuminate\Support\Carbon::parse($r->created_at),
             ];
@@ -652,7 +653,11 @@ Route::get('/department-head', function () {
         $recentRequests = $raw->map(function ($r) {
             return (object) [
                 'type' => strtolower(str_replace(' ', '_', $r->request_type ?? 'other')),
-                'description' => ($r->Note ? $r->Note : ($r->asset_name ? ($r->asset_name . ' — ' . ($r->request_user_name ?? '')) : ($r->request_user_name ?? ''))),
+                // Dashboard preview only — the full note lives on the request itself.
+                'description' => \Illuminate\Support\Str::limit(
+                    $r->Note ? $r->Note : ($r->asset_name ? ($r->asset_name . ' — ' . ($r->request_user_name ?? '')) : ($r->request_user_name ?? '')),
+                    100
+                ),
                 'status' => strtolower($r->status ?? 'pending'),
                 'created_at' => \Illuminate\Support\Carbon::parse($r->created_at),
                 'user_id' => $r->request_user_id ?? null,
@@ -2646,11 +2651,15 @@ Route::get('/admin/requests', function () {
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->leftJoin('users as assignee', 'requests.assign_to_user_id', '=', 'assignee.id')
         ->leftJoin('employee_numbers as assignee_emp', 'assignee.employee_numbers_id', '=', 'assignee_emp.id')
+        ->leftJoin('users as remarks_admin', 'requests.admin_remarks_by', '=', 'remarks_admin.id')
+        ->leftJoin('employee_numbers as remarks_admin_emp', 'remarks_admin.employee_numbers_id', '=', 'remarks_admin_emp.id')
         ->select([
             'requests.id',
             'requests.request_type',
             'requests.status',
             'requests.Note',
+            'requests.admin_remarks',
+            'requests.admin_remarks_at',
             'requests.created_at',
             'requests.url',
             'requests.asset_id',
@@ -2659,6 +2668,8 @@ Route::get('/admin/requests', function () {
             'assets.Asset_name as asset_name',
             'assets.Asset_code as asset_code',
             'assignee_emp.Full_Name as assigned_to',
+            'remarks_admin_emp.Full_Name as admin_remarks_by_name',
+            'remarks_admin.email as admin_remarks_by_email',
         ])
         ->orderByDesc('requests.created_at')
         ->get();
@@ -2730,7 +2741,14 @@ Route::get('/admin/requests', function () {
                                 ? \Illuminate\Support\Carbon::parse($request->created_at)
                                 : now(),
             'status'       => strtolower((string) $request->status),
+            // The user's own note, shown in full and never edited by the Admin.
             'description'  => $request->Note ?: '',
+            'admin_remarks'    => $request->admin_remarks ?: '',
+            'admin_remarks_by' => $request->admin_remarks_by_name
+                                    ?: ($request->admin_remarks_by_email ?: null),
+            'admin_remarks_at' => $request->admin_remarks_at
+                                    ? \Illuminate\Support\Carbon::parse($request->admin_remarks_at)->format('M d, Y h:i A')
+                                    : null,
             'assigned_to'  => $request->assigned_to ?? null,
             'image'        => Media::url($request->url ?? null),
         ];
@@ -4522,6 +4540,72 @@ Route::post('/admin/assets', function (Request $request) {
         ->with('bulk_registered_count', count($createdAssets));
 })->name('admin.assets.store');
 
+// ─── Admin Remarks ──────────────────────────────────────────────────────────
+// The Asset Management Office's response to a request. It is stored separately
+// from requests.Note so the user's own note is never overwritten.
+Route::post('/admin/requests/{id}/remarks', function (Request $request, $id) {
+    $admin = Auth::user();
+    if (!$admin || ($admin->role ?? '') !== 'Admin') {
+        return response()->json(['success' => false, 'message' => 'Only the Asset Management Office can record remarks.'], 403);
+    }
+
+    $requestRecord = DB::table('requests')->where('id', $id)->first();
+    if (!$requestRecord) {
+        return response()->json(['success' => false, 'message' => 'Request not found.'], 404);
+    }
+
+    $validated = $request->validate([
+        'admin_remarks' => 'nullable|string|max:1000',
+    ], [
+        'admin_remarks.max' => 'Admin remarks cannot exceed 1000 characters.',
+    ]);
+
+    $remarks = trim((string) ($validated['admin_remarks'] ?? ''));
+
+    DB::table('requests')->where('id', $requestRecord->id)->update([
+        'admin_remarks'    => $remarks !== '' ? $remarks : null,
+        'admin_remarks_by' => $remarks !== '' ? (int) $admin->id : null,
+        'admin_remarks_at' => $remarks !== '' ? now() : null,
+        'updated_at'       => now(),
+    ]);
+
+    // Remarks are part of the request history and stay reviewable in the audit trail.
+    try {
+        DB::table('audit_logs')->insert([
+            'user_id'            => $admin->id,
+            'request_id'         => $requestRecord->id,
+            'asset_id'           => $requestRecord->asset_id,
+            'action_type'        => 'UPDATE',
+            'notes'              => $remarks !== ''
+                ? 'Admin remarks recorded for request #' . $requestRecord->id
+                : 'Admin remarks cleared for request #' . $requestRecord->id,
+            'action_description' => 'Request #' . $requestRecord->id . ' admin remarks updated',
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    } catch (\Throwable $e) {
+        \Log::warning('Remarks audit entry failed: ' . $e->getMessage());
+    }
+
+    if ($remarks !== '') {
+        createNotification(
+            (int) $requestRecord->user_id,
+            'Request Update',
+            'The Asset Management Office added remarks to your ' . ucfirst((string) $requestRecord->request_type) . ' request.',
+            'REQUEST',
+            (int) $requestRecord->id,
+            'request'
+        );
+    }
+
+    return response()->json([
+        'success'          => true,
+        'admin_remarks'    => $remarks,
+        'admin_remarks_by' => $admin->display_name ?? $admin->email,
+        'admin_remarks_at' => now()->format('M d, Y h:i A'),
+    ]);
+});
+
 Route::post('/admin/requests/{id}/approve', function ($id) {
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
@@ -5643,7 +5727,12 @@ Route::get('/user/requests', function (Request $request) {
                 'id'           => $r->id,
                 'request_type' => $r->request_type,
                 'status'       => $r->status,
+                // The user's own submitted note — shown in full, never rewritten.
                 'Note'         => $r->Note,
+                'admin_remarks'    => $r->admin_remarks ?? null,
+                'admin_remarks_at' => $r->admin_remarks_at
+                                        ? \Illuminate\Support\Carbon::parse($r->admin_remarks_at)
+                                        : null,
                 'file_path'    => $r->file_path ?? null,
                 'file_url'     => Media::url($r->file_path ?? null),
                 'file_name'    => $r->file_name ?? null,
@@ -5776,7 +5865,12 @@ if ($search !== '') {
             'id'             => $r->id,
             'request_type'   => $r->request_type,
             'status'         => $r->status,
+            // The user's own submitted note — shown in full, never rewritten.
             'Note'           => $r->Note,
+            'admin_remarks'    => $r->admin_remarks ?? null,
+            'admin_remarks_at' => $r->admin_remarks_at
+                                    ? \Illuminate\Support\Carbon::parse($r->admin_remarks_at)
+                                    : null,
             'file_path'      => $r->file_path ?? null,
             'file_name'      => $r->file_name ?? null,
             'created_at'     => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),

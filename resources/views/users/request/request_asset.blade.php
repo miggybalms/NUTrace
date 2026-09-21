@@ -159,9 +159,15 @@
                         <label class="block text-sm font-medium text-[#33425C] mb-2">
                             Reason / Notes / Specific Instructions <span class="text-[#A23B32]">*</span>
                         </label>
-                        <textarea name="notes" rows="5" required
+                        <textarea name="notes" id="notes-input" rows="5" required maxlength="500"
                                   placeholder="Please describe your concerns, reason for the request, or any specific instructions..."
                                   class="form-textarea w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">{{ old('notes') }}</textarea>
+                        <div class="flex items-center justify-between gap-3 mt-2">
+                            <p class="text-xs text-[#8991A0]">
+                                Explain the problem, reason or any specific instructions. Maximum 500 characters.
+                            </p>
+                            <span id="notes-counter" class="text-xs font-medium text-[#8991A0] whitespace-nowrap">0 / 500 characters</span>
+                        </div>
                     </div>
 
                     <!-- Attach Photo -->
@@ -422,6 +428,26 @@
         updateTransferBlock();
 
         // ─────────────────────────────────────────────
+        // Request note counter (max 500 characters)
+        // ─────────────────────────────────────────────
+        const notesInput   = document.getElementById('notes-input');
+        const notesCounter = document.getElementById('notes-counter');
+        const NOTES_MAX    = 500;
+
+        function updateNotesCounter() {
+            if (!notesInput || !notesCounter) return;
+            const length = notesInput.value.length;
+            notesCounter.textContent = `${length} / ${NOTES_MAX} characters`;
+            notesCounter.classList.toggle('text-[#A23B32]', length >= NOTES_MAX);
+            notesCounter.classList.toggle('text-[#8991A0]', length < NOTES_MAX);
+        }
+
+        if (notesInput) {
+            notesInput.addEventListener('input', updateNotesCounter);
+            updateNotesCounter();
+        }
+
+        // ─────────────────────────────────────────────
         // Photo preview
         // ─────────────────────────────────────────────
         function previewPhoto(input) {
@@ -457,6 +483,12 @@
             if (requestType === 'Transfer' && !document.getElementById('assign_to_user_id').value) {
                 e.preventDefault();
                 alert('Please select the new owner for the Transfer request.');
+                return;
+            }
+
+            if (notesInput && notesInput.value.trim().length > NOTES_MAX) {
+                e.preventDefault();
+                alert(`Your request note cannot exceed ${NOTES_MAX} characters.`);
                 return;
             }
         });
