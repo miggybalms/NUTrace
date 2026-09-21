@@ -10,10 +10,9 @@
     ])
 
     @include('partials.asset_details', [
-        'asset'        => $asset,
-        'details'      => $details,
-        'repairAction' => $repairAction,
-        'backUrl'      => $backUrl,
+        'asset'   => $asset,
+        'details' => $details,
+        'backUrl' => $backUrl,
     ])
 
 @endsection

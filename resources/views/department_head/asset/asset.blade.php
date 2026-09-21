@@ -106,8 +106,16 @@
         @if(isset($visibleAssets) && $visibleAssets->count() > 0)
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" id="assetsGrid">
             @foreach($visibleAssets as $asset)
+            @php
+                // When the asset landed on its holder's account: assignment/acquisition date,
+                // falling back to when the record was registered. Drives "Recently Added".
+                $addedOn = $asset->accusion_date
+                    ? \Carbon\Carbon::parse($asset->accusion_date)->toDateString()
+                    : ($asset->created_at ? \Carbon\Carbon::parse($asset->created_at)->toDateString() : '');
+            @endphp
             <div class="asset-card bg-white rounded-xl shadow-sm border border-[#DED2AE] overflow-hidden"
                  data-status="{{ $asset->Lifecycle_Status ?? '' }}"
+                 data-added="{{ $addedOn }}"
                  data-owner-id="{{ $asset->user_id ?? '' }}"
                  data-name="{{ strtolower($asset->Asset_name ?? '') }}"
                  data-code="{{ strtolower($asset->Asset_code ?? '') }}"
@@ -262,6 +270,22 @@
             let currentFilter = params.get('filter') || 'all';
             let currentSearch = params.get('q') || '';
 
+            // "Recently Added" = assigned/registered within the last 7 days.
+            const RECENT_DAYS = 7;
+
+            function isRecentlyAdded(card) {
+                const raw = (card.dataset.added || '').trim();
+                if (!raw) return false;
+                const added = new Date(raw + 'T00:00:00');
+                if (isNaN(added.getTime())) return false;
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const days = Math.round((today - added) / 86400000);
+                return days >= 0 && days < RECENT_DAYS;
+            }
+
             if (searchInput && currentSearch) {
                 searchInput.value = currentSearch;
             }
@@ -295,8 +319,10 @@
                     const ownerId = (card.dataset.ownerId || '').trim();
 
                     let statusOk = true;
-                    if (currentFilter === 'all' || currentFilter === 'recent') {
+                    if (currentFilter === 'all') {
                         statusOk = true;
+                    } else if (currentFilter === 'recent') {
+                        statusOk = isRecentlyAdded(card);
                     } else if (currentFilter === 'department') {
                         statusOk = ownerId === currentUserId;
                     } else {

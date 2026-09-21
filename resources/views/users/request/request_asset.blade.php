@@ -90,7 +90,6 @@
                                 <option value="Transfer" {{ old('request_type') == 'Transfer' ? 'selected' : '' }}>Transfer Request</option>
                                 <option value="Replacement" {{ old('request_type') == 'Replacement' ? 'selected' : '' }}>Replacement Request</option>
                                 <option value="Pullout" {{ old('request_type') == 'Pullout' ? 'selected' : '' }}>Pullout Request</option>
-                                <option value="Other" {{ old('request_type') == 'Other' ? 'selected' : '' }}>Other Request</option>
                             </select>
                         </div>
 

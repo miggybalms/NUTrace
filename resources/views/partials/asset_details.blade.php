@@ -4,11 +4,11 @@
     Expects:
         $asset        — object from App\Support\AssetDetails::load()
         $details      — array from App\Support\AssetDetails::build()
-        $repairAction — URL that accepts the Request Repair POST
         $backUrl      — URL back to the asset list (filter/search preserved)
 
-    The page is monitoring-only. Lifecycle control (maintenance completion,
-    disposal, replacement, pullout, accountability) stays in the admin area.
+    The page is monitoring-only. Requests (repairs included) are filed from the
+    Requests page, and lifecycle control (maintenance completion, disposal,
+    replacement, pullout, accountability) stays in the admin area.
 --}}
 @php
     $maintenance = $details['maintenance'];
@@ -162,21 +162,6 @@
                     <button type="button" onclick="openAssetQrModal()" class="ad-btn-ghost inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium">
                         <i class="ri-qr-code-line"></i> View QR Code
                     </button>
-                    @if($openRepair)
-                        <span class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm text-[#8F5F16] bg-[#FBF1DE] border border-[#EAD9B4]"
-                              title="This asset already has an open repair request.">
-                            <i class="ri-time-line"></i> Repair already in progress
-                        </span>
-                    @elseif($lifecycle['active'])
-                        <button type="button" onclick="openRepairRequestModal()" class="ad-btn-gold inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm">
-                            <i class="ri-tools-line"></i> Request Repair
-                        </button>
-                    @else
-                        <span class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm text-[#8991A0] bg-[#F5F0E2] border border-[#EFE9D8]"
-                              title="This asset is not in a serviceable state for a new repair request.">
-                            <i class="ri-tools-line"></i> Request Repair unavailable
-                        </span>
-                    @endif
                 </div>
             </div>
         </div>
@@ -641,7 +626,7 @@
                     <ul class="space-y-2.5 text-sm text-[#33425C]">
                         <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> View this asset's information and QR code</li>
                         <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> Monitor maintenance, warranty and lifespan</li>
-                        <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> Request a repair for this asset</li>
+                        <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> File requests for this asset from the Requests page</li>
                         <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> Track repair status and history</li>
                     </ul>
                     <p class="text-xs text-[#8991A0] mt-4 pt-4 border-t border-[#EFE9D8]">
@@ -674,73 +659,6 @@
         </p>
     </div>
 </div>
-
-{{-- ══════════════ Request repair modal ══════════════ --}}
-@if($lifecycle['active'] && !$openRepair)
-    <div id="repairRequestModal" class="fixed inset-0 bg-[#0A1830]/60 hidden items-center justify-center z-50 p-4" onclick="closeRepairRequestModal()">
-        <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onclick="event.stopPropagation();">
-            <form method="POST" action="{{ $repairAction }}" enctype="multipart/form-data">
-                @csrf
-
-                <div class="px-6 py-5 border-b border-[#EFE9D8] flex items-start justify-between gap-3">
-                    <div>
-                        <h3 class="ad-title text-lg font-semibold text-[#0F2143]">Request Repair</h3>
-                        <p class="text-sm text-[#5B6678] mt-0.5">
-                            {{ $asset->Asset_name ?? 'Asset' }} · <span class="ad-mono">{{ $asset->Asset_code ?? '' }}</span>
-                        </p>
-                    </div>
-                    <button type="button" onclick="closeRepairRequestModal()" class="text-[#8991A0] hover:text-[#46536B]">
-                        <i class="ri-close-line text-2xl"></i>
-                    </button>
-                </div>
-
-                <div class="px-6 py-5 space-y-5">
-                    <div class="flex items-start gap-2 rounded-lg bg-[#F5F0E2] border border-[#EFE9D8] px-4 py-3">
-                        <i class="ri-information-line text-[#C9A227] mt-0.5"></i>
-                        <p class="text-xs text-[#5B6678]">
-                            The asset code is filled in automatically — you only need to describe the problem.
-                        </p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-[#33425C] mb-2">
-                            Problem <span class="text-[#A23B32]">*</span>
-                        </label>
-                        <input type="text" name="problem" required maxlength="150"
-                               value="{{ old('problem') }}"
-                               placeholder="e.g. Laptop will not turn on"
-                               class="w-full px-4 py-2.5 border border-[#CFC4A4] rounded-lg text-sm focus:outline-none focus:border-[#C9A227]">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-[#33425C] mb-2">Description</label>
-                        <textarea name="description" rows="4" maxlength="1000"
-                                  placeholder="Describe what happened and when the problem started..."
-                                  class="w-full px-4 py-2.5 border border-[#CFC4A4] rounded-lg text-sm focus:outline-none focus:border-[#C9A227]">{{ old('description') }}</textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-[#33425C] mb-2">Attach photo (optional)</label>
-                        <input type="file" name="attachment" accept="image/*"
-                               class="w-full text-sm text-[#46536B] file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-[#F3E7C4] file:text-[#7A5214] file:text-sm file:font-medium hover:file:bg-[#EAD9B4]">
-                        <p class="text-xs text-[#8991A0] mt-1">PNG or JPG up to 10MB.</p>
-                    </div>
-                </div>
-
-                <div class="px-6 py-5 border-t border-[#EFE9D8] flex flex-col sm:flex-row sm:justify-end gap-2">
-                    <button type="button" onclick="closeRepairRequestModal()"
-                            class="ad-btn-ghost px-5 py-2.5 rounded-lg text-sm font-medium order-2 sm:order-1">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="ad-btn-gold px-5 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-sm order-1 sm:order-2">
-                        <i class="ri-send-plane-line"></i> Submit Repair Request
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-@endif
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -798,30 +716,9 @@
             modal.classList.remove('flex');
         };
 
-        // ── Request repair modal ──
-        window.openRepairRequestModal = function () {
-            var modal = document.getElementById('repairRequestModal');
-            if (!modal) return;
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        };
-
-        window.closeRepairRequestModal = function () {
-            var modal = document.getElementById('repairRequestModal');
-            if (!modal) return;
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        };
-
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape') return;
             window.closeAssetQrModal();
-            window.closeRepairRequestModal();
         });
-
-        // Re-open the repair modal when validation failed so the user sees why.
-        @if($errors->hasAny(['problem', 'description', 'attachment']))
-            window.openRepairRequestModal();
-        @endif
     })();
 </script>

@@ -474,9 +474,10 @@ Route::get('/users/assets', function () {
                 'assets.asset_location',
                 'assets.next_maintenance_date',
                 'assets.qr_code_path',
+                'assets.created_at',
                 DB::raw('MAX(asset_files.url) as image_url')
             )
-            ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path')
+            ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'assets.created_at')
             ->orderBy('assets.Asset_name')
             ->get();
     }
@@ -512,17 +513,11 @@ Route::get('/users/assets/{id}', function ($id) {
     $query = request()->getQueryString();
 
     return view('users.asset.show', [
-        'asset'        => $asset,
-        'details'      => AssetDetails::build($asset),
-        'repairAction' => route('user.assets.request-repair', $asset->id),
-        'backUrl'      => '/users/assets' . ($query ? '?' . $query : ''),
+        'asset'   => $asset,
+        'details' => AssetDetails::build($asset),
+        'backUrl' => '/users/assets' . ($query ? '?' . $query : ''),
     ]);
 })->where('id', '[0-9]+');
-
-// User-facing: request a repair for the asset currently being viewed
-Route::post('/users/assets/{id}/request-repair', [UserRequestController::class, 'storeForAsset'])
-    ->name('user.assets.request-repair')
-    ->where('id', '[0-9]+');
 
 Route::get('/users', function () {
     $user = Auth::user();
@@ -719,10 +714,11 @@ Route::get('/department-head/assets', function (Request $request) {
             'assets.asset_location',
             'assets.next_maintenance_date',
             'assets.qr_code_path',
+            'assets.created_at',
             'users.department_id',
             DB::raw('MAX(asset_files.url) as image_url')
         )
-        ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'users.department_id')
+        ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'assets.created_at', 'users.department_id')
         ->orderBy('assets.Asset_name')
         ->get();
 
@@ -762,17 +758,11 @@ Route::get('/department-head/assets/{id}', function ($id) {
     $query = request()->getQueryString();
 
     return view('department_head.asset.show', [
-        'asset'        => $asset,
-        'details'      => AssetDetails::build($asset),
-        'repairAction' => route('department_head.assets.request-repair', $asset->id),
-        'backUrl'      => '/department-head/assets' . ($query ? '?' . $query : ''),
+        'asset'   => $asset,
+        'details' => AssetDetails::build($asset),
+        'backUrl' => '/department-head/assets' . ($query ? '?' . $query : ''),
     ]);
 })->where('id', '[0-9]+');
-
-// Department Head: request a repair for the asset currently being viewed
-Route::post('/department-head/assets/{id}/request-repair', [UserRequestController::class, 'storeForAsset'])
-    ->name('department_head.assets.request-repair')
-    ->where('id', '[0-9]+');
 
 // Department Head: take accountability for an asset (sets asset.user_id to current user)
 Route::post('/department-head/assets/{id}/accountable', function (Request $request, $id) {

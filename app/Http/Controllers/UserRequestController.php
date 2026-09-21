@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Support\Media;
-use App\Support\Notifications;
 
 class UserRequestController extends Controller
 {
@@ -60,7 +59,7 @@ class UserRequestController extends Controller
 public function store(HttpRequest $request)
 {
     $rules = [
-        'request_type'      => 'required|in:Repair,Disposal,Transfer,Replacement,Pullout,Other',
+        'request_type'      => 'required|in:Repair,Disposal,Transfer,Replacement,Pullout',
         'asset_ids'         => 'required|array|min:1',
         'asset_ids.*'       => 'required|integer|exists:assets,id',
         'notes'             => 'required|string',
@@ -129,8 +128,9 @@ public function store(HttpRequest $request)
     /**
      * Persist a request together with its assets, attachment and audit entry.
      *
-     * Shared by the bulk request form and the per-asset "Request Repair"
-     * action on the asset details page so both write identical records.
+     * Used by the request form on both the employee and department-head sides so
+     * every request is written the same way. Assets are linked through
+     * request_items; requests.asset_id stays null for multi-asset requests.
      */
     protected function persistRequest(
         string $requestType,
@@ -138,8 +138,7 @@ public function store(HttpRequest $request)
         array $assetIds,
         $user,
         $uploadedFile = null,
-        ?int $assignToUserId = null,
-        ?int $primaryAssetId = null
+        ?int $assignToUserId = null
     ): int {
         // Handle optional attachment
         $fileName = $filePath = $fileSize = $mimeType = $url = null;
@@ -156,11 +155,11 @@ public function store(HttpRequest $request)
             }
         }
 
-        return DB::transaction(function () use ($requestType, $notes, $assetIds, $user, $fileName, $filePath, $fileSize, $mimeType, $url, $assignToUserId, $primaryAssetId) {
+        return DB::transaction(function () use ($requestType, $notes, $assetIds, $user, $fileName, $filePath, $fileSize, $mimeType, $url, $assignToUserId) {
 
             $insertData = [
                 'user_id'      => $user->id,
-                'asset_id'     => $primaryAssetId,    // single-asset requests link the asset directly
+                'asset_id'     => null,    // assets are linked through request_items
                 'request_type' => $requestType,
                 'status'       => 'Pending',
                 'Note'         => $notes,
@@ -198,7 +197,7 @@ public function store(HttpRequest $request)
             DB::table('audit_logs')->insert([
                 'user_id'            => $user->id,
                 'request_id'         => $requestId,
-                'asset_id'           => $primaryAssetId,
+                'asset_id'           => null,
                 'action_type'        => 'CREATE',
                 'notes'              => 'Submitted ' . (count($assetIds) > 1 ? 'bulk ' : '') . $requestType . ' request with ' . count($assetIds) . ' asset(s)',
                 'action_description' => (count($assetIds) > 1 ? 'Bulk request #' : 'Request #') . $requestId . ' created',
@@ -208,92 +207,6 @@ public function store(HttpRequest $request)
 
             return $requestId;
         });
-    }
-
-    /**
-     * File a repair request for one specific asset, straight from the asset
-     * details page. The asset is already known, so the user only supplies the
-     * problem description.
-     */
-    public function storeForAsset(HttpRequest $request, $id)
-    {
-        $user = Auth::user();
-        if (!$user) {
-            return redirect('/login');
-        }
-
-        $asset = DB::table('assets')->where('id', (int) $id)->first();
-        if (!$asset) {
-            return abort(404);
-        }
-
-        $isDepartmentHead = ($user->role ?? '') === 'Department Head';
-        $backUrl = ($isDepartmentHead ? '/department-head/assets/' : '/users/assets/') . $asset->id;
-
-        if ($isDepartmentHead) {
-            // A department head can report problems on any asset held in the department.
-            $ownerDepartment = DB::table('users')->where('id', $asset->user_id)->value('department_id');
-            if ((int) $ownerDepartment !== (int) $user->department_id) {
-                return abort(403);
-            }
-        } elseif ((int) $asset->user_id !== (int) $user->id) {
-            return abort(403);
-        }
-
-        // A retired asset can never re-enter servicing.
-        if (in_array($asset->Lifecycle_Status, ['Pullout', 'Disposal'], true)) {
-            return redirect($backUrl)->with('error', 'This asset is no longer in service, so a repair request cannot be filed for it.');
-        }
-
-        $validated = $request->validate([
-            'problem'     => 'required|string|max:150',
-            'description' => 'nullable|string|max:1000',
-            'attachment'  => 'nullable|image|max:10240',
-        ], [], ['problem' => 'problem description']);
-
-        $notes = trim($validated['problem']);
-        if (!empty($validated['description'])) {
-            $notes .= "\n\n" . trim($validated['description']);
-        }
-
-        try {
-            $requestId = $this->persistRequest(
-                'Repair',
-                $notes,
-                [(int) $asset->id],
-                $user,
-                $request->file('attachment'),
-                null,
-                (int) $asset->id
-            );
-
-            DB::table('audit_logs')->insert([
-                'user_id'            => $user->id,
-                'request_id'         => $requestId,
-                'asset_id'           => (int) $asset->id,
-                'action_type'        => 'REPAIR',
-                'notes'              => 'Repair requested from asset details: ' . $validated['problem'],
-                'action_description' => 'Repair request #' . $requestId . ' filed for ' . ($asset->Asset_code ?? 'asset'),
-                'created_at'         => now(),
-                'updated_at'         => now(),
-            ]);
-
-            // Confirm to the user that the report reached the Asset Management Office.
-            $assetLabel = ($asset->Asset_name ?? 'Asset') . ($asset->Asset_code ? ' (' . $asset->Asset_code . ')' : '');
-            Notifications::create(
-                (int) $user->id,
-                'Repair Request Submitted',
-                'Your repair request for ' . $assetLabel . ' was submitted and is now Pending. The Asset Management Office will evaluate it.',
-                'REPAIR',
-                (int) $requestId,
-                'request'
-            );
-
-            return redirect($backUrl)->with('success', 'Repair request submitted. The Asset Management Office will evaluate it and you will be notified of any updates.');
-        } catch (\Throwable $e) {
-            \Log::error('Asset repair request failed: ' . $e->getMessage());
-            return redirect($backUrl)->with('error', 'Failed to submit the repair request. Please try again.');
-        }
     }
 
     /**
