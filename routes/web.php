@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Password;
 use App\Http\Controllers\UserRequestController;
 use App\Support\Media;
+use App\Support\AssetDetails;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -48,28 +49,7 @@ if (!function_exists('createNotification')) {
         ?int $referenceId = null,
         ?string $referenceType = null
     ): void {
-        if (!$userId) {
-            return;
-        }
-
-        try {
-            DB::table('notifications')->insert([
-                'user_id'        => $userId,
-                'title'          => $title,
-                'message'        => $message,
-                'type'           => strtoupper($type),
-                'reference_id'   => $referenceId,
-                'reference_type' => $referenceType ? strtolower($referenceType) : null,
-                'is_read'        => false,
-                'created_at'     => now(),
-                'updated_at'     => now(),
-            ]);
-        } catch (\Throwable $e) {
-            \Log::error('Failed to create notification: ' . $e->getMessage(), [
-                'user_id' => $userId,
-                'type'    => $type,
-            ]);
-        }
+        \App\Support\Notifications::create($userId, $title, $message, $type, $referenceId, $referenceType);
     }
 }
 
@@ -500,47 +480,49 @@ Route::get('/users/assets', function () {
             ->orderBy('assets.Asset_name')
             ->get();
     }
-    return view('users.asset.asset', compact('assignedAssets'));
+    // Count what the page actually lists, so the summary cards are not zeros.
+    $visibleAssets = $assignedAssets->filter(
+        fn ($a) => in_array(($a->Lifecycle_Status ?? 'Acquired'), AssetDetails::USER_VISIBLE_STATUSES, true)
+    );
+
+    $totalAssets = $visibleAssets->count();
+    $activeAssets = $visibleAssets->where('Lifecycle_Status', 'Active')->count();
+    $pendingRequests = $user
+        ? DB::table('requests')->where('user_id', $user->id)->where('status', 'Pending')->count()
+        : 0;
+
+    return view('users.asset.asset', compact('assignedAssets', 'totalAssets', 'activeAssets', 'pendingRequests'));
 });
 
-// User-facing asset detail (only accessible to assigned user or admins)
+// User-facing asset detail (only accessible to the assigned user or admins)
 Route::get('/users/assets/{id}', function ($id) {
-    // Fetch asset with its image from asset_files and user with employee_numbers
-    $asset = DB::table('assets')
-        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
-        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
-        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->where('assets.id', $id)
-        ->select(
-            'assets.id',
-            'assets.user_id',
-            'assets.Asset_code',
-            'assets.Asset_name',
-            'assets.Category',
-            'assets.Condition',
-            'assets.Lifecycle_Status',
-            'assets.accusion_date',
-            'assets.purchase_Price',
-            'assets.serial_Number',
-            'assets.asset_location',
-            'assets.next_maintenance_date',
-            'asset_files.url as image_url',
-            'employee_numbers.Full_Name as full_name'
-        )
-        ->first();
-    
-    if (!$asset) {
-        abort(404);
-    }
     $user = Auth::user();
     if (!$user) {
         abort(403);
     }
-    if ($asset->user_id !== $user->id && ($user->role ?? '') !== 'Admin') {
+
+    $asset = AssetDetails::load((int) $id);
+    if (!$asset) {
+        abort(404);
+    }
+    if ((int) $asset->user_id !== (int) $user->id && ($user->role ?? '') !== 'Admin') {
         abort(403);
     }
-    return view('users.asset.show', compact('asset'));
+
+    $query = request()->getQueryString();
+
+    return view('users.asset.show', [
+        'asset'        => $asset,
+        'details'      => AssetDetails::build($asset),
+        'repairAction' => route('user.assets.request-repair', $asset->id),
+        'backUrl'      => '/users/assets' . ($query ? '?' . $query : ''),
+    ]);
 })->where('id', '[0-9]+');
+
+// User-facing: request a repair for the asset currently being viewed
+Route::post('/users/assets/{id}/request-repair', [UserRequestController::class, 'storeForAsset'])
+    ->name('user.assets.request-repair')
+    ->where('id', '[0-9]+');
 
 Route::get('/users', function () {
     $user = Auth::user();
@@ -744,9 +726,18 @@ Route::get('/department-head/assets', function (Request $request) {
         ->orderBy('assets.Asset_name')
         ->get();
 
-    $totalAssets = $assets->count();
-    $activeAssets = $assets->where('Lifecycle_Status', 'Active')->count();
-    $pendingRequests = 0;
+    // Count what the page actually lists: assets still held by the department.
+    // Pullout and Disposal assets drop off the department's active holdings.
+    $visibleStatuses = AssetDetails::USER_VISIBLE_STATUSES;
+    $visibleAssets = $assets->filter(fn ($a) => in_array(($a->Lifecycle_Status ?? 'Acquired'), $visibleStatuses, true));
+
+    $totalAssets = $visibleAssets->count();
+    $activeAssets = $visibleAssets->where('Lifecycle_Status', 'Active')->count();
+    $pendingRequests = DB::table('requests')
+        ->join('users', 'requests.user_id', '=', 'users.id')
+        ->where('users.department_id', $user->department_id)
+        ->where('requests.status', 'Pending')
+        ->count();
 
     return view('department_head.asset.asset', [
         'assignedAssets' => $assets,
@@ -756,7 +747,7 @@ Route::get('/department-head/assets', function (Request $request) {
     ]);
 });
 
-// Department Head: view single asset (must belong to their department)
+// Department Head: view a single asset (must belong to their department)
 Route::get('/department-head/assets/{id}', function ($id) {
     $user = Auth::user();
     if (!$user) {
@@ -764,42 +755,24 @@ Route::get('/department-head/assets/{id}', function ($id) {
     }
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    // Fetch asset with its image and owner name
-    $asset = DB::table('assets')
-        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
-        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
-        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->where('assets.id', $id)
-        ->select(
-            'assets.id',
-            'assets.user_id',
-            'assets.Asset_code',
-            'assets.Asset_name',
-            'assets.Category',
-            'assets.Condition',
-            'assets.Lifecycle_Status',
-            'assets.accusion_date',
-            'assets.purchase_Price',
-            'assets.serial_Number',
-            'assets.asset_location',
-            'assets.next_maintenance_date',
-            'asset_files.url as image_url',
-            'users.department_id',
-            'employee_numbers.Full_Name as full_name'
-        )
-        ->first();
-
+    $asset = AssetDetails::load((int) $id);
     if (!$asset) return abort(404);
-    if (($asset->department_id ?? null) !== $user->department_id) return abort(403);
+    if ((int) ($asset->department_id ?? 0) !== (int) $user->department_id) return abort(403);
 
-    // Repair history for this asset only
-    $repairs = DB::table('repairs')
-        ->where('Assets_id', $id)
-        ->orderByDesc('Repair_Date')
-        ->get();
+    $query = request()->getQueryString();
 
-    return view('department_head.asset.show', compact('asset', 'repairs'));
+    return view('department_head.asset.show', [
+        'asset'        => $asset,
+        'details'      => AssetDetails::build($asset),
+        'repairAction' => route('department_head.assets.request-repair', $asset->id),
+        'backUrl'      => '/department-head/assets' . ($query ? '?' . $query : ''),
+    ]);
 })->where('id', '[0-9]+');
+
+// Department Head: request a repair for the asset currently being viewed
+Route::post('/department-head/assets/{id}/request-repair', [UserRequestController::class, 'storeForAsset'])
+    ->name('department_head.assets.request-repair')
+    ->where('id', '[0-9]+');
 
 // Department Head: take accountability for an asset (sets asset.user_id to current user)
 Route::post('/department-head/assets/{id}/accountable', function (Request $request, $id) {
@@ -3042,6 +3015,23 @@ Route::post('/admin/repairs/{id}/status', function ($id, \Illuminate\Http\Reques
             'created_at'         => now(),
             'updated_at'         => now(),
         ]);
+
+        // When servicing starts → notify the accountable user
+        if ($newStatus === 'in_progress' && !empty($repair->Assets_id)) {
+            $startedAsset = DB::table('assets')->where('id', $repair->Assets_id)->first();
+            if ($startedAsset && $startedAsset->user_id) {
+                $startedLabel = ($startedAsset->Asset_name ?? 'Asset')
+                    . ($startedAsset->Asset_code ? ' (' . $startedAsset->Asset_code . ')' : '');
+                createNotification(
+                    (int) $startedAsset->user_id,
+                    'Repair Started',
+                    "Servicing has started on your {$startedLabel}. The Asset Management Office will notify you when it is finished.",
+                    'REPAIR',
+                    (int) $id,
+                    'repair'
+                );
+            }
+        }
 
         // When completed → set the asset back to Active + notify owner
         if ($newStatus === 'completed' && !empty($repair->Assets_id)) {

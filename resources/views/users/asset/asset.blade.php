@@ -62,8 +62,14 @@
                     <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="Active">
                         Active
                     </button>
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Checking">
+                        For Checking
+                    </button>
                     <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Repair">
                         For Repair
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Replacement">
+                        For Replacement
                     </button>
                     <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="recent">
                         Recently Added
@@ -72,7 +78,9 @@
 
                 @php
                     $currentUser = Auth::user();
-                    $visibleStatuses = ['Acquired', 'Active', 'For Repair'];
+                    // Pullout and Disposal assets are no longer part of the user's assets;
+                    // the Asset Management Office keeps their records for audit and reporting.
+                    $visibleStatuses = ['Acquired', 'Active', 'For Checking', 'For Repair', 'For Replacement'];
                     $visibleAssets = collect();
 
                     if (isset($assignedAssets) && $currentUser) {
@@ -134,6 +142,8 @@
                         <span class="px-2 py-1 rounded-full text-xs font-semibold
                             @if(($asset->Lifecycle_Status ?? '') == 'Active') bg-[#EAF4EE] text-[#245C3B]
                             @elseif(($asset->Lifecycle_Status ?? '') == 'For Repair') bg-[#F7E9E6] text-[#7E2E27]
+                            @elseif(($asset->Lifecycle_Status ?? '') == 'For Checking') bg-[#FBF1DE] text-[#8F5F16]
+                            @elseif(($asset->Lifecycle_Status ?? '') == 'For Replacement') bg-[#EFE7F3] text-[#523A64]
                             @elseif(($asset->Lifecycle_Status ?? '') == 'Pullout') bg-[#FBF1DE] text-[#8F5F16]
                             @elseif(($asset->Lifecycle_Status ?? '') == 'Disposal') bg-[#EFE9D8] text-[#33425C]
                             @else bg-[#FBF1DE] text-[#8F5F16]
