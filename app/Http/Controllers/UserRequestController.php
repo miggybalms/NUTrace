@@ -8,7 +8,7 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
+use App\Support\Media;
 
 class UserRequestController extends Controller
 {
@@ -105,11 +105,15 @@ public function store(HttpRequest $request)
     $uploadedFile = $request->file('attachment');
 
     if ($uploadedFile) {
-        $filePath = $uploadedFile->store('request_files', 'public');
-        $fileName = $uploadedFile->getClientOriginalName();
-        $fileSize = $uploadedFile->getSize();
-        $mimeType = $uploadedFile->getClientMimeType();
-        $url      = Storage::url($filePath);
+        $filePath = $uploadedFile->store('request_files', Media::DISK) ?: null;
+
+        // Only record the attachment when it really reached the media disk.
+        if ($filePath) {
+            $fileName = $uploadedFile->getClientOriginalName();
+            $fileSize = $uploadedFile->getSize();
+            $mimeType = $uploadedFile->getClientMimeType();
+            $url      = Media::url($filePath);
+        }
     }
 
     try {

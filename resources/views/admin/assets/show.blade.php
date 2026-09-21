@@ -79,15 +79,13 @@
 
                             <div class="text-right flex-shrink-0">
                                 @php
-                                $photo = $asset->image_url ?? $asset->url ?? null;
+                                $photo = \App\Support\Media::url($asset->image_url ?? $asset->url ?? null);
                                 @endphp
 
                                 @if($photo)
                                 <div class="photo-frame inline-block">
                                     <div class="photo-frame-inner">
-                                        <img src="{{ \Illuminate\Support\Str::startsWith($photo, ['http://', 'https://', '/storage', 'storage/'])
-                                        ? (Str::startsWith($photo, 'storage/') ? asset($photo) : $photo)
-                                        : asset('storage/' . ltrim($photo, '/')) }}"
+                                        <img src="{{ $photo }}"
                                         alt="{{ $asset->Asset_name ?? 'Asset' }}"
                                         class="h-24 w-24 object-cover" />
                                     </div>
@@ -98,10 +96,11 @@
                                 </div>
                                 @endif
 
-                                @if(!empty($asset->qr_code_url) || !empty($asset->qr_code_path))
+                                @if(!empty($asset->qr_code_path))
                                 <div class="mt-4 stub p-3">
                                     <p class="eyebrow" style="color:var(--navy-800); font-size:.6rem;">Scan to Verify</p>
-                                    <img src="{{ $asset->qr_code_url ?? (\Illuminate\Support\Facades\Storage::url($asset->qr_code_path)) }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto" />
+                                    <img src="{{ \App\Support\Media::url($asset->qr_code_path) }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
+                                         onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent('{{ $asset->Asset_code }}');" />
                                 </div>
                                 @endif
                             </div>

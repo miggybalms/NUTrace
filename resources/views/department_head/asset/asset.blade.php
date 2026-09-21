@@ -141,7 +141,7 @@
                         <a href="javascript:void(0)"
                            class="w-8 h-8 bg-white/85 rounded-lg flex items-center justify-center hover:bg-[#E9C766]/90 transition"
                            title="View QR Code"
-                           data-qr-url="{{ $asset->qr_code_url ?? (isset($asset->qr_code_path) ? Storage::url($asset->qr_code_path) : '') }}"
+                           data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}"
                            data-asset-code="{{ $asset->Asset_code ?? '' }}"
                            onclick="openQrModal(this)">
                             <i class="ri-qr-code-line text-[#0A1830] text-sm"></i>

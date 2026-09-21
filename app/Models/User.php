@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Support\Media;
 
 #[Fillable(['employee_numbers_id', 'department_id', 'email', 'password', 'profile_photo', 'role', 'status'])]
 #[Hidden(['password', 'remember_token'])]
@@ -67,22 +67,12 @@ class User extends Authenticatable
         return Str::upper($initials) ?: 'U';
     }
 
+    /**
+     * Photo URL for the avatar, whether the column holds an absolute URL
+     * (older rows), a legacy "/storage/..." path or a relative media path.
+     */
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        $profilePhoto = $this->profile_photo;
-
-        if (! $profilePhoto) {
-            return null;
-        }
-
-        if (Str::startsWith($profilePhoto, ['http://', 'https://', '//'])) {
-            return $profilePhoto;
-        }
-
-        if (Str::startsWith($profilePhoto, '/storage/')) {
-            return asset(ltrim($profilePhoto, '/'));
-        }
-
-        return Storage::disk('public')->url($profilePhoto);
+        return Media::url($this->profile_photo);
     }
 }

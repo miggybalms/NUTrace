@@ -282,7 +282,7 @@
 
                                     @if(data_get($replacement, 'new_asset_qr'))
                                         <button type="button"
-                                            onclick="downloadUrl('{{ \Illuminate\Support\Facades\Storage::url(data_get($replacement, 'new_asset_qr')) }}', '{{ data_get($replacement, 'new_asset_code') ?? 'qr' }}')"
+                                            onclick="downloadUrl('{{ \App\Support\Media::url(data_get($replacement, 'new_asset_qr')) }}', '{{ data_get($replacement, 'new_asset_code') ?? 'qr' }}')"
                                             class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
                                             style="background:var(--paper-2); color:var(--ink-600);"
                                             onmouseover="this.style.background='var(--line)'"
@@ -291,7 +291,7 @@
                                             <i class="ri-download-line text-sm"></i>
                                         </button>
                                         @php
-                                            $qrPrintUrl = \Illuminate\Support\Facades\Storage::url(data_get($replacement, 'new_asset_qr'));
+                                            $qrPrintUrl = \App\Support\Media::url(data_get($replacement, 'new_asset_qr'));
                                             $qrPrintMeta = [
                                                 'code'     => data_get($replacement, 'new_asset_code') ?? data_get($replacement, 'newAsset.Asset_code'),
                                                 'name'     => data_get($replacement, 'new_asset_name') ?? data_get($replacement, 'newAsset.Asset_name') ?? data_get($replacement, 'old_asset_name'),

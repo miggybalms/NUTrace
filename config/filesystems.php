@@ -1,5 +1,15 @@
 <?php
 
+$supabaseUrl    = env('SUPABASE_URL');
+$supabaseBucket = env('SUPABASE_BUCKET', 'assets');
+$supabaseKey    = env('SUPABASE_SERVICE_ROLE_KEY') ?: env('SUPABASE_ANON_KEY');
+
+// Supabase Storage holds every uploaded file (profile photos, asset photos,
+// request attachments and QR images) as soon as the project URL and a key are
+// configured. Without them the app keeps using the local public disk, which is
+// what development and the test suite rely on.
+$useSupabase = ! empty($supabaseUrl) && ! empty($supabaseKey);
+
 return [
 
     /*
@@ -13,7 +23,7 @@ return [
     |
     */
 
-    'default' => env('FILESYSTEM_DISK', 'local'),
+    'default' => env('FILESYSTEM_DISK', $useSupabase ? 'public' : 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -24,7 +34,7 @@ return [
     | may even configure multiple disks for the same driver. Examples for
     | most supported storage drivers are configured here for reference.
     |
-    | Supported drivers: "local", "ftp", "sftp", "s3"
+    | Supported drivers: "local", "ftp", "sftp", "s3", "supabase"
     |
     */
 
@@ -38,11 +48,38 @@ return [
             'report' => false,
         ],
 
-        'public' => [
+        /*
+         | The app's media disk. Always referenced as the "public" disk by the
+         | application code, but backed by Supabase Storage once configured so
+         | uploads survive deployments and are visible to every device.
+         */
+        'public' => $useSupabase ? [
+            'driver' => 'supabase',
+            'bucket' => $supabaseBucket,
+            'endpoint' => rtrim((string) $supabaseUrl, '/'),
+            'key' => $supabaseKey,
+            'url' => rtrim((string) $supabaseUrl, '/').'/storage/v1/object/public/'.$supabaseBucket,
+            'timeout' => (int) env('SUPABASE_TIMEOUT', 30),
+            'throw' => false,
+            'report' => false,
+        ] : [
             'driver' => 'local',
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
+        // Friendly alias for the same disk, for anything that prefers to name
+        // the backend explicitly.
+        'supabase' => [
+            'driver' => 'supabase',
+            'bucket' => $supabaseBucket,
+            'endpoint' => rtrim((string) $supabaseUrl, '/'),
+            'key' => $supabaseKey,
+            'url' => rtrim((string) $supabaseUrl, '/').'/storage/v1/object/public/'.$supabaseBucket,
+            'timeout' => (int) env('SUPABASE_TIMEOUT', 30),
             'throw' => false,
             'report' => false,
         ],

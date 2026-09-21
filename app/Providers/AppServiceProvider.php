@@ -6,9 +6,13 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rules\Password;
 use App\Models\Asset;
+use App\Support\Filesystem\SupabaseAdapter;
+use Illuminate\Filesystem\FilesystemAdapter as LaravelFilesystemAdapter;
+use League\Flysystem\Filesystem as Flysystem;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +29,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->registerSupabaseFilesystem();
+
         // One password policy for the whole app: account activation (registration)
         // and password reset both use Password::default().
         // At least 8 characters with an uppercase letter, a lowercase letter,
@@ -59,5 +65,27 @@ class AppServiceProvider extends ServiceProvider
         } catch (\Throwable $e) {
             Log::warning('Failed to auto-update asset lifecycle statuses: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Register the "supabase" filesystem driver.
+     *
+     * Every upload (profile photos, asset photos, request attachments, QR
+     * images) and every generated URL then goes through Supabase Storage, so
+     * the files are reachable from the deployed app and from any device.
+     */
+    protected function registerSupabaseFilesystem(): void
+    {
+        Storage::extend('supabase', function ($app, array $config) {
+            $adapter = new SupabaseAdapter(
+                bucket: (string) ($config['bucket'] ?? 'assets'),
+                endpoint: (string) ($config['endpoint'] ?? ''),
+                key: (string) ($config['key'] ?? ''),
+                publicUrl: $config['url'] ?? null,
+                timeout: (int) ($config['timeout'] ?? 30),
+            );
+
+            return new LaravelFilesystemAdapter(new Flysystem($adapter), $adapter, $config);
+        });
     }
 }

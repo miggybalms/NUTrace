@@ -261,7 +261,7 @@
                             </thead>
                             <tbody id="assetsTableBody" class="divide-y divide-[#EFE9D8]">
                                 @forelse($assets ?? [] as $asset)
-                                <tr class="asset-row transition-colors" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ $asset->qr_code_url ?? '' }}" data-qr-path="{{ $asset->qr_code_path ? Storage::url($asset->qr_code_path) : '' }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
+                                <tr class="asset-row transition-colors" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
                                     <td class="py-3 px-4">
                                         @if($asset->status === 'active')
                                             <input type="checkbox" class="asset-select-checkbox rounded border-[#CFC4A4] text-[#C9A227] focus:ring-[#E0BC44]" value="{{ $asset->db_id ?? $asset->id }}" data-status="{{ $asset->status }}" onchange="updateBulkPulloutButtonState()">
@@ -743,11 +743,13 @@ document.querySelectorAll('.view-qr-btn').forEach((btn) => {
         canvasWrap.style.display = 'none';
         idEl.textContent = assetCode;
 
-        if (qrUrl && qrUrl.trim() !== '') {
-            img.src = qrUrl;
-            img.classList.remove('hidden');
-        } else if (assetCode) {
+        // Draw the code in the browser (used when no stored image is available).
+        const drawQrInBrowser = () => {
+            if (!assetCode) return;
+
+            canvasWrap.innerHTML = '';
             canvasWrap.style.display = 'flex';
+
             if (typeof QRCode !== 'undefined') {
                 modalQRCodeInstance = new QRCode(canvasWrap, {
                     text: assetCode,
@@ -759,10 +761,25 @@ document.querySelectorAll('.view-qr-btn').forEach((btn) => {
                 });
             } else {
                 // Fallback: external QR API
+                img.onerror = null;
                 img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(assetCode);
                 img.classList.remove('hidden');
                 canvasWrap.style.display = 'none';
             }
+        };
+
+        if (qrUrl && qrUrl.trim() !== '') {
+            // If the stored image cannot be loaded, draw the code instead of
+            // showing a broken image.
+            img.onerror = function () {
+                this.onerror = null;
+                this.classList.add('hidden');
+                drawQrInBrowser();
+            };
+            img.src = qrUrl;
+            img.classList.remove('hidden');
+        } else {
+            drawQrInBrowser();
         }
 
         const modal = document.getElementById('qrModal');

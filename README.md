@@ -7,6 +7,37 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## NU Trace — media storage
+
+Uploaded files (profile photos, asset photos, request attachments and asset QR
+images) are stored on **Supabase Storage**, not on the server's disk, so they
+survive deployments and are reachable from the web and the mobile app.
+
+The `public` disk is the app's media disk; `config/filesystems.php` switches it
+to Supabase as soon as these are set:
+
+```dotenv
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # required for uploads
+SUPABASE_BUCKET=assets                          # bucket must be public
+FILESYSTEM_DISK=public
+```
+
+Without `SUPABASE_URL` the app falls back to the local public disk, which is
+what local development and the tests use.
+
+Commands:
+
+```bash
+php artisan media:sync            # upload local files + normalise stored URLs
+php artisan media:sync --dry-run  # report what would change
+php artisan media:sync --qr       # generate QR images that are missing
+```
+
+`Media::url($value)` (app/Support/Media.php) is the single place that turns a
+stored value into a browsable URL — it accepts a relative path, a legacy
+`/storage/...` path, or an absolute URL.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

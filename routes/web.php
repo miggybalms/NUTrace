@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Password;
 use App\Http\Controllers\UserRequestController;
+use App\Support\Media;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -231,10 +232,10 @@ Route::post('/register', function (Request $request) {
     $departmentId = $employee->Department_id;
     $fullName = $employee->Full_Name;
 
-    // Check if profile photo exists
+    // Check if profile photo exists (stored on the media disk)
     $photoPath = null;
     if ($request->hasFile('profile_photo')) {
-        $photoPath = $request->file('profile_photo')->store('profile_photos', 'public');
+        $photoPath = $request->file('profile_photo')->store('profile_photos', Media::DISK) ?: null;
     }
 
     // Determine user role
@@ -985,16 +986,8 @@ Route::get('/admin/assets/scan', function (Request $request) {
         return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
     }
 
-    // Build image URL
-    $imageUrl = null;
-    if (!empty($asset->image_url)) {
-        $img = $asset->image_url;
-        if (str_starts_with($img, 'http') || str_starts_with($img, '/storage')) {
-            $imageUrl = $img;
-        } else {
-            $imageUrl = asset('storage/' . ltrim($img, '/'));
-        }
-    }
+    // Build image URL from whatever the column holds (absolute URL or path)
+    $imageUrl = Media::url($asset->image_url ?? null);
 
     return response()->json([
         'success' => true,
@@ -2776,7 +2769,7 @@ Route::get('/admin/requests', function () {
             'status'       => strtolower((string) $request->status),
             'description'  => $request->Note ?: '',
             'assigned_to'  => $request->assigned_to ?? null,
-            'image'        => $request->url ?? null,
+            'image'        => Media::url($request->url ?? null),
         ];
     });
 
@@ -3768,32 +3761,32 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Reque
             ]);
 
             // Save photo if uploaded
-            if ($request->hasFile('asset_photo')) {
+            $filePath = $request->hasFile('asset_photo')
+                ? ($request->file('asset_photo')->store('assets', Media::DISK) ?: null)
+                : null;
+
+            if ($filePath) {
                 $file = $request->file('asset_photo');
-                $filePath = $file->store('assets', 'public');
                 DB::table('asset_files')->insert([
                     'Asset_id'    => $newAssetId,
                     'file_name'   => $file->getClientOriginalName(),
                     'file_path'   => $filePath,
                     'file_size'   => $file->getSize(),
                     'mime_type'   => $file->getClientMimeType(),
-                    'url'         => Storage::url($filePath),
+                    'url'         => Media::url($filePath),
                     'uploaded_at' => now()->toDateTimeString(),
                     'created_at'  => now(),
                     'updated_at'  => now(),
                 ]);
             }
 
-            // 2. Generate QR
+            // 2. Generate QR on the media disk so it resolves from any device
             $qrUrl = null;
             try {
-                $qrSource = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' . urlencode($validated['Asset_code']);
-                $contents = @file_get_contents($qrSource);
-                if ($contents) {
-                    $qrPath = 'assets/qr/' . $validated['Asset_code'] . '-' . time() . '.png';
-                    Storage::disk('public')->put($qrPath, $contents);
+                $qrPath = Media::generateQr($validated['Asset_code'], 400);
+                if ($qrPath) {
                     DB::table('assets')->where('id', $newAssetId)->update(['qr_code_path' => $qrPath]);
-                    $qrUrl = Storage::url($qrPath);
+                    $qrUrl = Media::url($qrPath);
                 }
             } catch (\Throwable $e) {
                 Log::warning('QR generation failed on replacement link', ['error' => $e->getMessage()]);
@@ -4389,11 +4382,11 @@ Route::post('/admin/assets', function (Request $request) {
     $url = null;
     if ($request->hasFile('asset_photo')) {
         $file = $request->file('asset_photo');
-        $filePath = $file->store('assets', 'public');
+        $filePath = $file->store('assets', Media::DISK);
         $fileName = $file->getClientOriginalName();
         $fileSize = $file->getSize();
         $mime = $file->getClientMimeType();
-        $url = Storage::url($filePath);
+        $url = Media::url($filePath);
     }
 
     $createdAssets = [];
@@ -4433,22 +4426,17 @@ Route::post('/admin/assets', function (Request $request) {
 
             $saveQrToAsset = function (Asset $asset, string $assetCode) {
                 try {
-                    $api = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($assetCode);
-                    $binary = @file_get_contents($api);
-                    if ($binary === false) {
-                        return null;
-                    }
+                    $qrPath = Media::generateQr($assetCode, 300);
 
-                    $qrPath = 'assets/qr/' . $assetCode . '-' . time() . '.png';
-                    if (Storage::disk('public')->put($qrPath, $binary)) {
+                    if ($qrPath) {
                         DB::table('assets')->where('id', $asset->id)->update([
                             'qr_code_path' => $qrPath,
                             'updated_at' => now(),
                         ]);
 
-                        return Storage::url($qrPath);
+                        return Media::url($qrPath);
                     }
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     Log::warning('Failed to save QR image for bulk asset', ['asset_id' => $asset->id, 'error' => $e->getMessage()]);
                 }
 
@@ -5677,6 +5665,7 @@ Route::get('/user/requests', function (Request $request) {
                 'status'       => $r->status,
                 'Note'         => $r->Note,
                 'file_path'    => $r->file_path ?? null,
+                'file_url'     => Media::url($r->file_path ?? null),
                 'file_name'    => $r->file_name ?? null,
                 'created_at'   => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at) : now(),
                 'updated_at'   => $r->updated_at ? \Illuminate\Support\Carbon::parse($r->updated_at) : now(),

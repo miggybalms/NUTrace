@@ -313,7 +313,7 @@
                         @if($request->file_path)
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
                             <p class="text-xs text-[#8991A0] mb-1">Attached File</p>
-                            <a href="{{ asset('storage/' . $request->file_path) }}" target="_blank"
+                            <a href="{{ \App\Support\Media::url($request->file_path) }}" target="_blank"
                                class="text-sm text-[#0A1830] hover:text-[#C9A227] hover:underline flex items-center transition">
                                 <i class="ri-file-line mr-1.5"></i>
                                 {{ $request->file_name ?? 'View File' }}
