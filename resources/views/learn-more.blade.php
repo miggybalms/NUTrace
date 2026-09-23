@@ -545,7 +545,7 @@
             <span class="brand-tag">Asset Management System</span>
         </a>
         <div class="nav-actions">
-            <a href="/register" class="btn-signup">Sign Up</a>
+            <a href="/register" class="btn-signup">Activate Account</a>
             <a href="/login" class="btn-login">Login</a>
         </div>
     </nav>
@@ -563,7 +563,7 @@
     <!-- 1. Manage the Asset Lifecycle -->
     <section class="section" id="lifecycle">
         <div class="section-head">
-            <span class="kicker">1 · The Journey</span>
+            <span class="kicker">The Journey</span>
             <h2>MANAGE THE <em>ASSET LIFECYCLE</em></h2>
             <p>Every asset moves through a clear, visible lifecycle. NU TRACE shows you exactly which stage each asset is in — and what needs to happen next.</p>
         </div>
@@ -595,7 +595,7 @@
     <!-- 2. Key Features -->
     <section class="section alt" id="features">
         <div class="section-head">
-            <span class="kicker">2 · What You Get</span>
+            <span class="kicker">What You Get</span>
             <h2>KEY <em>FEATURES</em></h2>
             <p>Six capabilities working together so nothing slips through the cracks.</p>
         </div>
@@ -637,7 +637,7 @@
     <!-- 3. Asset Accountability -->
     <section class="section" id="accountability">
         <div class="section-head">
-            <span class="kicker">3 · Who Has It</span>
+            <span class="kicker">Who Has It</span>
             <h2>ASSET <em>ACCOUNTABILITY</em></h2>
             <p>An asset is only as protected as the person responsible for it. Each record keeps the full chain of custody visible.</p>
         </div>
@@ -669,7 +669,7 @@
     <!-- 4. Audit Trail -->
     <section class="section alt" id="audit">
         <div class="section-head">
-            <span class="kicker">4 · Proof &amp; History</span>
+            <span class="kicker">Proof &amp; History</span>
             <h2>AUDIT <em>TRAIL</em></h2>
             <p>Trust, but verify.</p>
         </div>
@@ -706,7 +706,7 @@
     <!-- 5. Bulk Operations -->
     <section class="section" id="bulk">
         <div class="section-head">
-            <span class="kicker">5 · Do More, Faster</span>
+            <span class="kicker">Do More, Faster</span>
             <h2>BULK <em>OPERATIONS</em></h2>
             <p>Register and move assets in groups — without losing the individual record of each one.</p>
         </div>
@@ -750,7 +750,7 @@
     <!-- 6. Who Is It For -->
     <section class="section alt" id="audience">
         <div class="section-head">
-            <span class="kicker">6 · Who Uses It</span>
+            <span class="kicker">Who Uses It</span>
             <h2>WHO IS IT <em>FOR?</em></h2>
             <p>One system, two clear roles — each side sees exactly what it needs.</p>
         </div>
@@ -786,7 +786,7 @@
     <!-- 7. Why Smarter Asset Management -->
     <section class="section navy" id="why">
         <div class="section-head">
-            <span class="kicker">7 · The Bottom Line</span>
+            <span class="kicker">The Bottom Line</span>
             <h2>WHY SMARTER <em>ASSET MANAGEMENT?</em></h2>
             <p>Because when you know exactly where everything is and what it needs, the whole university runs smoother.</p>
         </div>
@@ -809,10 +809,10 @@
     <!-- Final CTA -->
     <section class="cta-wrap">
         <h2>READY TO TAKE CONTROL OF YOUR <span>ASSETS?</span></h2>
-        <p>Create your account or sign in to start tracking smarter today.</p>
+        <p>Activate your account or sign in to start tracking smarter today.</p>
         <div class="cta-buttons">
             <a href="/login" class="btn-gold"><i class="ri-rocket-2-line"></i> Get Started</a>
-            <a href="/register" class="btn-outline-light"><i class="ri-user-add-line"></i> Create an Account</a>
+            <a href="/register" class="btn-outline-light"><i class="ri-user-follow-line"></i> Activate Your Account</a>
         </div>
     </section>
 

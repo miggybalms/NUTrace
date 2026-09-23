@@ -86,7 +86,11 @@
                 </form>
             </div>
 
-            <a href="/forgot-password" class="back-link">← Use a different email</a>
+            <div class="back-row">
+                <a href="/forgot-password" class="btn-back">
+                    <i class="ri-arrow-left-line"></i> Use a different email
+                </a>
+            </div>
 
         </div>
     </div>

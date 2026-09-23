@@ -183,8 +183,8 @@
                         @if(isset($recentRequests) && count($recentRequests) > 0)
                             <div class="space-y-3">
                                 @foreach($recentRequests as $request)
-                                <div class="request-item flex justify-between items-center p-3 rounded-lg border border-[#EFE9D8]">
-                                    <div class="flex items-center space-x-3">
+                                <div class="request-item flex justify-between items-center gap-3 p-3 rounded-lg border border-[#EFE9D8] overflow-hidden">
+                                    <div class="flex items-center space-x-3 min-w-0 flex-1">
                                         <div class="w-10 h-10 rounded-full 
                                             @if($request->type == 'new_asset') bg-[#F3E7C4]
                                             @elseif($request->type == 'repair') bg-[#F7E9E6]
@@ -196,12 +196,12 @@
                                                  @else ri-archive-drawer-line text-[#B4791E]
                                                 @endif"></i>
                                         </div>
-                                        <div>
+                                        <div class="min-w-0">
                                             <p class="font-medium text-[#0A1830]">{{ ucfirst(str_replace('_', ' ', $request->type)) }}</p>
-                                            <p class="text-sm text-[#5B6678]">{{ $request->description }}</p>
+                                            <p class="text-sm text-[#5B6678] line-clamp-1 [overflow-wrap:anywhere] break-words">{{ $request->description }}</p>
                                         </div>
                                     </div>
-                                    <div class="text-right">
+                                    <div class="text-right flex-shrink-0">
                                         <span class="text-xs text-[#8991A0]">{{ $request->created_at->diffForHumans() }}</span>
                                         <div class="mt-1">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -261,7 +261,7 @@
                     repairs.forEach(r => {
                         const prev = stored[r.id];
                         if (prev && prev !== r.status) {
-                            showToast(`Request #REQ-${String(r.id).padStart(4,'0')} for ${r.Asset_name || 'asset'} status changed: ${r.status}`);
+                            showToast(`${r.Asset_name || 'Your asset'} request status changed: ${r.status}`);
                         }
                         // update stored status
                         stored[r.id] = r.status;

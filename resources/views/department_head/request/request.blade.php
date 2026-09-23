@@ -154,8 +154,6 @@
                             <div class="flex-1 min-w-0">
                                 <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                                     <h4 class="font-semibold text-[#0A1830]">{{ $request->request_type }} Request</h4>
-                                    <span class="text-xs text-[#8991A0] hidden sm:inline">•</span>
-                                    <span class="text-xs text-[#8991A0] font-mono">REQ-{{ str_pad($request->id, 5, '0', STR_PAD_LEFT) }}</span>
                                 </div>
                                 {{-- Assets list (supports bulk) --}}
                                 <div class="bg-[#F5F0E2] rounded-lg p-3">
@@ -297,7 +295,6 @@
                         </div>
                         <div class="min-w-0">
                             <h4 class="font-bold text-[#0A1830]">{{ $request->request_type }} Request</h4>
-                            <p class="text-xs text-[#8991A0] font-mono">REQ-{{ str_pad($request->id, 5, '0', STR_PAD_LEFT) }}</p>
                         </div>
                         <span class="ml-auto px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap
                             @if($request->status == 'Pending') bg-[#FBF1DE] text-[#8F5F16]

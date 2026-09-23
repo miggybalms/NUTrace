@@ -80,7 +80,7 @@
                     <a href="/" class="btn-back">Back</a>
                 </div>
 
-                <a href="/register" class="register-link">Don't Have An Account?</a>
+                <a href="/register" class="register-link">Activate Your Account</a>
 
             </form>
         </div>

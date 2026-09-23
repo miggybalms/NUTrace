@@ -185,6 +185,11 @@
        the wider label ("Send Verification Code") simply takes more width. */
     .btn-row > * { flex: 1 1 auto; min-width: 8.5rem; white-space: nowrap; }
 
+    /* Secondary way back, stacked under the primary action and full width so a
+       screen never offers two rival "back" controls side by side. */
+    .back-row { display: flex; flex-wrap: wrap; margin-top: .7rem; }
+    .back-row > * { flex: 1 1 auto; min-width: 8.5rem; white-space: nowrap; }
+
     .btn-login,
     .btn-primary,
     .btn-signup {
@@ -271,6 +276,7 @@
         .card { padding: 1.6rem 1.2rem; border-radius: 14px; }
         .form-row { grid-template-columns: 1fr; gap: 0; }
         .btn-row { flex-direction: column; }
+        .back-row { flex-direction: column; }
         .auth-brand-mark { width: 40px; height: 40px; border-radius: 11px; font-size: 1.15rem; }
         .auth-brand-name { font-size: 1.25rem; }
         .auth-brand { gap: .7rem; margin-bottom: 1.1rem; }

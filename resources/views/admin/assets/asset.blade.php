@@ -238,7 +238,7 @@
                             
                             <!-- Collapsible Content -->
                             <div id="content-{{ $dept->id }}" class="collapse-content -mx-4 sm:-mx-6">
-                                <div class="px-4 sm:px-6 pt-6 pb-7" style="background:var(--paper-2);">
+                                <div class="px-4 sm:px-6 pt-6 pb-7 -mb-4 sm:-mb-6" style="background:var(--paper-2);">
                                     <!-- Status Summary Cards -->
                                     @php
                                         $acquired = 0;
@@ -317,6 +317,7 @@
                                 </div>
                             </div>
                         </div>
+                    </div>{{-- /department-card --}}
                         @endforeach
                     @else
                         <div class="text-center p-12" style="background:#fff; border-radius:14px; border:1px solid var(--line);">

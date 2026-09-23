@@ -94,7 +94,11 @@
                 </div>
             </form>
 
-            <a href="/login" class="btn-back">← Back to Login</a>
+            <div class="back-row">
+                <a href="/login" class="btn-back">
+                    <i class="ri-arrow-left-line"></i> Back to Login
+                </a>
+            </div>
 
         </div>
     </div>

@@ -54,11 +54,15 @@
                     <button type="submit" class="btn-primary">
                         <i class="ri-mail-send-line"></i> Send Verification Code
                     </button>
-                    <a href="/login" class="btn-back">Back</a>
                 </div>
             </form>
 
-            <a href="/login" class="back-link">← Back to Login</a>
+            {{-- Single way back to the sign-in screen (there used to be two) --}}
+            <div class="back-row">
+                <a href="/login" class="btn-back">
+                    <i class="ri-arrow-left-line"></i> Back to Login
+                </a>
+            </div>
 
         </div>
     </div>
