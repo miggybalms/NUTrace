@@ -71,13 +71,17 @@
 
     /* ---------- Brand (rendered by auth.partials.brand) ---------- */
     .auth-brand { display: flex; align-items: center; gap: .85rem; margin-bottom: 1.35rem; }
+    /* The mark is a theme-recoloured PNG with its background keyed out
+       (public/images/logo-mark.png); the chip gives the white half of the
+       artwork a navy surface to sit on. */
     .auth-brand-mark {
         width: 46px; height: 46px; border-radius: 13px; flex: 0 0 auto;
         display: flex; align-items: center; justify-content: center;
-        background: linear-gradient(135deg, var(--gold-500), #8f7015);
-        color: var(--navy-950); font-size: 1.35rem;
-        box-shadow: 0 10px 22px -12px rgba(201, 162, 39, .9);
+        background: var(--navy-950);
+        border: 1px solid rgba(201, 162, 39, .35);
+        box-shadow: 0 12px 24px -16px rgba(0, 0, 0, .85);
     }
+    .auth-brand-mark img { width: 74%; height: auto; display: block; }
     .auth-brand-name {
         font-family: 'Fraunces', Georgia, serif; font-size: 1.45rem; font-weight: 600;
         color: #F3EFE3; line-height: 1.1; letter-spacing: .01em;
@@ -277,7 +281,7 @@
         .form-row { grid-template-columns: 1fr; gap: 0; }
         .btn-row { flex-direction: column; }
         .back-row { flex-direction: column; }
-        .auth-brand-mark { width: 40px; height: 40px; border-radius: 11px; font-size: 1.15rem; }
+        .auth-brand-mark { width: 40px; height: 40px; border-radius: 11px; }
         .auth-brand-name { font-size: 1.25rem; }
         .auth-brand { gap: .7rem; margin-bottom: 1.1rem; }
         .step-title { font-size: 1.3rem; }

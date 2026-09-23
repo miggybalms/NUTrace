@@ -51,10 +51,16 @@
 
         .brand-left {
             display: flex;
-            align-items: baseline;
-            gap: 0.6rem;
+            align-items: center;
+            gap: 0.7rem;
             text-decoration: none;
         }
+
+        /* Theme-recoloured mark with its background keyed out, so it sits on
+           this nav navy with no rectangle behind it. */
+        .brand-mark { width: 38px; height: auto; display: block; flex: 0 0 auto; }
+
+        .brand-text { display: flex; align-items: baseline; gap: 0.6rem; }
 
         .brand-name {
             font-family: 'Bebas Neue', sans-serif;
@@ -541,8 +547,11 @@
 
     <nav>
         <a href="/" class="brand-left">
-            <span class="brand-name">NU TRACE</span>
-            <span class="brand-tag">Asset Management System</span>
+            <img src="/images/logo-mark.png" alt="NU Trace logo" class="brand-mark">
+            <span class="brand-text">
+                <span class="brand-name">NU TRACE</span>
+                <span class="brand-tag">Asset Management System</span>
+            </span>
         </a>
         <div class="nav-actions">
             <a href="/register" class="btn-signup">Activate Account</a>

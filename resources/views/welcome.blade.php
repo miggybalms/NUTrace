@@ -37,7 +37,7 @@
             height: 68px;
             display: flex;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: space-between;
             position: sticky;
             top: 0;
             z-index: 100;
@@ -49,6 +49,31 @@
             display: flex;
             align-items: center;
             gap: 1rem;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            text-decoration: none;
+        }
+
+        .nav-brand img { width: 34px; height: auto; display: block; }
+
+        .nav-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+
+        .nav-brand-name {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.15rem;
+            letter-spacing: 1.5px;
+            color: var(--white);
+        }
+
+        .nav-brand-tag {
+            font-size: 0.68rem;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            color: rgba(255,255,255,0.6);
         }
 
         .btn-signup {
@@ -233,38 +258,21 @@
             flex-shrink: 0;
         }
 
-        .logo-box {
+        /* The mark is white + gold artwork (public/images/logo-mark.png), so on
+           this light card it needs its own navy surface the way the original
+           logo had one - drawn here in the system's navy, not the source file's. */
+        .logo-tile {
             width: 180px; height: 180px;
-            border-radius: 20px;
-            border: 2px dashed rgba(201,162,39,0.4);
-            background: var(--gold-pale);
+            border-radius: 22px;
+            background: linear-gradient(150deg, #142442 0%, #0A1830 100%);
+            border: 1px solid rgba(201, 162, 39, 0.35);
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-direction: column;
-            gap: 0.5rem;
-            transition: border-color 0.2s, background 0.2s;
+            box-shadow: 0 22px 46px -26px rgba(10, 24, 48, 0.7);
         }
 
-        .logo-box:hover {
-            border-color: var(--gold);
-            background: #faefc0;
-        }
-
-        .logo-box svg { opacity: 0.4; }
-
-        .logo-box-label {
-            font-size: 0.78rem;
-            color: var(--gold);
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .logo-caption {
-            font-size: 0.82rem;
-            color: var(--muted);
-            font-weight: 500;
-        }
+        .logo-tile img { width: 118px; height: auto; display: block; }
 
         /* FEATURES */
         .features {
@@ -326,6 +334,8 @@
         footer span { color: var(--gold); }
 
         @media (max-width: 768px) {
+            nav { padding: 0 1.25rem; }
+            .nav-brand-tag { display: none; }
             .hero-card { flex-direction: column; padding: 2.5rem 1.5rem; gap: 2rem; text-align: center; }
             .hero-desc { max-width: 100%; }
             .hero-cta { justify-content: center; }
@@ -337,6 +347,13 @@
 <body>
 
     <nav>
+        <a href="/" class="nav-brand">
+            <img src="/images/logo-mark.png" alt="NU Trace logo">
+            <span class="nav-brand-text">
+                <span class="nav-brand-name">NU TRACE</span>
+                <span class="nav-brand-tag">Asset Management System</span>
+            </span>
+        </a>
         <div class="nav-actions">
             <a href="/register" class="btn-signup">Sign Up</a>
             <a href="/login" class="btn-login">Login</a>
@@ -365,14 +382,9 @@
                 </div>
             </div>
             <div class="hero-right">
-                <div class="logo-box">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c9a227" stroke-width="1.5">
-                        <rect x="3" y="3" width="18" height="18" rx="3"/>
-                        <path d="M3 9h18M9 21V9"/>
-                    </svg>
-                    <span class="logo-box-label">Your Logo Here</span>
+                <div class="logo-tile">
+                    <img src="/images/logo-mark.png" alt="NU Trace logo">
                 </div>
-                <span class="logo-caption">Logo of System</span>
             </div>
         </div>
     </section>

@@ -14,9 +14,7 @@
 
     <div class="px-5 py-5 border-b border-[#C9A227]/15 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#C9A227] to-[#8f7015] flex items-center justify-center flex-shrink-0">
-                <i class="ri-stack-line text-[#0B1220] text-base"></i>
-            </div>
+            @include('partials.logo', ['logoMarkSize' => 27, 'logoBoxSize' => 36])
             <h1 class="text-[17px] font-medium text-[#F3EFE3]">NU Trace</h1>
         </div>
         <!-- Close button, mobile only -->
