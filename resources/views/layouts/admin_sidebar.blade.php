@@ -46,8 +46,9 @@
             color: #E9C766;
         }
     </style>
+    @include('partials.ui')
 </head>
-<body>
+<body class="nt-ui">
     <div class="flex min-h-screen">
         @if(View::hasSection('sidebar'))
             @yield('sidebar')

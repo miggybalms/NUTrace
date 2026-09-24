@@ -63,8 +63,9 @@
             box-shadow: 0 4px 12px rgba(201, 162, 39, 0.35);
         }
     </style>
+    @include('partials.ui')
 </head>
-<body class="bg-[#F3EEE0]">
+<body class="nt-ui bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('users.partials.sidebar', ['currentUser' => $user])
 

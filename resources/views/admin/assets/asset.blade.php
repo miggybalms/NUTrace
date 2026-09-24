@@ -134,8 +134,9 @@
             animation: toastIn 0.2s ease;
         }
     </style>
+    @include('partials.ui')
 </head>
-<body>
+<body class="nt-ui">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 

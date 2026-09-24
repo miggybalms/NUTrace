@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Code - University Asset Management</title>
     @include('auth.partials.theme')
+    @include('partials.ui')
 </head>
 <body>
 

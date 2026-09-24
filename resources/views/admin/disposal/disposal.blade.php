@@ -179,8 +179,9 @@
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
         }
     </style>
+    @include('partials.ui')
 </head>
-<body>
+<body class="nt-ui">
     @php
     $disposalRecords = $disposalRecords ?? collect();
     $availableAssets = $availableAssets ?? collect();

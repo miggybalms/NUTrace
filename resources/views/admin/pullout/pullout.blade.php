@@ -164,8 +164,9 @@
             padding: 0;
         }
     </style>
+    @include('partials.ui')
 </head>
-<body>
+<body class="nt-ui">
     @php
     $pulloutRecords = $pulloutRecords ?? collect();
     $availableAssets = $availableAssets ?? collect();

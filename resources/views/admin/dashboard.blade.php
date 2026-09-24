@@ -110,8 +110,9 @@
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
     </style>
+    @include('partials.ui')
 </head>
-<body>
+<body class="nt-ui">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
         <!-- Main Content -->

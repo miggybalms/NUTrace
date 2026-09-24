@@ -20,6 +20,7 @@
             }
         }
     </script>
+    @include('partials.ui')
 </head>
 <body>
 

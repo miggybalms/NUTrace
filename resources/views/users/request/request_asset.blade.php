@@ -32,8 +32,9 @@
         .topbar{ background:#fff; border-bottom:1px solid #DED2AE; position:relative; }
         .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, #C9A227 20%, #C9A227 80%, transparent); opacity:.7; }
     </style>
+    @include('partials.ui')
 </head>
-<body class="bg-[#F3EEE0]">
+<body class="nt-ui bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('users.partials.sidebar')
 

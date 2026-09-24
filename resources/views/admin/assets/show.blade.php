@@ -52,9 +52,10 @@
         .form-input:focus{ border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
         .notice-box{ border-radius:10px; padding:.85rem 1rem; font-size:.85rem; border:1px solid; }
     </style>
+    @include('partials.ui')
 </head>
 
-<body>
+<body class="nt-ui">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 

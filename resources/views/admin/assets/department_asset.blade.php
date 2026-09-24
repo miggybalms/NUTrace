@@ -130,8 +130,9 @@
         .table-container::-webkit-scrollbar-thumb:hover{ background:#C6B893; }
         .detail-field p:first-child{ color:var(--ink-400); }
     </style>
+    @include('partials.ui')
 </head>
-<body class="bg-[#F3EEE0]">
+<body class="nt-ui bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 

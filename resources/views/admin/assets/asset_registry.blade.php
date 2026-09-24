@@ -141,8 +141,9 @@
     .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500) 20%, var(--gold-500) 80%, transparent); opacity:.7; }
     input[type=checkbox], input[type=radio]{ accent-color:var(--gold-500); }
 </style>
+    @include('partials.ui')
 </head>
-<body class="bg-[#F3EEE0]">
+<body class="nt-ui bg-[#F3EEE0]">
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 

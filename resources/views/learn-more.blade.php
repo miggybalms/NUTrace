@@ -542,6 +542,7 @@
             .brand-tag { display: none; }
         }
     </style>
+    @include('partials.ui')
 </head>
 <body>
 

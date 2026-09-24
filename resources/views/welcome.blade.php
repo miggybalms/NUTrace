@@ -343,6 +343,7 @@
             .hero-right { display: none; }
         }
     </style>
+    @include('partials.ui')
 </head>
 <body>
 

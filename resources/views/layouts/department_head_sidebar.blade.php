@@ -42,8 +42,9 @@
             color: #E9C766;
         }
     </style>
+    @include('partials.ui')
 </head>
-<body class="bg-[#F3EEE0]">
+<body class="nt-ui bg-[#F3EEE0]">
 
     @php
         // Prefer explicitly-passed $currentUser, otherwise fall back to the authenticated user
