@@ -22,9 +22,84 @@ class Media
 
     public const QR_FOLDER = 'assets/qr';
 
+    /**
+     * Folder on the media disk that holds the app's own brand artwork.
+     */
+    public const BRAND_FOLDER = 'brand';
+
+    /**
+     * Brand artwork mapped from its name on the media disk to the copy that
+     * ships inside the app. Both sides exist on purpose: publishing to the
+     * bucket is what lets branding change without a rebuild, while the bundled
+     * copy is what keeps the logo on screen if the bucket is unreachable or has
+     * never been given the file.
+     */
+    public const BRAND_FILES = [
+        'logo-mark.png' => 'images/logo-mark.png',
+        'favicon.ico' => 'favicon.ico',
+    ];
+
     public static function disk(): Filesystem
     {
         return Storage::disk(self::DISK);
+    }
+
+    /**
+     * Is the media disk backed by Supabase Storage?
+     */
+    public static function usesSupabase(): bool
+    {
+        return config('filesystems.disks.'.self::DISK.'.driver') === 'supabase';
+    }
+
+    /**
+     * Path of a brand asset inside the media disk, e.g. "brand/logo-mark.png".
+     */
+    public static function brandPath(string $file): string
+    {
+        return self::BRAND_FOLDER.'/'.ltrim($file, '/');
+    }
+
+    /**
+     * Where the copy that ships inside the app lives, relative to public/.
+     */
+    public static function brandLocalPath(string $file): string
+    {
+        return self::BRAND_FILES[$file] ?? 'images/'.ltrim($file, '/');
+    }
+
+    /**
+     * Browser URL of the bundled copy, used whenever the media disk is not
+     * configured and as the onerror fallback in markup.
+     */
+    public static function brandLocalUrl(string $file): string
+    {
+        return '/'.ltrim(self::brandLocalPath($file), '/');
+    }
+
+    /**
+     * Browser URL for a brand asset such as the logo mark.
+     *
+     * Prefers the published copy so the logo can be replaced by uploading one
+     * file to Supabase instead of rebuilding and redeploying the app. Returns
+     * the bundled URL when the media disk is not backed by storage we can
+     * address over HTTP.
+     */
+    public static function brand(string $file): string
+    {
+        $local = self::brandLocalUrl($file);
+
+        if (! self::usesSupabase()) {
+            return $local;
+        }
+
+        try {
+            return self::disk()->url(self::brandPath($file));
+        } catch (Throwable $e) {
+            report($e);
+
+            return $local;
+        }
     }
 
     /**

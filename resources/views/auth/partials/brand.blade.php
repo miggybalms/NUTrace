@@ -7,7 +7,7 @@
 --}}
 <div class="auth-brand">
     <div class="auth-brand-mark">
-        <img src="/images/logo-mark.png" alt="NU Trace logo">
+        @include('partials.logo', ['logoAlt' => 'NU Trace logo', 'logoAutoSize' => true, 'logoClass' => null])
     </div>
     <div>
         <h1 class="auth-brand-name">NU Trace</h1>

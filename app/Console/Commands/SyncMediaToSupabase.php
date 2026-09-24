@@ -13,8 +13,9 @@ use Throwable;
 /**
  * Moves everything the app stores as media onto Supabase Storage.
  *
- *   php artisan media:sync            upload local files + normalise URLs
+ *   php artisan media:sync            upload local files + brand + normalise URLs
  *   php artisan media:sync --files    upload local files only
+ *   php artisan media:sync --brand    publish the logo mark and favicon only
  *   php artisan media:sync --urls     normalise stored URLs only
  *   php artisan media:sync --qr       also generate QR images that are missing
  *   php artisan media:sync --dry-run  report without writing anything
@@ -23,12 +24,13 @@ class SyncMediaToSupabase extends Command
 {
     protected $signature = 'media:sync
         {--files : Only upload local files to Supabase Storage}
+        {--brand : Only publish the app\'s brand artwork (logo mark, favicon)}
         {--urls : Only normalise the URLs stored in the database}
         {--qr : Also generate the QR image for assets that do not have one}
         {--force : Re-upload files that already exist in the bucket}
         {--dry-run : Report what would change without writing anything}';
 
-    protected $description = 'Upload profile photos, asset photos, request attachments and QR images to Supabase Storage, and point the stored URLs at them';
+    protected $description = 'Upload profile photos, asset photos, request attachments, QR images and brand artwork to Supabase Storage, and point the stored URLs at them';
 
     public function handle(): int
     {
@@ -40,8 +42,15 @@ class SyncMediaToSupabase extends Command
         }
 
         $dry = (bool) $this->option('dry-run');
+        $onlyBrand = (bool) $this->option('brand');
         $onlyFiles = (bool) $this->option('files');
         $onlyUrls = (bool) $this->option('urls');
+
+        // Brand artwork is a local file as well, so a plain run and --files
+        // publish it too; --brand does it without touching anything else.
+        $publishFiles = ! $onlyUrls && ! $onlyBrand;
+        $publishBrand = ! $onlyUrls;
+        $publishUrls = ! $onlyFiles && ! $onlyBrand;
 
         $this->line('Bucket: <info>'.config('filesystems.disks.public.bucket').'</info>'
             .'  ·  '.rtrim((string) config('filesystems.disks.public.endpoint'), '/'));
@@ -50,12 +59,17 @@ class SyncMediaToSupabase extends Command
             $this->warn('Dry run: nothing will be written.');
         }
 
-        if (! $onlyUrls) {
+        if ($publishFiles) {
             $this->newLine();
             $this->uploadLocalFiles($dry);
         }
 
-        if (! $onlyFiles) {
+        if ($publishBrand) {
+            $this->newLine();
+            $this->uploadBrandAssets($dry);
+        }
+
+        if ($publishUrls) {
             $this->newLine();
             $this->normaliseUrls($dry);
         }
@@ -138,6 +152,64 @@ class SyncMediaToSupabase extends Command
             $skipped,
             $failed
         ));
+    }
+
+    /**
+     * Publish the app's own brand artwork to the bucket.
+     *
+     * Media::brand() reads these objects, so once they are here the logo can be
+     * replaced by uploading one file to Supabase instead of rebuilding and
+     * redeploying the app. Views keep the bundled public/ copy as a fallback, so
+     * nothing breaks if these objects are ever removed again.
+     */
+    protected function uploadBrandAssets(bool $dry): void
+    {
+        $disk = Media::disk();
+        $force = (bool) $this->option('force');
+
+        $this->info('Brand artwork (logo mark, favicon)');
+
+        foreach (Media::BRAND_FILES as $name => $localRelative) {
+            $source = public_path($localRelative);
+            $target = Media::brandPath($name);
+
+            if (! File::isFile($source)) {
+                $this->warn('  ! public/'.$localRelative.' is missing locally');
+
+                continue;
+            }
+
+            try {
+                if (! $force && $disk->exists($target)) {
+                    $this->line('  = '.$target.' already stored');
+
+                    continue;
+                }
+            } catch (Throwable $e) {
+                $this->error('  ! '.$target.' → '.($e->getPrevious()?->getMessage() ?: $e->getMessage()));
+
+                continue;
+            }
+
+            if ($dry) {
+                $this->line('  + '.$target);
+
+                continue;
+            }
+
+            try {
+                // No mimetype option: the adapter derives it from the extension.
+                if ($disk->put($target, File::get($source))) {
+                    $this->line('  ↑ '.$target);
+                } else {
+                    $this->error('  ! '.$target.' could not be uploaded');
+                }
+            } catch (Throwable $e) {
+                $this->error('  ! '.$target.' → '.$e->getMessage());
+            }
+        }
+
+        $this->line('  served from: <info>'.$disk->url(Media::brandPath('logo-mark.png')).'</info>');
     }
 
     /**

@@ -547,7 +547,7 @@
 
     <nav>
         <a href="/" class="brand-left">
-            <img src="/images/logo-mark.png" alt="NU Trace logo" class="brand-mark">
+            @include('partials.logo', ['logoAlt' => 'NU Trace logo', 'logoAutoSize' => true, 'logoClass' => 'brand-mark'])
             <span class="brand-text">
                 <span class="brand-name">NU TRACE</span>
                 <span class="brand-tag">Asset Management System</span>

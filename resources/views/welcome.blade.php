@@ -348,7 +348,7 @@
 
     <nav>
         <a href="/" class="nav-brand">
-            <img src="/images/logo-mark.png" alt="NU Trace logo">
+            @include('partials.logo', ['logoAlt' => 'NU Trace logo', 'logoAutoSize' => true, 'logoClass' => null])
             <span class="nav-brand-text">
                 <span class="nav-brand-name">NU TRACE</span>
                 <span class="nav-brand-tag">Asset Management System</span>
@@ -383,7 +383,7 @@
             </div>
             <div class="hero-right">
                 <div class="logo-tile">
-                    <img src="/images/logo-mark.png" alt="NU Trace logo">
+                    @include('partials.logo', ['logoAlt' => 'NU Trace logo', 'logoAutoSize' => true, 'logoClass' => null])
                 </div>
             </div>
         </div>
