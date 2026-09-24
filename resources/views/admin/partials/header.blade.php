@@ -102,8 +102,15 @@
                         </button>
                         @break
 
-                    {{-- Repair: create repair --}}
+                    {{-- Repair: search the queue + create repair --}}
                     @case('repair')
+                        <div class="relative flex-1 sm:flex-none">
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);" aria-hidden="true"></i>
+                            <input type="text" id="searchRepairs" placeholder="Search repairs..."
+                                aria-label="Search repair requests by asset, code, requester or issue"
+                                autocomplete="off"
+                                class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
+                        </div>
                         <button type="button" onclick="openNewRepairModal()" class="btn-gold">
                             <i class="ri-add-line mr-1.5 text-base"></i>
                             New Repair Request

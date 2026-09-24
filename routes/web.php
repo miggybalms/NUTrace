@@ -842,27 +842,31 @@ Route::get('/admin', function () {
 
         $recentActivities = $logs->map(function ($l) {
             $time = $l->created_at ? \Illuminate\Support\Carbon::parse($l->created_at)->diffForHumans() : '';
-            $desc = $l->notes ?: '';
+            // Sign-ins and sign-outs are shown as a plain notice - any address an
+            // older row carries is removed here.
+            $desc = \App\Support\AuditLogText::redact($l->notes) ?: '';
             $type = 'Activity';
             $status = null;
 
             if ($l->asset_id && str_contains(strtolower($l->notes ?? ''), 'registered')) {
                 $type = 'Asset Registered';
-                $desc = $l->notes ?: ('Registered asset ' . ($l->asset_code ?? ''));
+                $desc = $desc ?: ('Registered asset ' . ($l->asset_code ?? ''));
             } elseif ($l->request_id && str_contains(strtolower($l->notes ?? ''), 'submitted')) {
                 $type = 'Request Submitted';
-                $desc = $l->notes ?: ('Request for ' . ($l->asset_code ?? ''));
+                $desc = $desc ?: ('Request for ' . ($l->asset_code ?? ''));
             } elseif ($l->request_id && str_contains(strtolower($l->notes ?? ''), 'approved')) {
                 $type = 'Request Approved';
-                $desc = $l->notes ?: ('Approved ' . ($l->request_type ?? 'request'));
+                $desc = $desc ?: ('Approved ' . ($l->request_type ?? 'request'));
                 $status = 'approved';
             } elseif ($l->request_id && str_contains(strtolower($l->notes ?? ''), 'rejected')) {
                 $type = 'Request Rejected';
-                $desc = $l->notes ?: ('Rejected ' . ($l->request_type ?? 'request'));
+                $desc = $desc ?: ('Rejected ' . ($l->request_type ?? 'request'));
                 $status = 'rejected';
             } elseif ($l->user_id && str_contains(strtolower($l->notes ?? ''), 'user registered')) {
                 $type = 'New User Registered';
-                $desc = $l->notes ?: ('New user: ' . ($l->user_name ?? ''));
+                $desc = $desc ?: ('New user: ' . ($l->user_name ?? ''));
+            } elseif (str_contains(strtolower($l->notes ?? ''), 'logged in') || str_contains(strtolower($l->notes ?? ''), 'logged out')) {
+                $type = 'Sign In / Out';
             }
 
             return (object) [
@@ -1206,12 +1210,17 @@ Route::get('/admin/audit-logs', function (Request $request) {
                   ->orWhere('audit_logs.notes', 'ilike', '%request%');
             });
         } elseif ($filter === 'auth') {
+            // Matches both the current wording ("User logged in" / "User logged
+            // out") and rows written before it.
             $query->where(function ($q) {
                 $q->where('audit_logs.notes', 'ilike', '%login%')
                   ->orWhere('audit_logs.notes', 'ilike', '%logout%')
+                  ->orWhere('audit_logs.notes', 'ilike', '%logged in%')
+                  ->orWhere('audit_logs.notes', 'ilike', '%logged out%')
                   ->orWhere('audit_logs.notes', 'ilike', '%registered%')
                   ->orWhere('audit_logs.action_type', 'ilike', '%AUTH%')
-                  ->orWhere('audit_logs.action_type', 'ilike', '%LOGIN%');
+                  ->orWhere('audit_logs.action_type', 'ilike', '%LOGIN%')
+                  ->orWhere('audit_logs.action_type', 'ilike', '%LOGOUT%');
             });
         }
 
@@ -1239,6 +1248,15 @@ Route::get('/admin/audit-logs', function (Request $request) {
     } catch (\Exception $e) {
         $logs = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 15);
     }
+
+    // The admin sees who did what and when. Any address left over from an older
+    // log row is stripped here, before it can reach the page or the modal.
+    $logs->getCollection()->transform(function ($log) {
+        $log->notes = \App\Support\AuditLogText::redact($log->notes ?? null);
+        $log->action_description = \App\Support\AuditLogText::redact($log->action_description ?? null);
+
+        return $log;
+    });
 
     $totalLogs   = DB::table('audit_logs')->count();
     $todayLogs   = DB::table('audit_logs')->whereDate('created_at', now()->toDateString())->count();
@@ -1293,7 +1311,8 @@ Route::get('/admin/audit-logs/export', function () {
             fputcsv($file, [
                 $log->user_name ?? '—',
                 $log->user_role ?? '—',
-                $log->notes ?? ($log->action_description ?? '—'),
+                // No addresses in the export either.
+                \App\Support\AuditLogText::redact($log->notes ?? $log->action_description) ?? '—',
                 $log->asset_name ?? '—',
                 $log->asset_code ?? '—',
                 $log->request_type

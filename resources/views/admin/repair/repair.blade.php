@@ -248,9 +248,9 @@
                     <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--paper-2);">
                         <i class="ri-tools-line text-3xl" style="color:var(--ink-400);"></i>
                     </div>
-                    <h3 class="text-base font-semibold mb-1.5" style="color:var(--navy-900);">No repair requests</h3>
-                    <p class="text-sm" style="color:var(--ink-400);">There are currently no repair requests to show.</p>
-                    <button onclick="openNewRepairModal()" class="btn-gold mt-5">
+                    <h3 id="emptyStateTitle" class="text-base font-semibold mb-1.5" style="color:var(--navy-900);">No repair requests</h3>
+                    <p id="emptyStateText" class="text-sm" style="color:var(--ink-400);">There are currently no repair requests to show.</p>
+                    <button id="emptyStateAction" onclick="openNewRepairModal()" class="btn-gold mt-5">
                         <i class="ri-add-line mr-1.5"></i>
                         Create New Repair Request
                     </button>
@@ -401,6 +401,7 @@
             if (filteredRepairs.length === 0) {
                 repairsList.classList.add('hidden');
                 emptyState.classList.remove('hidden');
+                updateEmptyStateCopy();
             } else {
                 repairsList.classList.remove('hidden');
                 emptyState.classList.add('hidden');
@@ -478,6 +479,23 @@
             document.getElementById('pendingRepairs').textContent = repairs.filter(r => r.status === 'pending').length;
             document.getElementById('inProgressRepairs').textContent = repairs.filter(r => r.status === 'in_progress').length;
             document.getElementById('completedRepairs').textContent = repairs.filter(r => r.status === 'completed').length;
+        }
+
+        // Tell the difference between an empty queue and a search that found
+        // nothing, so "no results" never reads like "nothing to do".
+        function updateEmptyStateCopy() {
+            const title = document.getElementById('emptyStateTitle');
+            const text = document.getElementById('emptyStateText');
+            const action = document.getElementById('emptyStateAction');
+            const narrowed = currentSearchTerm !== '' || currentFilter !== 'all';
+
+            if (title) title.textContent = narrowed ? 'No matching repairs' : 'No repair requests';
+            if (text) {
+                text.textContent = narrowed
+                    ? 'No repair request matches your search or filter. Try a different asset name, asset code, requester or issue.'
+                    : 'There are currently no repair requests to show.';
+            }
+            if (action) action.classList.toggle('hidden', narrowed);
         }
 
         function overdueChip(repair) {
@@ -960,6 +978,15 @@
         document.getElementById('searchRepairs')?.addEventListener('input', function(e) {
             currentSearchTerm = e.target.value.trim();
             renderRepairs();
+        });
+
+        // Escape clears the search box without leaving the page
+        document.getElementById('searchRepairs')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && this.value !== '') {
+                this.value = '';
+                currentSearchTerm = '';
+                renderRepairs();
+            }
         });
 
         // Modal functions

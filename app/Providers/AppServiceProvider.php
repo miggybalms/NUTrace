@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
@@ -30,6 +31,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerSupabaseFilesystem();
+
+        // Sign-outs land in the audit trail next to the sign-in they close off,
+        // so an admin can see the whole session. Being an event, this covers
+        // every way out of the app (the GET and POST logout routes).
+        Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event) {
+            \App\Support\AuditTrail::logout($event->user);
+        });
 
         // One password policy for the whole app: account activation (registration)
         // and password reset both use Password::default().

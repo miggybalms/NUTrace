@@ -155,7 +155,8 @@
                                         elseif (str_contains($note, 'created') || str_contains($note, 'registered')) { $icon = 'ri-add-circle-line text-[#A8841E]'; $bg = 'bg-[#F3E7C4]'; }
                                         elseif (str_contains($note, 'deleted') || str_contains($note, 'disposed')) { $icon = 'ri-delete-bin-line text-[#A23B32]'; $bg = 'bg-[#F7E9E6]'; }
                                         elseif (str_contains($note, 'updated') || str_contains($note, 'edited')) { $icon = 'ri-edit-line text-[#B4791E]'; $bg = 'bg-[#FBF1DE]'; }
-                                        elseif (str_contains($note, 'login')) { $icon = 'ri-login-circle-line text-[#6B4C82]'; $bg = 'bg-[#EFE7F3]'; }
+                                        elseif (str_contains($note, 'logged out') || str_contains($note, 'logout')) { $icon = 'ri-logout-circle-line text-[#6B4C82]'; $bg = 'bg-[#EFE7F3]'; }
+                                        elseif (str_contains($note, 'logged in') || str_contains($note, 'login')) { $icon = 'ri-login-circle-line text-[#6B4C82]'; $bg = 'bg-[#EFE7F3]'; }
                                         elseif (str_contains($note, 'transfer')) { $icon = 'ri-swap-line text-[#A8841E]'; $bg = 'bg-[#F3E7C4]'; }
                                     @endphp
                                     <div class="w-8 h-8 {{ $bg }} rounded-lg flex items-center justify-center flex-shrink-0">

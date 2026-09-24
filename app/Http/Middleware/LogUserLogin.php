@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AuditTrail;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class LogUserLogin
 {
@@ -21,22 +21,12 @@ class LogUserLogin
 
         // Check if user just authenticated during this request
         if (Auth::check() && !session()->has('login_logged')) {
-            try {
-                $user = Auth::user();
-                DB::table('audit_logs')->insert([
-                    'user_id' => $user->id,
-                    'action_type' => 'LOGIN',
-                    'notes' => 'User logged in from IP: ' . $request->ip(),
-                    'action_description' => 'User ' . ($user->full_name ?? $user->email) . ' authenticated successfully from ' . $request->ip(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+            // Who signed in and when - never where from. Sign-outs are recorded
+            // by the Logout event listener in AppServiceProvider.
+            AuditTrail::login(Auth::user());
 
-                // Mark that we've logged this login
-                session()->put('login_logged', true);
-            } catch (\Exception $e) {
-                // Silently fail to avoid breaking authentication
-            }
+            // Mark that we've logged this login
+            session()->put('login_logged', true);
         }
 
         return $response;
