@@ -13,8 +13,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Password;
 use App\Http\Controllers\UserRequestController;
+use App\Http\Controllers\TransferController;
 use App\Support\Media;
 use App\Support\AssetDetails;
+use App\Support\AssetCode;
+use App\Support\AssetTransfer;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -4343,6 +4346,27 @@ Route::get('/admin/users/search', function (Request $request) {
     return response()->json($users);
 });
 
+// ─── Transfer / Employee Relocation ─────────────────────────────────────
+// One employee hands their assigned assets to another. The assets keep their
+// Asset ID, Asset Code, QR Code and history; only the accountable employee
+// changes. The page is only reachable by a signed-in user.
+Route::get('/admin/transfer', [TransferController::class, 'index'])
+    ->middleware('auth')
+    ->name('admin.transfer');
+
+Route::post('/admin/transfer', [TransferController::class, 'store'])
+    ->middleware('auth')
+    ->name('admin.transfer.store');
+
+// Live availability check for a custom Asset Code (single code or a bulk list)
+Route::get('/admin/assets/check-code', function (Request $request) {
+    $raw = (string) $request->query('codes', (string) $request->query('code', ''));
+
+    return response()->json([
+        'codes' => AssetCode::availability(AssetCode::parseList($raw)),
+    ]);
+})->middleware('auth');
+
 // Handle asset registry form submission
 Route::post('/admin/assets', function (Request $request) {
     $validated = $request->validate([
@@ -4367,6 +4391,8 @@ Route::post('/admin/assets', function (Request $request) {
         'maintenance_interval' => 'nullable|integer|min:1',
         'next_maintenance_date' => 'nullable|date',
         'quantity' => 'required|integer|min:1|max:100',
+        'asset_code_mode' => 'nullable|in:auto,custom',
+        'custom_codes_text' => 'nullable|string',
     ]);
 
     // Map form categories to migration enum values where possible
@@ -4390,6 +4416,26 @@ Route::post('/admin/assets', function (Request $request) {
     $category = isset($validated['category']) ? ($categoryMap[strtolower($validated['category'])] ?? $validated['category']) : 'Low value Asset';
     $condition = $condMap[strtolower($validated['condition'])] ?? ucfirst($validated['condition']);
     $userId = $validated['assigned_to'] ?? Auth::id();
+
+    // ─── Asset code: generated, or the office's existing code ────────────
+    // A custom code is the client's own numbering, so it has to be verified
+    // before anything is written: the same code may not identify a second
+    // asset, and it may not be repeated inside one submission. Auto mode keeps
+    // the original behaviour and quietly re-rolls a collision.
+    $codeMode = $validated['asset_code_mode'] ?? 'auto';
+    $customCodes = [];
+
+    if ($codeMode === 'custom') {
+        $customCodes = AssetCode::parseList(
+            $validated['custom_codes_text'] ?? ($validated['asset_code'] ?? '')
+        );
+
+        $problem = AssetCode::firstProblem($customCodes, $quantity);
+
+        if ($problem) {
+            return back()->withErrors(['asset_code' => $problem])->withInput();
+        }
+    }
 
     // Handle file upload
     $fileName = null;
@@ -4416,6 +4462,8 @@ Route::post('/admin/assets', function (Request $request) {
             $category,
             $condition,
             $userId,
+            $codeMode,
+            $customCodes,
             $fileName,
             $filePath,
             $fileSize,
@@ -4423,7 +4471,9 @@ Route::post('/admin/assets', function (Request $request) {
             $url,
             &$createdAssets
         ) {
-            $baseAssetCode = $validated['asset_code'] ?: ('AST-' . strtoupper(Str::random(10)));
+            // The registry form always posts asset_code, but a request without it (or
+            // with an empty one) must still register rather than 500 on a missing key.
+            $baseAssetCode = ($validated['asset_code'] ?? '') ?: AssetCode::generate();
 
             $makeUniqueAssetCode = function (int $index) use ($baseAssetCode) {
                 $candidateBase = $baseAssetCode;
@@ -4431,8 +4481,8 @@ Route::post('/admin/assets', function (Request $request) {
                     ? $candidateBase
                     : $candidateBase . '-' . str_pad((string) $index, 2, '0', STR_PAD_LEFT);
 
-                while (Asset::where('Asset_code', $candidate)->exists()) {
-                    $candidateBase = 'AST-' . strtoupper(Str::random(10));
+                while (AssetCode::exists($candidate)) {
+                    $candidateBase = AssetCode::generate();
                     $candidate = $index === 1
                         ? $candidateBase
                         : $candidateBase . '-' . str_pad((string) $index, 2, '0', STR_PAD_LEFT);
@@ -4461,7 +4511,9 @@ Route::post('/admin/assets', function (Request $request) {
             };
 
             for ($index = 1; $index <= $quantity; $index++) {
-                $assetCode = $makeUniqueAssetCode($index);
+                $assetCode = $codeMode === 'custom'
+                    ? $customCodes[$index - 1]
+                    : $makeUniqueAssetCode($index);
 
                 $asset = Asset::create([
                     'user_id' => $userId,

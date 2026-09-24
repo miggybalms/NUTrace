@@ -173,6 +173,13 @@
                             {{ session('success') }}
                         </div>
                     @endif
+
+                    @error('asset_code')
+                        <div class="mb-4 p-4 rounded-lg bg-[#F7E9E6] border border-[#EFD5D0] text-[#7E2E27] text-sm flex items-start gap-2">
+                            <i class="ri-error-warning-line mt-0.5"></i>
+                            <span>{{ $message }}</span>
+                        </div>
+                    @enderror
                     
 
 
@@ -455,16 +462,31 @@
 
                                         <!-- Auto-Generated Asset ID with QR Code -->
                     <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
-                        <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
                             <div>
-                                <h3 class="text-lg font-semibold text-[#0F2143]">Auto-Generated Asset ID</h3>
-                                <p class="text-sm text-[#5B6678] mt-1">Unique identifier for this asset</p>
+                                <h3 class="text-lg font-semibold text-[#0F2143]">Asset Code</h3>
+                                <p class="text-sm text-[#5B6678] mt-1">How this asset is uniquely identified — and what its QR code carries</p>
+                            </div>
+                            <div class="inline-flex rounded-full p-1" role="tablist" aria-label="Asset code mode"
+                                 style="background:#F5F0E2; border:1px solid #DED2AE;">
+                                <button type="button" id="mode-auto-btn" role="tab" aria-selected="true"
+                                        onclick="setCodeMode('auto')" data-mode="auto"
+                                        class="mode-btn px-4 py-1.5 text-xs font-semibold rounded-full transition">
+                                    <i class="ri-magic-line mr-1"></i>Auto-generate
+                                </button>
+                                <button type="button" id="mode-custom-btn" role="tab" aria-selected="false"
+                                        onclick="setCodeMode('custom')" data-mode="custom"
+                                        class="mode-btn px-4 py-1.5 text-xs font-semibold rounded-full transition">
+                                    <i class="ri-price-tag-3-line mr-1"></i>Custom code
+                                </button>
                             </div>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Left side - Asset ID -->
+                            <!-- Left side - Asset Code -->
                             <div>
+                                <!-- Auto mode: a fresh generated code, re-rollable -->
+                                <div id="code-auto-panel">
                                 <div class="flex items-center space-x-4">
                                     <div class="flex-1">
                                         <div class="asset-id-display bg-gradient-to-r from-gray-50 to-white border border-[#DED2AE] rounded-lg px-4 py-3 transition-all duration-300">
@@ -475,17 +497,86 @@
                                             class="regenerate-btn px-5 py-3 bg-[#F3E7C4] text-[#0F2143] rounded-lg hover:bg-[#C9A227] hover:text-[#0A1830] transition-all duration-300 flex items-center font-medium group"
                                             disabled>
                                         <i class="ri-refresh-line mr-2 text-lg transition-transform duration-300 group-hover:rotate-180"></i>
-                                        <span>Regenerate ID</span>
+                                        <span>Regenerate Code</span>
                                     </button>
                                 </div>
+                                <p class="text-xs text-[#5B6678] mt-2 flex items-start gap-1.5">
+                                    <i class="ri-information-line mt-0.5"></i>
+                                    <span>Generated automatically once the required fields above are filled. Regenerate as often as you like until you press Register Assets.</span>
+                                </p>
+                                </div>
+                                <!-- /#code-auto-panel -->
+
+                                <!-- Custom mode: the code the office already uses -->
+                                <div id="code-custom-panel" class="hidden">
+                                    <label for="custom-code-input" class="block text-sm font-medium text-[#33425C] mb-2">
+                                        Client's existing asset code <span class="text-[#A23B32]">*</span>
+                                    </label>
+                                    <div class="relative">
+                                        <input type="text" id="custom-code-input" maxlength="50" autocomplete="off" spellcheck="false"
+                                               placeholder="e.g., NU-LIPA-ITSO-00457"
+                                               class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition font-mono uppercase">
+                                        <span id="custom-code-spinner" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+                                            <i class="ri-loader-4-line animate-spin" style="color:#A8841E;"></i>
+                                        </span>
+                                    </div>
+                                    <p id="custom-code-status" class="text-xs mt-2 flex items-start gap-1.5" style="color:#5B6678;">
+                                        <i class="ri-information-line mt-0.5"></i>
+                                        <span>Type the code exactly as it appears on the office records. It is checked against the inventory so one code can never identify two assets.</span>
+                                    </p>
+                                </div>
+
+                                <!-- Bulk custom codes (only when more than one asset is registered at a time) -->
+                                <div id="code-bulk-panel" class="hidden mt-4 rounded-xl p-4" style="background:#F5F0E2; border:1px solid #EADFC0;">
+                                    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+                                        <div>
+                                            <p class="text-sm font-semibold text-[#0F2143]">Codes for the whole batch</p>
+                                            <p class="text-xs text-[#5B6678] mt-0.5">
+                                                One code per line, in the order of the office records —
+                                                <span id="bulk-code-count">0</span> of <span id="bulk-expected-count">0</span> entered.
+                                            </p>
+                                        </div>
+                                        <button type="button" onclick="generateSequentialCodes()"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition"
+                                                style="background:#F3E7C4; color:#A8841E; border:1px solid #EADFC0;">
+                                            <i class="ri-magic-line mr-1"></i>Sequential codes
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 mb-3">
+                                        <div>
+                                            <label for="seq-prefix" class="block text-[11px] font-medium text-[#33425C] mb-1">Prefix</label>
+                                            <input type="text" id="seq-prefix" placeholder="NU-LIPA" maxlength="30" spellcheck="false"
+                                                   class="form-input w-full px-2.5 py-1.5 border border-[#CFC4A4] rounded-lg text-sm font-mono uppercase">
+                                        </div>
+                                        <div>
+                                            <label for="seq-start" class="block text-[11px] font-medium text-[#33425C] mb-1">Start at</label>
+                                            <input type="number" id="seq-start" value="1" min="0"
+                                                   class="form-input w-full px-2.5 py-1.5 border border-[#CFC4A4] rounded-lg text-sm">
+                                        </div>
+                                        <div>
+                                            <label for="seq-digits" class="block text-[11px] font-medium text-[#33425C] mb-1">Digits</label>
+                                            <input type="number" id="seq-digits" value="4" min="1" max="8"
+                                                   class="form-input w-full px-2.5 py-1.5 border border-[#CFC4A4] rounded-lg text-sm">
+                                        </div>
+                                    </div>
+                                    <textarea id="custom-codes-text" name="custom_codes_text" rows="4" spellcheck="false"
+                                              placeholder="NU-LIPA-0001&#10;NU-LIPA-0002"
+                                              class="form-textarea w-full px-3 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition text-sm font-mono uppercase"></textarea>
+                                    <p id="bulk-code-status" class="text-xs mt-2 flex items-start gap-1.5" style="color:#5B6678;">
+                                        <i class="ri-information-line mt-0.5"></i>
+                                        <span>Each line becomes one asset, and each asset still gets its own QR code.</span>
+                                    </p>
+                                </div>
+
                                 <input type="hidden" name="asset_code" id="asset-code-input" value="">
+                                <input type="hidden" name="asset_code_mode" id="asset-code-mode" value="auto">
                                 <div class="mt-4 max-w-sm">
                                     <label class="block text-sm font-medium text-[#33425C] mb-2">
                                         Quantity <span class="text-[#A23B32]">*</span>
                                     </label>
                                     <input type="number" name="quantity" id="asset-quantity" min="1" max="100" value="1" required
                                            class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
-                                    <p class="text-xs text-[#5B6678] mt-1">Registers multiple identical assets. Quantity is not stored.</p>
+                                    <p class="text-xs text-[#5B6678] mt-1" id="quantity-hint">Registers multiple identical assets. Each copy gets its own generated code and QR label.</p>
                                 </div>
                             </div>
                             
@@ -713,16 +804,314 @@
             const condition = document.querySelector('input[name="condition"]:checked');
             const quantity = parseInt(document.getElementById('asset-quantity')?.value || '0', 10);
 
-            const ready = name && category && acquisition && condition && quantity >= 1;
-            if (window._regenerateBtn) {
-                window._regenerateBtn.disabled = !ready;
-                window._regenerateBtn.classList.toggle('opacity-50', !ready);
+            const fieldsReady = !!(name && category && acquisition && condition && quantity >= 1);
+
+            // Auto mode no longer waits for a click: the moment the fields the code
+            // depends on are filled, a first code is generated. Regenerate Code re-rolls it.
+            if (codeMode === 'auto' && fieldsReady) {
+                ensureAutoCode();
             }
+
+            if (window._regenerateBtn) {
+                window._regenerateBtn.disabled = !fieldsReady;
+                window._regenerateBtn.classList.toggle('opacity-50', !fieldsReady);
+            }
+
+            const ready = fieldsReady && isCodeUsable(quantity);
+
             if (window._registerBtn && document.querySelector('#qrcode canvas')) {
                 window._registerBtn.disabled = !ready;
             }
             return !!ready;
         }
+
+        /* ============================================================
+           Asset code: generated, or the code the office already uses.
+
+           Custom codes are the client's own numbering, so they are checked
+           against the inventory as they are typed — one code may not identify
+           two assets, and it may not be repeated inside one batch.
+           ============================================================ */
+
+        const CODE_PATTERN = /^[A-Z0-9][A-Z0-9._\-\/]{1,49}$/;
+        let codeMode = 'auto';
+        let availability = {};        // code -> { available: bool, takenBy: string|null }
+        let codeCheckTimer = null;
+
+        function normaliseCode(value) {
+            return String(value || '').toUpperCase().trim().replace(/\s+/g, '-');
+        }
+
+        function quantityValue() {
+            const quantity = parseInt(document.getElementById('asset-quantity')?.value || '1', 10);
+            return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+        }
+
+        // The codes the Admin has entered, in the order they were entered.
+        // A batch is one code per line; a single registration is one code.
+        function customCodes() {
+            if (quantityValue() > 1) {
+                return (document.getElementById('custom-codes-text')?.value || '')
+                    .split(/[\r\n,;]+/)
+                    .map(normaliseCode)
+                    .filter(Boolean);
+            }
+
+            const single = normaliseCode(document.getElementById('custom-code-input')?.value);
+            return single ? [single] : [];
+        }
+
+        // Everything that can be judged without asking the server.
+        function localCodeProblem(codes, quantity) {
+            if (!codes.length) return 'Enter the existing asset code from the office records.';
+            if (codes.length !== quantity) {
+                return 'A quantity of ' + quantity + ' needs ' + quantity + ' asset code(s) — ' + codes.length + ' entered.';
+            }
+            for (const code of codes) {
+                if (!CODE_PATTERN.test(code)) {
+                    return '“' + code + '” is not a usable code. Use letters, numbers, dot, dash, slash or underscore.';
+                }
+            }
+            if (new Set(codes).size !== codes.length) {
+                return 'Every asset needs its own code — one code is listed twice.';
+            }
+            return null;
+        }
+
+        function isCodeUsable(quantity) {
+            if (codeMode === 'auto') {
+                return !!document.getElementById('asset-code-input')?.value;
+            }
+
+            const codes = customCodes();
+            if (localCodeProblem(codes, quantity)) return false;
+
+            return codes.every(code => availability[code] && availability[code].available === true);
+        }
+
+        // The generated code only replaces the field when it actually changed,
+        // otherwise the QR refresh below would keep re-entering checkFormReadiness.
+        function ensureAutoCode() {
+            const input = document.getElementById('asset-code-input');
+            const display = document.getElementById('asset-id-display');
+            if (!input) return;
+
+            const current = (display?.textContent || '').trim();
+            const code = (!current || current === 'Not generated') ? generateAssetIdString() : current;
+
+            if (display && display.textContent !== code) display.textContent = code;
+            if (input.value === code) return;
+
+            input.value = code;
+            generateQRCode();
+        }
+
+        function setCodeMode(mode) {
+            codeMode = mode === 'custom' ? 'custom' : 'auto';
+            document.getElementById('asset-code-mode').value = codeMode;
+            document.getElementById('code-auto-panel').classList.toggle('hidden', codeMode !== 'auto');
+
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                const on = btn.dataset.mode === codeMode;
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+                btn.style.background = on ? '#0F2143' : 'transparent';
+                btn.style.color = on ? '#F3E7C4' : '#46536B';
+            });
+
+            syncBulkPanel();
+
+            if (codeMode === 'custom') {
+                refreshCustomStatus();
+                scheduleAvailabilityCheck();
+            } else {
+                // Back to the generated code: the custom one no longer applies, so
+                // clear it and let the form produce (or re-derive) its own code.
+                const input = document.getElementById('asset-code-input');
+                if (input) input.value = '';
+                checkFormReadiness();
+                generateQRCode();
+            }
+        }
+
+        // A single registration shows one code box; a batch shows the list plus
+        // the sequential helper, because one code per asset has to be stated.
+        function syncBulkPanel() {
+            const bulk = document.getElementById('code-bulk-panel');
+            const single = document.getElementById('code-custom-panel');
+            if (!bulk || !single) return;
+
+            const isBatch = codeMode === 'custom' && quantityValue() > 1;
+            bulk.classList.toggle('hidden', !isBatch);
+            single.classList.toggle('hidden', codeMode !== 'custom' || isBatch);
+
+            const expected = document.getElementById('bulk-expected-count');
+            if (expected) expected.textContent = quantityValue();
+
+            const hint = document.getElementById('quantity-hint');
+            if (hint) {
+                hint.textContent = codeMode === 'custom'
+                    ? 'Must match the number of codes for the batch — one asset per code, each with its own QR label.'
+                    : 'Registers multiple identical assets. Each copy gets its own generated code and QR label.';
+            }
+        }
+
+        function paintCodeStatus(element, tone, message, icon) {
+            if (!element) return;
+            const colours = { good: '#245C3B', bad: '#A23B32', wait: '#8F5F16', muted: '#5B6678' };
+            element.style.color = colours[tone] || colours.muted;
+            element.innerHTML = '<i class="' + icon + ' mt-0.5"></i><span>' + escapeHtml(message) + '</span>';
+        }
+
+        function refreshCustomStatus() {
+            const codes = customCodes();
+            const quantity = quantityValue();
+            const problem = localCodeProblem(codes, quantity);
+
+            let tone = 'muted';
+            let icon = 'ri-information-line';
+            let message = '';
+
+            if (problem) {
+                tone = 'bad';
+                icon = 'ri-error-warning-line';
+                message = problem;
+            } else {
+                const unverified = codes.find(code => availability[code]?.unchecked);
+                const taken = codes.find(code => availability[code] && availability[code].available === false && !availability[code].unchecked);
+                const unknown = codes.filter(code => !(code in availability));
+
+                if (unverified) {
+                    tone = 'wait';
+                    icon = 'ri-wifi-off-line';
+                    message = 'Could not check this code against the inventory. Check your connection, then retype it.';
+                } else if (taken) {
+                    tone = 'bad';
+                    icon = 'ri-close-circle-line';
+                    message = '“' + taken + '” is already used by ' + (availability[taken].takenBy || 'another asset')
+                        + '. Pick a different code so both assets stay uniquely identified.';
+                } else if (unknown.length) {
+                    tone = 'wait';
+                    icon = 'ri-loader-4-line';
+                    message = 'Checking availability…';
+                } else {
+                    tone = 'good';
+                    icon = 'ri-checkbox-circle-line';
+                    message = quantity > 1
+                        ? codes.length + ' custom codes ready — each becomes one asset with its own QR code.'
+                        : 'Available — this code will be used for the asset’s QR code.';
+                }
+            }
+
+            paintCodeStatus(document.getElementById('custom-code-status'), tone, message, icon);
+            paintCodeStatus(document.getElementById('bulk-code-status'), tone, message, icon);
+
+            const counter = document.getElementById('bulk-code-count');
+            if (counter) counter.textContent = codes.length;
+
+            const input = document.getElementById('asset-code-input');
+            if (input) input.value = codes.length ? codes[0] : '';
+
+            generateQRCode();
+            checkFormReadiness();
+        }
+
+        // Ask the server only about codes it has not answered for yet.
+        function scheduleAvailabilityCheck() {
+            clearTimeout(codeCheckTimer);
+            codeCheckTimer = setTimeout(() => {
+                const pending = customCodes().filter(code => !(code in availability));
+                if (!pending.length) return;
+
+                document.getElementById('custom-code-spinner')?.classList.remove('hidden');
+
+                fetch('/admin/assets/check-code?codes=' + encodeURIComponent(pending.join('\n')), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(res => (res.ok ? res.json() : null))
+                    .then(data => {
+                        (data?.codes || []).forEach(entry => {
+                            availability[entry.code] = {
+                                available: !!entry.valid && !entry.exists,
+                                takenBy: entry.asset ? entry.asset.code : null,
+                            };
+                        });
+                    })
+                    .catch(() => {})
+                    .finally(() => {
+                        // A code the server never answered for is not treated as free:
+                        // the form stays blocked until it can actually be verified.
+                        customCodes().forEach(code => {
+                            if (!(code in availability)) {
+                                availability[code] = { available: false, takenBy: null, unchecked: true };
+                            }
+                        });
+
+                        document.getElementById('custom-code-spinner')?.classList.add('hidden');
+                        refreshCustomStatus();
+                    });
+            }, 300);
+        }
+
+        function onCustomCodeInput() {
+            const input = document.getElementById('custom-code-input');
+
+            if (input) {
+                const normalised = normaliseCode(input.value);
+                if (input.value !== normalised) {
+                    const atEnd = input.selectionStart === input.value.length;
+                    input.value = normalised;
+                    if (atEnd) input.setSelectionRange(normalised.length, normalised.length);
+                }
+            }
+
+            refreshCustomStatus();
+            scheduleAvailabilityCheck();
+        }
+
+        function onCustomCodesInput() {
+            refreshCustomStatus();
+            scheduleAvailabilityCheck();
+        }
+
+        function normaliseBulkText() {
+            const area = document.getElementById('custom-codes-text');
+            if (!area) return;
+            area.value = customCodes().join('\n');
+            onCustomCodesInput();
+        }
+
+        function generateSequentialCodes() {
+            const quantity = quantityValue();
+            const prefix = normaliseCode(document.getElementById('seq-prefix')?.value).replace(/[-_]+$/, '');
+            const start = Math.max(parseInt(document.getElementById('seq-start')?.value || '1', 10) || 0, 0);
+            const digits = Math.min(Math.max(parseInt(document.getElementById('seq-digits')?.value || '4', 10) || 4, 1), 8);
+
+            const codes = [];
+            for (let i = 0; i < quantity; i++) {
+                const number = String(start + i).padStart(digits, '0');
+                codes.push(prefix ? prefix + '-' + number : number);
+            }
+
+            document.getElementById('custom-codes-text').value = codes.join('\n');
+            availability = {};
+            onCustomCodesInput();
+
+            if (typeof showToast === 'function') {
+                showToast(quantity + ' sequential code(s) generated — edit any line before saving.', 'success');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('custom-code-input')?.addEventListener('input', onCustomCodeInput);
+            document.getElementById('custom-codes-text')?.addEventListener('input', onCustomCodesInput);
+            document.getElementById('custom-codes-text')?.addEventListener('blur', normaliseBulkText);
+            document.getElementById('asset-quantity')?.addEventListener('input', () => {
+                syncBulkPanel();
+                if (codeMode === 'custom') onCustomCodesInput();
+            });
+
+            setCodeMode('auto');
+        });
         
         function viewQRCode() {
             const assetId = document.getElementById('asset-code-input').value || '';
@@ -1576,8 +1965,9 @@
                 title: 'QR Code & Quantity', icon: 'ri-qr-code-line',
                 html: `
                     <ul class="space-y-3 text-sm" style="color:#33425C;">
-                        <li><b>Asset Code & QR</b> — generated automatically as you fill the form. Check the preview at the bottom of the page.</li>
-                        <li><b>Quantity</b> — register identical items in one go (e.g., 30 identical office chairs). Each copy gets its own unique asset code and QR label, which you can print after saving.</li>
+                        <li><b>Auto-generate</b> — the default. A unique code is created as you fill the form; <b>Regenerate Code</b> rolls a new one. Use it when the office has no numbering of its own yet.</li>
+                        <li><b>Custom code</b> — type the code the office already uses (e.g. <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">NU-LIPA-ITSO-00457</span>). It is checked against the inventory as you type, so one code can never identify two assets.</li>
+                        <li><b>Quantity</b> — register identical items in one go (e.g., 30 identical office chairs). With a custom code, list one code per line or press <b>Sequential codes</b> to build the run (prefix + start number + digits). Each copy gets its own unique code and QR label, which you can print after saving.</li>
                     </ul>`
             },
             {

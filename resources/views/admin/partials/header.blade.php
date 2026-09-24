@@ -141,6 +141,17 @@
                         </a>
                         @break
 
+                    {{-- Transfer: search the employee list and the transfer history --}}
+                    @case('transfer')
+                        <div class="relative flex-1 sm:flex-none">
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);" aria-hidden="true"></i>
+                            <input type="text" id="transferSearch" placeholder="Search employees..."
+                                aria-label="Search employees by name, employee number or department"
+                                autocomplete="off"
+                                class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-64"/>
+                        </div>
+                        @break
+
                     {{-- Pullout --}}
                     @case('pullout')
                         <button type="button" onclick="openScannerAuto()" class="btn-gold">
