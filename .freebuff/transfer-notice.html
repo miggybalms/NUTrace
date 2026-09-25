@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="OBdPrhiRWVXUJ5C0KF4kkVsSlPswAQGudEhKP6kJ">
+    <title>Transfer - Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root{
+            --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-300:#E9C766; --gold-100:#F3E7C4;
+            --paper:#F3EEE0; --paper-2:#EAE2C9; --paper-3:#F5F0E2;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --line:#DED2AE;
+            --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
+            --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
+            --steel:#2E5C8A; --steel-dark:#234869; --steel-tint:#E9F0F7;
+            --brick:#A23B32; --brick-dark:#7E2E27; --brick-tint:#F7E9E6;
+            --plum:#6B4C82; --plum-dark:#523A64; --plum-tint:#EFE7F3;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--paper);
+            color: var(--ink-900);
+        }
+
+        .font-display{ font-family:'Fraunces',serif; }
+        .font-mono{ font-family:'IBM Plex Mono',monospace; }
+        .eyebrow{ font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-400); }
+
+        .sidebar-item {
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .sidebar-item:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .sidebar-item.active {
+            background-color: rgba(201, 162, 39, 0.10);
+            color: #E9C766;
+            border-left-color: #C9A227;
+        }
+
+        .topbar{ background:#fff; border-bottom:1px solid var(--line); position:relative; }
+        .topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500) 20%, var(--gold-500) 80%, transparent); opacity:.7; }
+
+        .stat-card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:1.5rem; box-shadow: 0 1px 2px rgba(10,24,48,.05), 0 10px 26px -18px rgba(10,24,48,.28); }
+        .stat-icon{ width:2.5rem; height:2.5rem; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+        .panel{ background:#fff; border:1px solid var(--line); box-shadow: 0 1px 2px rgba(10,24,48,.05), 0 10px 26px -18px rgba(10,24,48,.28); }
+
+        .tab-btn{ position:relative; }
+        .tab-btn.tab-active{ color:var(--navy-900) !important; font-weight:600; }
+        .tab-btn.tab-active::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--gold-500); }
+
+        .filter-chip{ border:1px solid var(--line); background:#fff; color:var(--ink-600); border-radius:999px; padding:.375rem .875rem; font-size:.78rem; font-weight:500; transition:all .15s ease; }
+        .filter-chip:hover{ border-color:var(--gold-500); color:var(--navy-900); }
+        .filter-chip.chip-active{ background:var(--navy-900); border-color:var(--navy-900); color:#fff; }
+
+        .employee-row{ cursor:pointer; transition:background-color .15s ease; }
+        .employee-row:hover{ background:var(--paper-3); }
+        .employee-row.is-dimmed{ display:none; }
+
+        .asset-pick{ display:flex; align-items:flex-start; gap:.75rem; padding:.75rem .875rem; border:1px solid var(--line); border-radius:10px; cursor:pointer; transition:all .15s ease; }
+        .asset-pick:hover{ border-color:var(--gold-500); background:var(--paper-3); }
+        .asset-pick.is-checked{ border-color:var(--gold-500); background:#FDF9EE; }
+        .asset-pick input{ accent-color:var(--gold-500); width:1rem; height:1rem; margin-top:.15rem; }
+
+        .step-dot{ width:1.75rem; height:1.75rem; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:700; flex-shrink:0; }
+        .step-dot.is-on{ background:var(--gold-500); color:var(--navy-950); }
+        .step-dot.is-off{ background:var(--paper-2); color:var(--ink-400); }
+
+        .pick-row{ display:flex; align-items:center; gap:.625rem; padding:.625rem .75rem; border-radius:10px; cursor:pointer; transition:background-color .15s ease; }
+        .pick-row:hover{ background:var(--paper-3); }
+        .pick-row.is-selected{ background:var(--gold-100); }
+
+        .flow-arrow{ display:flex; align-items:center; justify-content:center; color:var(--gold-600); }
+        .scroll-area{ max-height:60vh; overflow-y:auto; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        input[type=checkbox], input[type=radio]{ accent-color:var(--gold-500); }
+    </style>
+    <style>
+    /* ================================================================
+       1. Palette tokens — the existing NU Trace palette, nothing new
+       ================================================================ */
+    :root {
+        /* Navy ramp */
+        --nt-navy-950: #0A1830;
+        --nt-navy-900: #0F2143;
+        --nt-navy-850: #142442;
+        --nt-navy-800: #15305B;
+        --nt-navy-750: #1D3F73;
+        --nt-navy-700: #111B2E;
+        --nt-navy-600: #1C2740;
+
+        /* Gold ramp */
+        --nt-gold-600: #A8841E;
+        --nt-gold-500: #C9A227;
+        --nt-gold-400: #E0BC44;
+        --nt-gold-300: #E9C766;
+        --nt-gold-100: #F3E7C4;
+        --nt-gold-tint: #FBF1DE;
+
+        /* Warm neutrals */
+        --nt-paper: #F3EEE0;
+        --nt-paper-2: #EFE9D8;
+        --nt-paper-3: #F5F0E2;
+        --nt-cream: #F3EFE3;
+
+        /* Ink ramp */
+        --nt-ink-900: #1A2233;
+        --nt-ink-800: #24334F;
+        --nt-ink-700: #46536B;
+        --nt-ink-600: #5B6678;
+        --nt-ink-500: #7C86A0;
+        --nt-ink-400: #8991A0;
+        --nt-ink-300: #B7BFD4;
+
+        /* Status */
+        --nt-forest: #2F7A4D;
+        --nt-forest-dark: #245C3B;
+        --nt-forest-tint: #EAF4EE;
+        --nt-bronze: #B4791E;
+        --nt-bronze-dark: #8F5F16;
+        --nt-bronze-tint: #FBF1DE;
+        --nt-brick: #A23B32;
+        --nt-brick-dark: #7E2E27;
+        --nt-brick-tint: #F7E9E6;
+        --nt-steel: #2E5C8A;
+        --nt-steel-tint: #E9F0F7;
+
+        /* --- Derived: hairlines, elevation, geometry, focus --- */
+        --nt-hair: rgba(16, 34, 64, .10);
+        --nt-hair-soft: rgba(16, 34, 64, .065);
+        --nt-hair-strong: rgba(16, 34, 64, .16);
+
+        --nt-e1: 0 1px 2px rgba(10, 24, 48, .05);
+        --nt-e2: 0 1px 2px rgba(10, 24, 48, .04), 0 8px 20px -12px rgba(10, 24, 48, .18);
+        --nt-e3: 0 2px 4px rgba(10, 24, 48, .05), 0 16px 32px -16px rgba(10, 24, 48, .22);
+        --nt-e4: 0 8px 16px -8px rgba(10, 24, 48, .14), 0 32px 64px -24px rgba(10, 24, 48, .30);
+
+        --nt-r-card: 14px;
+        --nt-r-control: 10px;
+        --nt-ring: 0 0 0 3px rgba(201, 162, 39, .30);
+
+        /* The lifecycle accents the dashboard legends already use */
+        --nt-accent-acquired: #2E5C8A;
+        --nt-accent-active: #2F7A4D;
+        --nt-accent-checking: #6B4C82;
+        --nt-accent-repair: #B4791E;
+        --nt-accent-replace: #A23B32;
+        --nt-accent-pullout: #46536B;
+        --nt-accent-disposed: #7E2E27;
+    }
+
+    /* ================================================================
+       2. Base refinements — additive only, safe on every page
+       ================================================================ */
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+    }
+
+    ::selection { background: rgba(201, 162, 39, .28); color: var(--nt-navy-950); }
+
+    /* Keyboard affordance: a gold ring, never on mouse clicks */
+    :focus-visible {
+        outline: 2px solid var(--nt-gold-500);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+    /* Slim, warm scrollbars so they stop fighting the ivory canvas */
+    * { scrollbar-width: thin; scrollbar-color: rgba(16, 34, 64, .20) transparent; }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb {
+        background: rgba(16, 34, 64, .18);
+        border: 3px solid transparent;
+        border-radius: 999px;
+        background-clip: content-box;
+    }
+    *::-webkit-scrollbar-thumb:hover { background: rgba(16, 34, 64, .30); background-clip: content-box; }
+    *::-webkit-scrollbar-corner { background: transparent; }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: .01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: .01ms !important;
+        }
+    }
+
+    /* ================================================================
+       3. Re-tune Tailwind primitives (scoped to beat a single utility)
+       ================================================================ */
+
+    /* Hairlines — the heavy beige outlines become crisp ink-tinted rules */
+    html body .border-\[\#DED2AE\] { border-color: var(--nt-hair); }
+    html body .border-\[\#EFE9D8\] { border-color: var(--nt-hair-soft); }
+    html body .border-\[\#CFC4A4\] { border-color: var(--nt-hair); }
+    html body .border-\[\#EAD9B4\] { border-color: rgba(201, 162, 39, .30); }
+    html body .border-\[\#E3D6B0\] { border-color: rgba(201, 162, 39, .26); }
+    html body .border-\[\#EADFC0\] { border-color: rgba(201, 162, 39, .26); }
+
+    html body .divide-\[\#EFE9D8\] > :not([hidden]) ~ :not([hidden]) { border-color: var(--nt-hair-soft); }
+    html body .divide-\[\#F0EADA\] > :not([hidden]) ~ :not([hidden]) { border-color: var(--nt-hair-soft); }
+
+    /* Elevation — override the shadow variable so Tailwind's own ring
+       composition keeps working, and the shadows turn navy instead of grey */
+    html body .shadow-sm { --tw-shadow: var(--nt-e2); --tw-shadow-colored: var(--nt-e2); }
+    html body .shadow { --tw-shadow: var(--nt-e2); --tw-shadow-colored: var(--nt-e2); }
+    html body .shadow-md { --tw-shadow: var(--nt-e3); --tw-shadow-colored: var(--nt-e3); }
+    html body .shadow-lg { --tw-shadow: var(--nt-e3); --tw-shadow-colored: var(--nt-e3); }
+    html body .shadow-xl { --tw-shadow: var(--nt-e4); --tw-shadow-colored: var(--nt-e4); }
+    html body .shadow-2xl { --tw-shadow: var(--nt-e4); --tw-shadow-colored: var(--nt-e4); }
+
+    /* Figures stop jittering between rows */
+    html body .tabular-nums,
+    .nt-ui .font-mono,
+    .nt-ui .text-2xl,
+    .nt-ui .text-3xl,
+    .nt-ui .text-4xl,
+    .nt-ui .text-5xl { font-variant-numeric: tabular-nums; }
+
+    /* ================================================================
+       4. In-app component language
+       ================================================================ */
+
+    /* ---- Surfaces ------------------------------------------------- */
+    .nt-ui .card,
+    .nt-ui .stat-card,
+    .nt-ui .asset-card,
+    .nt-ui .quicklink-tile,
+    .nt-ui .acc-tile,
+    .nt-ui .duo-card,
+    .nt-ui .section-card,
+    .nt-ui .panel,
+    .nt-ui .table-container {
+        border-color: var(--nt-hair);
+        border-radius: var(--nt-r-card);
+        box-shadow: var(--nt-e2);
+        background-color: #fff;
+    }
+
+    /* A gold hairline across the top marks the primary/hero surface without
+       flooding the card with gold the way a solid fill does. */
+    .nt-ui .card-accent,
+    .nt-ui .stat-card-accent { box-shadow: var(--nt-e2), inset 0 2px 0 0 var(--nt-gold-500); }
+
+    /* Cards you can act on lift slightly instead of sliding sideways */
+    .nt-ui .stat-card,
+    .nt-ui .asset-card,
+    .nt-ui .quicklink-tile,
+    .nt-ui .acc-tile {
+        transition: box-shadow .15s ease-out, border-color .15s ease-out, transform .15s ease-out;
+    }
+    .nt-ui .stat-card:hover,
+    .nt-ui .asset-card:hover,
+    .nt-ui .quicklink-tile:hover,
+    .nt-ui .acc-tile:hover {
+        box-shadow: var(--nt-e3);
+        border-color: rgba(16, 34, 64, .16);
+        transform: translateY(-1px);
+    }
+
+    /* Rows: a quiet tint on hover, no lateral movement */
+    .nt-ui .request-item,
+    .nt-ui .request-row,
+    .nt-ui .asset-row {
+        transition: background-color .15s ease-out, border-color .15s ease-out;
+    }
+    .nt-ui .request-item:hover,
+    .nt-ui .request-row:hover,
+    .nt-ui .asset-row:hover {
+        background-color: var(--nt-paper-3);
+        border-color: var(--nt-hair);
+        transform: none;
+    }
+
+    /* ---- Type ----------------------------------------------------- */
+    .nt-ui .font-display { letter-spacing: -.015em; }
+    .nt-ui .eyebrow {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        color: var(--nt-ink-500);
+    }
+    .nt-ui .section-head {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -.01em;
+        color: var(--nt-navy-950);
+    }
+    .nt-ui .meta { color: var(--nt-ink-600); }
+    .nt-ui .detail-field .detail-label,
+    .nt-ui .detail-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--nt-ink-500);
+    }
+
+    /* ---- Badges --------------------------------------------------- */
+    .nt-ui .status-badge,
+    .nt-ui .tag {
+        border-radius: 999px;
+        font-weight: 600;
+        letter-spacing: .01em;
+        border-width: 1px;
+        border-style: solid;
+    }
+
+    /* ---- Controls ------------------------------------------------- */
+    .nt-ui .btn-gold,
+    .nt-ui .btn-ghost,
+    .nt-ui .btn-primary,
+    .nt-ui .submit-btn,
+    .nt-ui .filter-btn {
+        border-radius: var(--nt-r-control);
+        font-weight: 600;
+        letter-spacing: .005em;
+        transition: background-color .15s ease-out, border-color .15s ease-out,
+                    box-shadow .15s ease-out, color .15s ease-out;
+    }
+
+    /* Gold stays the primary action, minus the heavy drop shadow */
+    .nt-ui .btn-gold,
+    .nt-ui .btn-primary,
+    .nt-ui .submit-btn {
+        box-shadow: var(--nt-e1);
+    }
+    .nt-ui .btn-gold:hover,
+    .nt-ui .btn-primary:hover,
+    .nt-ui .submit-btn:hover {
+        box-shadow: var(--nt-e2);
+        transform: none;
+    }
+
+    .nt-ui .filter-tab,
+    .nt-ui .filter-chip,
+    .nt-ui .tab-btn {
+        border-radius: 999px;
+        font-weight: 500;
+        transition: background-color .15s ease-out, color .15s ease-out, border-color .15s ease-out;
+    }
+
+    /* Fields: one height, one radius, a gold ring on focus */
+    .nt-ui .form-input,
+    .nt-ui .search-input,
+    .nt-ui input[type="text"],
+    .nt-ui input[type="email"],
+    .nt-ui input[type="password"],
+    .nt-ui input[type="number"],
+    .nt-ui input[type="search"],
+    .nt-ui input[type="tel"],
+    .nt-ui input[type="date"],
+    .nt-ui select,
+    .nt-ui textarea {
+        border-radius: var(--nt-r-control);
+        border-color: var(--nt-hair-strong);
+        transition: border-color .15s ease-out, box-shadow .15s ease-out;
+    }
+    .nt-ui .form-input:focus,
+    .nt-ui .search-input:focus,
+    .nt-ui input[type="text"]:focus,
+    .nt-ui input[type="email"]:focus,
+    .nt-ui input[type="password"]:focus,
+    .nt-ui input[type="number"]:focus,
+    .nt-ui input[type="search"]:focus,
+    .nt-ui input[type="tel"]:focus,
+    .nt-ui input[type="date"]:focus,
+    .nt-ui select:focus,
+    .nt-ui textarea:focus {
+        outline: none;
+        border-color: var(--nt-gold-500);
+        box-shadow: var(--nt-ring);
+    }
+    .nt-ui ::placeholder { color: var(--nt-ink-400); }
+
+    /* ---- Chrome: top bars ----------------------------------------- */
+    .nt-ui .topbar,
+    .nt-ui .admin-topbar,
+    .nt-ui .top {
+        background-color: rgba(255, 255, 255, .88);
+        -webkit-backdrop-filter: saturate(160%) blur(10px);
+        backdrop-filter: saturate(160%) blur(10px);
+        border-bottom: 1px solid var(--nt-hair);
+        box-shadow: none;
+    }
+
+    /* ---- Chrome: sidebar ------------------------------------------ */
+    .nt-ui .sidebar-item {
+        border-left-width: 0;
+        border-radius: 10px;
+        transition: background-color .15s ease-out, color .15s ease-out;
+        position: relative;
+    }
+    .nt-ui .sidebar-item::before {
+        content: "";
+        position: absolute;
+        left: -10px;
+        top: 50%;
+        width: 3px;
+        height: 0;
+        border-radius: 0 3px 3px 0;
+        background: var(--nt-gold-500);
+        transform: translateY(-50%);
+        transition: height .15s ease-out;
+    }
+    .nt-ui .sidebar-item:hover { background-color: rgba(255, 255, 255, .06); }
+    .nt-ui .sidebar-item.active {
+        background-color: rgba(201, 162, 39, .14);
+        color: var(--nt-gold-300);
+    }
+    .nt-ui .sidebar-item.active::before { height: 60%; }
+    .nt-ui .sidebar-item.active i { color: var(--nt-gold-300); }
+
+    /* ---- Tables --------------------------------------------------- */
+    .nt-ui .table-container thead th {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--nt-ink-500);
+        background-color: var(--nt-paper-2);
+        border-bottom: 1px solid var(--nt-hair);
+    }
+    .nt-ui .table-container tbody tr { border-bottom: 1px solid var(--nt-hair-soft); }
+    .nt-ui .table-container tbody tr:last-child { border-bottom: 0; }
+    .nt-ui .table-container tbody tr:hover { background-color: var(--nt-paper-3); }
+
+    /* ---- Modals --------------------------------------------------- */
+    .nt-ui .modal {
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+    }
+    .nt-ui .modal-panel {
+        border-radius: var(--nt-r-card);
+        border: 1px solid var(--nt-hair);
+        box-shadow: var(--nt-e4);
+    }
+    .nt-ui .modal-head {
+        border-bottom: 1px solid var(--nt-hair);
+        letter-spacing: -.01em;
+    }
+
+    /* ---- Empty states --------------------------------------------- */
+    .nt-ui .empty-state i,
+    .nt-ui .empty i { color: var(--nt-gold-500); }
+
+    /* ---- Upload / drop areas -------------------------------------- */
+    .nt-ui .upload-area {
+        border-radius: var(--nt-r-card);
+        border-color: var(--nt-hair-strong);
+        background-color: var(--nt-paper-3);
+        transition: border-color .15s ease-out, background-color .15s ease-out;
+    }
+    .nt-ui .upload-area:hover {
+        border-color: var(--nt-gold-500);
+        background-color: var(--nt-gold-tint);
+    }
+</style>
+</head>
+<body class="nt-ui">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Mobile overlay (click to close sidebar) -->
+<div id="sidebarOverlay" onclick="closeSidebar()"
+     class="hidden fixed inset-0 bg-black/60 z-40 lg:hidden"></div>
+
+<div id="sidebar"
+     class="fixed inset-y-0 left-0 z-50 w-64 bg-[#0B1220] text-white flex flex-col overflow-y-auto
+            transform -translate-x-full transition-transform duration-300 ease-in-out
+            lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:z-auto">
+
+    <div class="px-5 py-5 border-b border-[#C9A227]/15 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <span class="inline-flex items-center justify-center rounded-[10px] bg-[#142442] border border-[#C9A227]/25 flex-shrink-0"
+          style="width:36px;height:36px">
+        <img src="https://mpzkrhaxbdvgkvphkqqb.supabase.co/storage/v1/object/public/assets/brand/logo-mark.png" alt="NU Trace"
+              class="block flex-shrink-0"               style="width:27px;height:auto"              onerror="this.onerror=null;this.src='/images/logo-mark.png'">
+    </span>
+            <h1 class="text-[17px] font-medium text-[#F3EFE3]">NU Trace</h1>
+        </div>
+        <!-- Close button, mobile only -->
+        <button onclick="closeSidebar()" class="lg:hidden text-[#7C86A0] hover:text-white">
+            <i class="ri-close-line text-2xl"></i>
+        </button>
+    </div>
+
+    <nav class="flex-1 py-4">
+        <div class="px-4 mb-1">
+            <div class="flex items-center gap-2 px-2.5 pb-2.5">
+                <span class="text-xs font-medium text-[#7C86A0]">Main</span>
+                <span class="flex-1 h-px bg-[#C9A227]/15"></span>
+            </div>
+
+            <a href="/admin"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-dashboard-line text-lg"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/admin/assets"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-computer-line text-lg"></i>
+                <span>Assets</span>
+            </a>
+            <a href="/admin/requests"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-mail-line text-lg"></i>
+                <span>Requests</span>
+            </a>
+            <a href="/admin/replacement"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-refresh-line text-lg"></i>
+                <span>Replacement</span>
+            </a>
+            <a href="/admin/repair"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-tools-line text-lg"></i>
+                <span>Repair</span>
+            </a>
+            <a href="/admin/disposal"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-delete-bin-line text-lg"></i>
+                <span>Disposal</span>
+            </a>
+            <a href="/admin/pullout"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]">
+                <i class="ri-archive-drawer-line text-lg"></i>
+                <span>Pullout</span>
+            </a>
+            <a href="/admin/transfer"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      border-l-[3px] border-[#C9A227] rounded-l-none bg-[#C9A227]/10 text-[#E9C766] font-medium pl-[9px]">
+                <i class="ri-swap-line text-lg"></i>
+                <span>Transfer</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="border-t border-[#C9A227]/15 p-3.5 mt-auto">
+        <div class="flex items-center mb-2 p-2.5 rounded-xl bg-[#111B2E]">
+            <div class="w-9 h-9 rounded-full bg-[#1C2740] border border-[#C9A227]/70 flex items-center justify-center flex-shrink-0">
+                                    <span class="text-[#E9C766] font-medium text-[13px]">SA</span>
+                            </div>
+            <div class="ml-2.5 flex-1 min-w-0">
+                <p class="text-[13px] font-medium text-[#F3EFE3] truncate">Sir alex</p>
+                <p class="text-xs text-[#7C86A0] truncate">alex@nu-lipa.edu.ph</p>
+            </div>
+        </div>
+        <a href="/logout" class="flex items-center gap-3 px-3 py-2 text-sm text-[#9AA3B8] rounded-lg hover:bg-white/5 hover:text-[#F3EFE3] transition-colors">
+            <i class="ri-logout-box-r-line text-lg"></i>
+            <span>Logout</span>
+        </a>
+    </div>
+</div>
+
+<script>
+    function openSidebar() {
+        document.getElementById('sidebar').classList.remove('-translate-x-full');
+        document.getElementById('sidebarOverlay').classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('sidebarOverlay').classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.contains('-translate-x-full')
+            ? openSidebar()
+            : closeSidebar();
+    }
+    window.addEventListener('resize', function () {
+        if (window.innerWidth >= 1024) {
+            document.getElementById('sidebarOverlay').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+    });
+</script>
+        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+            <style>
+    .admin-topbar{ background:#fff; border-bottom:1px solid var(--line,#E4DCC6); position:relative; }
+    .admin-topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500,#C9A227) 20%, var(--gold-500,#C9A227) 80%, transparent); opacity:.7; }
+    .admin-topbar .search-input{ border:1px solid var(--line,#E4DCC6); background:#fff; transition:border-color .15s, box-shadow .15s; }
+    .admin-topbar .search-input:focus{ outline:none; border-color:var(--gold-500,#C9A227); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
+    .admin-topbar .avatar-badge{ background:var(--navy-950,#0A1830); color:var(--gold-500,#C9A227); border:1px solid var(--gold-500,#C9A227); }
+    .admin-topbar .badge-role{ background:var(--gold-100,#F3E7C4); color:var(--navy-900,#0F2143); }
+    .admin-topbar .btn-gold{ background:var(--gold-500,#C9A227); color:#0A1830; font-weight:600; padding:.625rem 1.1rem; border-radius:.6rem; display:inline-flex; align-items:center; justify-content:center; transition:background .15s; font-size:.875rem; }
+    .admin-topbar .btn-gold:hover{ background:var(--gold-400,#E0BC44); }
+    .admin-topbar .btn-ghost{ background:#fff; color:var(--ink-600,#5B6678); border:1px solid var(--gold-500,#C9A227); font-weight:600; padding:.625rem 1.1rem; border-radius:.6rem; display:inline-flex; align-items:center; justify-content:center; transition:background .15s; font-size:.875rem; }
+    .admin-topbar .btn-ghost:hover{ background:var(--paper-2,#EFE9D8); }
+</style>
+
+<div class="admin-topbar sticky top-0 z-10">
+    <div class="px-4 sm:px-8 py-5">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div class="flex items-center min-w-0">
+                                    <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400,#8991A0);" title="Menu">
+                        <i class="ri-menu-line text-2xl"></i>
+                    </button>
+                                <div class="flex items-center gap-3 min-w-0">
+                    <span class="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center flex-shrink-0" style="background:var(--gold-100,#F3E7C4);" aria-hidden="true">
+                        <i class="ri-swap-line text-lg" style="color:var(--navy-900,#0F2143);"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900,#0F2143);">Transfer</h2>
+                        <div class="flex items-center gap-2 mt-1 min-w-0">
+                            <span class="avatar-badge w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">SA</span>
+                            <p class="text-sm truncate">
+                                <span class="font-semibold" style="color:var(--navy-900,#0F2143);">Sir alex</span>
+                                <span class="mx-1.5" style="color:var(--ink-400,#8991A0);">•</span>
+                                <span style="color:var(--ink-600,#5B6678);">Employee Relocation</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                                        <div class="relative flex-1 sm:flex-none">
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);" aria-hidden="true"></i>
+                            <input type="text" id="transferSearch" placeholder="Search employees..."
+                                aria-label="Search employees by name, employee number or department"
+                                autocomplete="off"
+                                class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-64"/>
+                        </div>
+                        
+                
+                            </div>
+        </div>
+    </div>
+</div>
+
+
+            <div class="p-4 sm:p-8">
+                
+                                    <div class="mb-6 px-4 py-3 rounded-xl flex items-start gap-3" style="background:var(--steel-tint); border:1px solid #CFDCE8;">
+                        <i class="ri-information-line text-lg mt-0.5" style="color:var(--steel);"></i>
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium" style="color:var(--steel);">This transfer was already completed, so nothing was changed — the assets are already with the receiving employee.</p>
+                                                            <button type="button" class="text-xs font-semibold mt-1 underline" style="color:var(--steel);"
+                                        onclick="openHistoryModal(37)">
+                                    View transfer #TR-0037
+                                </button>
+                                                    </div>
+                    </div>
+                
+                
+                <!-- Overview -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm mb-1" style="color:var(--ink-600);">Employees with assets</p>
+                                <p class="text-3xl font-bold" style="color:var(--navy-900);">3</p>
+                                <p class="text-xs mt-2" style="color:var(--ink-400);">Currently accountable</p>
+                            </div>
+                            <div class="stat-icon" style="background:var(--steel-tint);">
+                                <i class="ri-team-line text-xl" style="color:var(--steel);"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm mb-1" style="color:var(--ink-600);">Assets in custody</p>
+                                <p class="text-3xl font-bold" style="color:var(--navy-900);">69</p>
+                                <p class="text-xs mt-2" style="color:var(--ink-400);">Ready to be transferred</p>
+                            </div>
+                            <div class="stat-icon" style="background:var(--gold-100);">
+                                <i class="ri-computer-line text-xl" style="color:var(--gold-600);"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm mb-1" style="color:var(--ink-600);">Completed transfers</p>
+                                <p class="text-3xl font-bold" style="color:var(--navy-900);">3</p>
+                                <p class="text-xs mt-2" style="color:var(--ink-400);">All time relocations</p>
+                            </div>
+                            <div class="stat-icon" style="background:var(--plum-tint);">
+                                <i class="ri-swap-line text-xl" style="color:var(--plum);"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm mb-1" style="color:var(--ink-600);">Assets transferred</p>
+                                <p class="text-3xl font-bold" style="color:var(--navy-900);">27</p>
+                                <p class="text-xs mt-2" style="color:var(--ink-400);">Across every transfer</p>
+                            </div>
+                            <div class="stat-icon" style="background:var(--forest-tint);">
+                                <i class="ri-arrow-left-right-line text-xl" style="color:var(--forest);"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="panel rounded-t-xl mb-0">
+                    <div class="flex space-x-6 sm:space-x-8 px-4 sm:px-6 pt-4 overflow-x-auto scrollbar-hide">
+                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="employees">
+                            Employees
+                        </button>
+                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="history">
+                            Transfer History
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Employees -->
+                <div id="tab-employees" class="panel rounded-b-xl overflow-hidden" style="border-top:0;">
+                    <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-2" style="border-bottom:1px solid var(--line);">
+                        <span class="eyebrow mr-1">Department</span>
+                        <button type="button" class="filter-chip chip-active" data-dept="*">All</button>
+                                                    <button type="button" class="filter-chip" data-dept="Admin office">Admin office</button>
+                                                    <button type="button" class="filter-chip" data-dept="IT Department">IT Department</button>
+                                            </div>
+
+                    <div class="overflow-x-auto scrollbar-hide">
+                        <table class="w-full">
+                            <thead class="sticky top-0" style="background:var(--paper-2); border-bottom:1px solid var(--line);">
+                                <tr>
+                                    <th class="eyebrow text-left py-3 px-3">Employee</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Employee No.</th>
+                                    <th class="eyebrow text-left py-3 px-3">Position / Department</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Assigned Assets</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Status</th>
+                                    <th class="eyebrow text-right py-3 px-3 whitespace-nowrap">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employees-table-body">
+                                                                    <tr class="employee-row" style="border-bottom:1px solid var(--line);"
+                                        data-employee-id="4"
+                                        data-department="IT Department"
+                                        data-search="christian miguel l balmes 2023 - 181569 it department employee"
+                                        onclick="openAssetsModal(4)">
+                                        <td class="py-3 px-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                                      style="background:var(--navy-900); color:var(--gold-300);">
+                                                    CB
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium truncate" style="color:var(--navy-900);">Christian Miguel L Balmes</p>
+                                                    <p class="text-xs truncate" style="color:var(--ink-400);">miggybalmes9@gmail.com</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--ink-600);">2023 - 181569</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Employee</span>
+                                            <span class="mx-1" style="color:var(--ink-400);">•</span>
+                                            IT Department
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                    <i class="ri-computer-line mr-1 text-xs"></i>26
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--forest-tint); color:var(--forest-dark);">
+                                                    <span class="w-1.5 h-1.5 rounded-full mr-1.5" style="background:var(--forest);"></span>Current
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                            <button type="button" onclick="openAssetsModal(4)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                                    <tr class="employee-row" style="border-bottom:1px solid var(--line);"
+                                        data-employee-id="5"
+                                        data-department="IT Department"
+                                        data-search="irene balmes 23-0853 it department employee"
+                                        onclick="openAssetsModal(5)">
+                                        <td class="py-3 px-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                                      style="background:var(--navy-900); color:var(--gold-300);">
+                                                    IB
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium truncate" style="color:var(--navy-900);">Irene Balmes</p>
+                                                    <p class="text-xs truncate" style="color:var(--ink-400);">ilbalmes@nu-lipa.edu.ph</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--ink-600);">23-0853</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Employee</span>
+                                            <span class="mx-1" style="color:var(--ink-400);">•</span>
+                                            IT Department
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                    <i class="ri-computer-line mr-1 text-xs"></i>1
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--forest-tint); color:var(--forest-dark);">
+                                                    <span class="w-1.5 h-1.5 rounded-full mr-1.5" style="background:var(--forest);"></span>Current
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                            <button type="button" onclick="openAssetsModal(5)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                                    <tr class="employee-row" style="border-bottom:1px solid var(--line);"
+                                        data-employee-id="3"
+                                        data-department="IT Department"
+                                        data-search="joel enriquize 23-0850 it department employee"
+                                        onclick="openAssetsModal(3)">
+                                        <td class="py-3 px-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                                      style="background:var(--navy-900); color:var(--gold-300);">
+                                                    JE
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium truncate" style="color:var(--navy-900);">Joel Enriquize</p>
+                                                    <p class="text-xs truncate" style="color:var(--ink-400);">joel@yahoo.com</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--ink-600);">23-0850</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Employee</span>
+                                            <span class="mx-1" style="color:var(--ink-400);">•</span>
+                                            IT Department
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="text-xs" style="color:var(--ink-400);">None</span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--gold-100); color:var(--gold-600);"
+                                                      title="Has handed assets over in a completed transfer">
+                                                    <i class="ri-swap-line mr-1 text-xs"></i>Reassigned
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                            <button type="button" onclick="openAssetsModal(3)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                                    <tr class="employee-row" style="border-bottom:1px solid var(--line);"
+                                        data-employee-id="2"
+                                        data-department="IT Department"
+                                        data-search="joseph aramil 23-0953 it department department head"
+                                        onclick="openAssetsModal(2)">
+                                        <td class="py-3 px-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                                      style="background:var(--navy-900); color:var(--gold-300);">
+                                                    JA
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium truncate" style="color:var(--navy-900);">Joseph Aramil</p>
+                                                    <p class="text-xs truncate" style="color:var(--ink-400);">joseph@nu-lipa.edu.ph</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--ink-600);">23-0953</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Department Head</span>
+                                            <span class="mx-1" style="color:var(--ink-400);">•</span>
+                                            IT Department
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                    <i class="ri-computer-line mr-1 text-xs"></i>42
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--gold-100); color:var(--gold-600);"
+                                                      title="Has handed assets over in a completed transfer">
+                                                    <i class="ri-swap-line mr-1 text-xs"></i>Reassigned
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                            <button type="button" onclick="openAssetsModal(2)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                                    <tr class="employee-row" style="border-bottom:1px solid var(--line);"
+                                        data-employee-id="1"
+                                        data-department="Admin office"
+                                        data-search="sir alex 23-191865 admin office admin"
+                                        onclick="openAssetsModal(1)">
+                                        <td class="py-3 px-3">
+                                            <div class="flex items-center gap-3">
+                                                <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                                      style="background:var(--navy-900); color:var(--gold-300);">
+                                                    SA
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium truncate" style="color:var(--navy-900);">Sir alex</p>
+                                                    <p class="text-xs truncate" style="color:var(--ink-400);">alex@nu-lipa.edu.ph</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--ink-600);">23-191865</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Admin</span>
+                                            <span class="mx-1" style="color:var(--ink-400);">•</span>
+                                            Admin office
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="text-xs" style="color:var(--ink-400);">None</span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                                                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                      style="background:var(--forest-tint); color:var(--forest-dark);">
+                                                    <span class="w-1.5 h-1.5 rounded-full mr-1.5" style="background:var(--forest);"></span>Current
+                                                </span>
+                                                                                    </td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                                            <button type="button" onclick="openAssetsModal(1)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                            </tbody>
+                        </table>
+                    </div>
+                    <div id="employees-no-match" class="hidden py-12 text-center">
+                        <i class="ri-search-line text-4xl mb-3 block" style="color:var(--gold-500);"></i>
+                        <p class="text-sm font-medium" style="color:var(--navy-900);">No matching employees</p>
+                        <p class="text-xs mt-1" style="color:var(--ink-400);">Try a different name, employee number or department — or clear the search box.</p>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div id="tab-history" class="panel rounded-b-xl overflow-hidden hidden" style="border-top:0;">
+                    <div class="overflow-x-auto scrollbar-hide">
+                        <table class="w-full">
+                            <thead class="sticky top-0" style="background:var(--paper-2); border-bottom:1px solid var(--line);">
+                                <tr>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Transfer</th>
+                                    <th class="eyebrow text-left py-3 px-3">From → To</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Assets</th>
+                                    <th class="eyebrow text-left py-3 px-3">Reason</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Date</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Recorded By</th>
+                                    <th class="eyebrow text-right py-3 px-3 whitespace-nowrap">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                                                    <tr class="request-row" style="border-bottom:1px solid var(--line);"
+                                        data-search="joel enriquize christian miguel l balmes employee relocation tr-0037">
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--navy-900);">TR-0037</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Joel Enriquize</span>
+                                            <i class="ri-arrow-right-line mx-1 text-xs" style="color:var(--gold-600);"></i>
+                                            <span style="color:var(--navy-900);">Christian Miguel L Balmes</span>
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                  style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                25
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">Employee Relocation</td>
+                                        <td class="py-3 px-3 text-sm whitespace-nowrap" style="color:var(--ink-600);">
+                                            Sep 24, 2026
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">Sir alex</td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap">
+                                            <button type="button" onclick="openHistoryModal(37)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                                    <tr class="request-row" style="border-bottom:1px solid var(--line);"
+                                        data-search="joel enriquize irene balmes testing tr-0035">
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--navy-900);">TR-0035</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Joel Enriquize</span>
+                                            <i class="ri-arrow-right-line mx-1 text-xs" style="color:var(--gold-600);"></i>
+                                            <span style="color:var(--navy-900);">Irene Balmes</span>
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                  style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                1
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">Testing</td>
+                                        <td class="py-3 px-3 text-sm whitespace-nowrap" style="color:var(--ink-600);">
+                                            Sep 22, 2026
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">Sir alex</td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap">
+                                            <button type="button" onclick="openHistoryModal(35)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                                    <tr class="request-row" style="border-bottom:1px solid var(--line);"
+                                        data-search="joseph aramil joel enriquize kay pareng joel eto tr-0004">
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--navy-900);">TR-0004</td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">Joseph Aramil</span>
+                                            <i class="ri-arrow-right-line mx-1 text-xs" style="color:var(--gold-600);"></i>
+                                            <span style="color:var(--navy-900);">Joel Enriquize</span>
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                  style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                1
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">kay pareng joel eto</td>
+                                        <td class="py-3 px-3 text-sm whitespace-nowrap" style="color:var(--ink-600);">
+                                            Jul 26, 2026
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">Sir alex</td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap">
+                                            <button type="button" onclick="openHistoryModal(4)"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                                            </tbody>
+                        </table>
+                    </div>
+                    <div id="history-no-match" class="hidden py-12 text-center">
+                        <i class="ri-search-line text-4xl mb-3 block" style="color:var(--gold-500);"></i>
+                        <p class="text-sm font-medium" style="color:var(--navy-900);">No matching transfers</p>
+                        <p class="text-xs mt-1" style="color:var(--ink-400);">Try another employee name, reason or transfer number.</p>
+                    </div>
+                </div>
+
+                <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
+                    © 2026 University Asset Management. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: the employee's assigned assets -->
+    <div id="assetsModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4" style="background:rgba(10,24,48,.6);" onclick="closeAssetsModal()">
+        <div class="panel modal-panel rounded-xl w-full max-w-3xl flex flex-col max-h-[92vh]" onclick="event.stopPropagation();">
+            <div class="modal-head px-6 py-5 flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="eyebrow mb-1">Employee Transfer</p>
+                    <h3 class="font-display text-lg font-semibold truncate" id="assets-modal-name" style="color:var(--navy-900);">—</h3>
+                    <p class="text-sm mt-0.5" id="assets-modal-meta" style="color:var(--ink-400);">—</p>
+                </div>
+                <button type="button" onclick="closeAssetsModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-4 grid grid-cols-2 sm:grid-cols-3 gap-3" style="border-bottom:1px solid var(--line);">
+                <div class="rounded-xl px-3 py-2.5" style="background:var(--paper-3);">
+                    <p class="eyebrow mb-0.5">Assigned</p>
+                    <p class="text-xl font-bold" id="assets-modal-count" style="color:var(--navy-900);">0</p>
+                </div>
+                <div class="rounded-xl px-3 py-2.5" style="background:var(--paper-3);">
+                    <p class="eyebrow mb-0.5">Status</p>
+                    <p class="text-sm font-semibold pt-1" id="assets-modal-status" style="color:var(--navy-900);">—</p>
+                </div>
+                <div class="rounded-xl px-3 py-2.5 col-span-2 sm:col-span-1" style="background:var(--paper-3);">
+                    <p class="eyebrow mb-0.5">Selected</p>
+                    <p class="text-xl font-bold" id="assets-modal-selected" style="color:var(--navy-900);">0</p>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 flex items-center justify-between gap-3" style="border-bottom:1px solid var(--line);">
+                <label class="flex items-center gap-2 text-sm cursor-pointer" style="color:var(--ink-600);">
+                    <input type="checkbox" id="select-all-assets" onchange="toggleAllAssets(this.checked)">
+                    Select all assets
+                </label>
+                <p class="text-xs" style="color:var(--ink-400);" id="assets-modal-note"></p>
+            </div>
+
+            <div class="px-6 py-4 scroll-area flex-1" id="assets-modal-list">
+                <!-- filled by JS -->
+            </div>
+
+            <div class="px-6 py-5 flex flex-wrap items-center justify-end gap-3" style="border-top:1px solid var(--line);">
+                <button type="button" onclick="closeAssetsModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium" style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="transfer-selected-btn" onclick="startTransfer()" class="px-5 py-2.5 rounded-lg text-sm font-semibold" style="background:var(--gold-500); color:var(--navy-950);">
+                    <i class="ri-swap-line mr-1.5"></i><span id="transfer-selected-label">Transfer Assets</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: pick the receiving employee -->
+    <div id="receiverModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4" style="background:rgba(10,24,48,.6);" onclick="closeReceiverModal()">
+        <div class="panel modal-panel rounded-xl w-full max-w-2xl flex flex-col max-h-[92vh]" onclick="event.stopPropagation();">
+            <div class="modal-head px-6 py-5">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="step-dot is-on">1</span>
+                    <span class="text-xs font-semibold" style="color:var(--ink-400);">of 2 — who takes over</span>
+                </div>
+                <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Transfer Assets</h3>
+            </div>
+
+            <div class="px-6 py-4 scroll-area flex-1">
+                <div class="rounded-xl px-4 py-3 mb-5 flex items-center justify-between gap-4" style="background:var(--paper-3); border:1px solid var(--line);">
+                    <div class="min-w-0">
+                        <p class="eyebrow mb-1">From</p>
+                        <p class="text-sm font-semibold truncate" id="receiver-from-name" style="color:var(--navy-900);">—</p>
+                        <p class="text-xs truncate" id="receiver-from-meta" style="color:var(--ink-400);">—</p>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                        <p class="eyebrow mb-1">Assets</p>
+                        <p class="text-xl font-bold" id="receiver-asset-count" style="color:var(--navy-900);">0</p>
+                    </div>
+                </div>
+
+                <label for="receiver-search" class="eyebrow mb-2 block">Transfer to</label>
+                <div class="relative">
+                    <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400);"></i>
+                    <input type="text" id="receiver-search" autocomplete="off"
+                           placeholder="Search employee by name, number or department..."
+                           class="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm"
+                           style="border:1px solid var(--line);" oninput="renderReceiverResults(this.value)">
+                </div>
+
+                <div id="receiver-results" class="mt-2 space-y-1 scroll-area" style="max-height:15rem;">
+                    <!-- filled by JS -->
+                </div>
+
+                <div id="receiver-selected" class="hidden mt-3 rounded-xl px-4 py-3 flex items-center gap-3" style="background:var(--gold-100); border:1px solid #EADFC0;">
+                    <i class="ri-user-received-line text-lg" style="color:var(--gold-600);"></i>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold truncate" id="receiver-picked-name" style="color:var(--navy-900);">—</p>
+                        <p class="text-xs truncate" id="receiver-picked-meta" style="color:var(--ink-600);">—</p>
+                    </div>
+                    <button type="button" onclick="clearReceiver()" class="text-sm" style="color:var(--brick);" title="Clear">
+                        <i class="ri-close-line"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+                    <div>
+                        <label for="reason-select" class="eyebrow mb-2 block">Reason</label>
+                        <select id="reason-select" class="w-full px-3 py-2.5 rounded-lg text-sm" style="border:1px solid var(--line);">
+                                                            <option value="Employee Relocation">Employee Relocation</option>
+                                                            <option value="Position Reassignment">Position Reassignment</option>
+                                                            <option value="Employee Replacement">Employee Replacement</option>
+                                                            <option value="Department Transfer">Department Transfer</option>
+                                                            <option value="Other">Other</option>
+                                                    </select>
+                    </div>
+                    <div>
+                        <label for="transfer-notes" class="eyebrow mb-2 block">Notes <span class="normal-case" style="color:var(--ink-400);">(optional)</span></label>
+                        <input type="text" id="transfer-notes" maxlength="1000" placeholder="e.g., Take-over after June 2026 reshuffling"
+                               class="w-full px-3 py-2.5 rounded-lg text-sm" style="border:1px solid var(--line);">
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-5 flex flex-wrap items-center justify-end gap-3" style="border-top:1px solid var(--line);">
+                <button type="button" onclick="closeReceiverModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium" style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="continue-btn" onclick="reviewTransfer()" class="px-5 py-2.5 rounded-lg text-sm font-semibold" style="background:var(--gold-500); color:var(--navy-950); opacity:.5;" disabled>
+                    Continue <i class="ri-arrow-right-line ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: confirm -->
+    <div id="confirmModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4" style="background:rgba(10,24,48,.65);" onclick="closeConfirmModal()">
+        <div class="panel modal-panel rounded-xl w-full max-w-xl flex flex-col max-h-[92vh]" onclick="event.stopPropagation();">
+            <div class="modal-head px-6 py-5">
+                <div class="flex items-center gap-2.5 mb-3">
+                    <span class="step-dot is-on">2</span>
+                    <span class="text-xs font-semibold" style="color:var(--ink-400);">of 2 — confirm</span>
+                </div>
+                <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Confirm Asset Transfer</h3>
+            </div>
+
+            <div class="px-6 py-5 scroll-area flex-1">
+                <div class="grid grid-cols-1 sm:grid-cols-3 items-center gap-3">
+                    <div class="rounded-xl px-4 py-3" style="background:var(--paper-3); border:1px solid var(--line);">
+                        <p class="eyebrow mb-1">From</p>
+                        <p class="text-sm font-semibold" id="confirm-from-name" style="color:var(--navy-900);">—</p>
+                        <p class="text-xs mt-0.5" id="confirm-from-meta" style="color:var(--ink-400);">—</p>
+                    </div>
+                    <div class="flow-arrow flex-row sm:flex-col gap-2 py-1">
+                        <i class="ri-arrow-down-line hidden sm:block text-xl"></i>
+                        <i class="ri-arrow-right-line sm:hidden text-xl"></i>
+                        <span class="text-xs font-bold whitespace-nowrap" style="color:var(--gold-600);"><span id="confirm-asset-count">0</span> ASSETS</span>
+                    </div>
+                    <div class="rounded-xl px-4 py-3" style="background:var(--gold-100); border:1px solid #EADFC0;">
+                        <p class="eyebrow mb-1">To</p>
+                        <p class="text-sm font-semibold" id="confirm-to-name" style="color:var(--navy-900);">—</p>
+                        <p class="text-xs mt-0.5" id="confirm-to-meta" style="color:var(--ink-600);">—</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <p class="eyebrow mb-1">Reason</p>
+                        <p class="text-sm font-medium" id="confirm-reason" style="color:var(--navy-900);">—</p>
+                    </div>
+                    <div>
+                        <p class="eyebrow mb-1">Notes</p>
+                        <p class="text-sm" id="confirm-notes" style="color:var(--ink-600);">—</p>
+                    </div>
+                </div>
+
+                <div class="mt-5">
+                    <p class="eyebrow mb-2">Assets that will move</p>
+                    <div id="confirm-asset-list" class="space-y-1 scroll-area" style="max-height:11rem;"></div>
+                </div>
+
+                <div class="mt-5 flex items-start gap-2.5 px-3.5 py-3 rounded-xl" style="background:var(--bronze-tint); border:1px solid #EADFC0;">
+                    <i class="ri-alert-line text-lg mt-0.5" style="color:var(--bronze);"></i>
+                    <p class="text-xs leading-relaxed" style="color:var(--bronze-dark);">
+                        The receiving employee becomes responsible for these assets. Their Asset ID, Asset Code, QR Code and history stay the same — only the accountable employee changes.
+                    </p>
+                </div>
+            </div>
+
+            <div class="px-6 py-5 flex flex-wrap items-center justify-end gap-3" style="border-top:1px solid var(--line);">
+                <button type="button" onclick="closeConfirmModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium" style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="confirm-transfer-btn" onclick="submitTransfer()" class="px-5 py-2.5 rounded-lg text-sm font-semibold" style="background:var(--gold-500); color:var(--navy-950);">
+                    <i class="ri-check-line mr-1.5"></i>Confirm Transfer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer details (history) -->
+    <div id="historyModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4" style="background:rgba(10,24,48,.6);" onclick="closeHistoryModal()">
+        <div class="panel modal-panel rounded-xl w-full max-w-2xl flex flex-col max-h-[92vh]" onclick="event.stopPropagation();">
+            <div class="modal-head px-6 py-5 flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="eyebrow mb-1">Transfer</p>
+                    <h3 class="font-display text-lg font-semibold" id="history-modal-title" style="color:var(--navy-900);">—</h3>
+                </div>
+                <button type="button" onclick="closeHistoryModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            <div class="px-6 py-5 scroll-area flex-1" id="history-modal-body">
+                <!-- filled by JS -->
+            </div>
+            <div class="px-6 py-4 flex justify-end" style="border-top:1px solid var(--line);">
+                <button type="button" onclick="closeHistoryModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium" style="background:var(--paper-2); color:var(--ink-600);">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <form id="transferForm" method="POST" action="http://localhost/admin/transfer" class="hidden">
+        <input type="hidden" name="_token" value="OBdPrhiRWVXUJ5C0KF4kkVsSlPswAQGudEhKP6kJ" autocomplete="off">        <input type="hidden" name="from_user_id" id="form-from-user">
+        <input type="hidden" name="to_user_id" id="form-to-user">
+        <input type="hidden" name="reason" id="form-reason">
+        <input type="hidden" name="notes" id="form-notes">
+        <div id="form-asset-inputs"></div>
+    </form>
+
+    <script>
+        const TRANSFER_EMPLOYEES = [{"id":4,"name":"Christian Miguel L Balmes","email":"miggybalmes9@gmail.com","role":"Employee","employee_number":"2023 - 181569","department":"IT Department","department_id":2,"status":"current","assigned_count":26,"held_count":26,"not_transferable_count":0,"assets":[{"id":10,"code":"AST-FDVZ5SP-8M8I-10","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-07-26"},{"id":95,"code":"AST-GAOE-L-3SWPAN","name":"Laptop","category":"General and Office Equipment","condition":"New","lifecycle":"Active","location":"Facult room","acquired":"2026-09-14"},{"id":13,"code":"AST-9T87LQB-ZJ46-03","name":"Plastic chair","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"For Replacement","location":"AVR room","acquired":"2026-07-28"},{"id":18,"code":"AST-JY89NE4-EWSJ-03","name":"Table","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-02"},{"id":19,"code":"AST-JY89NE4-EWSJ-04","name":"Table","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-02"},{"id":52,"code":"AST-WG5VZ2S-5MIQ","name":"Test","category":"Motor vehicles","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":53,"code":"AST-WG5VZ2S-5MIQ-02","name":"Test","category":"Motor vehicles","condition":"New","lifecycle":"For Replacement","location":"Room 301","acquired":"2026-08-16"},{"id":51,"code":"AST-2JBQWLDP-8NIP","name":"testing","category":"P.E Equipment","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-16"},{"id":84,"code":"AST-RVWJR3HB-FHW8","name":"testing","category":"P.E Equipment","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-16"},{"id":43,"code":"AST-USFKWW9-C15S-02","name":"testing","category":"P.E Equipment","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-14"},{"id":41,"code":"AST-WUR7171-3RR4-02","name":"testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-14"},{"id":50,"code":"AST-XW31W4FR-9OGM","name":"testing","category":"Furnitures and Fixtures","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-16"},{"id":37,"code":"AST-CQD4I5R-A7QS","name":"Testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-14"},{"id":38,"code":"AST-CQD4I5R-A7QS-02","name":"Testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-14"},{"id":39,"code":"AST-CQD4I5R-A7QS-03","name":"Testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 301","acquired":"2026-08-14"},{"id":87,"code":"AST-00B4E7ZJ-WZKM","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-24"},{"id":85,"code":"AST-DX798W86-2CVR","name":"TEsting","category":"library books","condition":"New","lifecycle":"For Repair","location":"Faculty room","acquired":"2026-08-18"},{"id":86,"code":"AST-SUH0QYPG-TSMM","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-24"},{"id":56,"code":"AST-W348LMB-SIDL-03","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":57,"code":"AST-W348LMB-SIDL-04","name":"TEsting","category":"library books","condition":"New","lifecycle":"For Replacement","location":"Room 301","acquired":"2026-08-16"},{"id":58,"code":"AST-W348LMB-SIDL-05","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":59,"code":"AST-W348LMB-SIDL-06","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":60,"code":"AST-W348LMB-SIDL-07","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":61,"code":"AST-W348LMB-SIDL-08","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":62,"code":"AST-W348LMB-SIDL-09","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"},{"id":63,"code":"AST-W348LMB-SIDL-10","name":"TEsting","category":"library books","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-08-16"}]},{"id":5,"name":"Irene Balmes","email":"ilbalmes@nu-lipa.edu.ph","role":"Employee","employee_number":"23-0853","department":"IT Department","department_id":2,"status":"current","assigned_count":1,"held_count":1,"not_transferable_count":0,"assets":[{"id":21,"code":"AST-XD9WKIV7-HOZ5","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-04"}]},{"id":3,"name":"Joel Enriquize","email":"joel@yahoo.com","role":"Employee","employee_number":"23-0850","department":"IT Department","department_id":2,"status":"reassigned","assigned_count":0,"held_count":13,"not_transferable_count":13,"assets":[]},{"id":2,"name":"Joseph Aramil","email":"joseph@nu-lipa.edu.ph","role":"Department Head","employee_number":"23-0953","department":"IT Department","department_id":2,"status":"reassigned","assigned_count":42,"held_count":47,"not_transferable_count":5,"assets":[{"id":4,"code":"AST-FDVZ5SP-8M8I-04","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"For Repair","location":"Faculty room","acquired":"2026-07-26"},{"id":7,"code":"AST-FDVZ5SP-8M8I-07","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"For Repair","location":"Room 301","acquired":"2026-07-26"},{"id":8,"code":"AST-FDVZ5SP-8M8I-08","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"Active","location":"Room 301","acquired":"2026-07-26"},{"id":9,"code":"AST-FDVZ5SP-8M8I-09","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"For Checking","location":"Room 301","acquired":"2026-08-27"},{"id":89,"code":"AST-K95ZHM1S-AJRQ","name":"Laptop","category":"laboratory Apparatus and equipment","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-27"},{"id":32,"code":"AST-40I1IAZ-GFSF","name":"Office Chair","category":"General and Office Equipment","condition":"Good","lifecycle":"For Checking","location":"Faculty Room","acquired":"2026-08-12"},{"id":34,"code":"AST-40I1IAZ-GFSF-03","name":"Office Chair","category":"General and Office Equipment","condition":"Good","lifecycle":"For Replacement","location":"Faculty Room","acquired":"2026-08-12"},{"id":35,"code":"AST-40I1IAZ-GFSF-04","name":"Office Chair","category":"General and Office Equipment","condition":"Good","lifecycle":"For Replacement","location":"Faculty Room","acquired":"2026-08-12"},{"id":36,"code":"AST-40I1IAZ-GFSF-05","name":"Office Chair","category":"General and Office Equipment","condition":"Good","lifecycle":"For Checking","location":"Faculty Room","acquired":"2026-08-12"},{"id":88,"code":"AST-M9W3Y7SO-WD72","name":"Office Chair","category":"General and Office Equipment","condition":"New","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-27"},{"id":22,"code":"AST-5BZJCRH-FJEO","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"Active","location":"Room 630","acquired":"2026-08-06"},{"id":25,"code":"AST-5BZJCRH-FJEO-04","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"Active","location":"Room 630","acquired":"2026-08-06"},{"id":26,"code":"AST-5BZJCRH-FJEO-05","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"For Replacement","location":"Room 630","acquired":"2026-08-06"},{"id":27,"code":"AST-5BZJCRH-FJEO-06","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"Active","location":"Faculty room","acquired":"2026-08-06"},{"id":28,"code":"AST-5BZJCRH-FJEO-07","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"For Replacement","location":"Room 630","acquired":"2026-08-06"},{"id":29,"code":"AST-5BZJCRH-FJEO-08","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"For Replacement","location":"Room 630","acquired":"2026-08-06"},{"id":30,"code":"AST-5BZJCRH-FJEO-09","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"For Replacement","location":"Room 630","acquired":"2026-08-06"},{"id":31,"code":"AST-5BZJCRH-FJEO-10","name":"PC","category":"laboratory Apparatus and equipment","condition":"Good","lifecycle":"Active","location":"Room 630","acquired":"2026-08-06"},{"id":11,"code":"AST-9T87LQB-ZJ46","name":"Plastic chair","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Faculty room","acquired":"2026-07-28"},{"id":45,"code":"AST-66VT352-SU4Y","name":"testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 504","acquired":"2026-08-14"},{"id":46,"code":"AST-66VT352-SU4Y-02","name":"testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 504","acquired":"2026-08-14"},{"id":47,"code":"AST-66VT352-SU4Y-03","name":"testing","category":"Furnitures and Fixtures","condition":"Good","lifecycle":"Active","location":"Room 504","acquired":"2026-08-14"},{"id":64,"code":"AST-N54HSZ5-2PKX","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":65,"code":"AST-N54HSZ5-2PKX-02","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":66,"code":"AST-N54HSZ5-2PKX-03","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":67,"code":"AST-N54HSZ5-2PKX-04","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":68,"code":"AST-N54HSZ5-2PKX-05","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":69,"code":"AST-N54HSZ5-2PKX-06","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":70,"code":"AST-N54HSZ5-2PKX-07","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":71,"code":"AST-N54HSZ5-2PKX-08","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":72,"code":"AST-N54HSZ5-2PKX-09","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":73,"code":"AST-N54HSZ5-2PKX-10","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":74,"code":"AST-N54HSZ5-2PKX-11","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":75,"code":"AST-N54HSZ5-2PKX-12","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":76,"code":"AST-N54HSZ5-2PKX-13","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":77,"code":"AST-N54HSZ5-2PKX-14","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":78,"code":"AST-N54HSZ5-2PKX-15","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":79,"code":"AST-N54HSZ5-2PKX-16","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"For Checking","location":"Testing Room","acquired":"2026-08-16"},{"id":80,"code":"AST-N54HSZ5-2PKX-17","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"For Checking","location":"Testing Room","acquired":"2026-08-16"},{"id":81,"code":"AST-N54HSZ5-2PKX-18","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"For Checking","location":"Testing Room","acquired":"2026-08-16"},{"id":82,"code":"AST-N54HSZ5-2PKX-19","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"},{"id":83,"code":"AST-N54HSZ5-2PKX-20","name":"TEsting ulit","category":"Low value Asset","condition":"New","lifecycle":"Active","location":"Testing Room","acquired":"2026-08-16"}]},{"id":1,"name":"Sir alex","email":"alex@nu-lipa.edu.ph","role":"Admin","employee_number":"23-191865","department":"Admin office","department_id":1,"status":"current","assigned_count":0,"held_count":0,"not_transferable_count":0,"assets":[]}];
+        const TRANSFER_HISTORY  = [{"id":37,"reference":"TR-0037","status":"Approved","from":{"id":3,"name":"Joel Enriquize","email":"joel@yahoo.com","role":"Employee","employee_number":"23-0850","department":"IT Department","department_id":2},"to":{"id":4,"name":"Christian Miguel L Balmes","email":"miggybalmes9@gmail.com","role":"Employee","employee_number":"2023 - 181569","department":"IT Department","department_id":2},"reason":"Employee Relocation","notes":null,"assets":[{"id":95,"code":"AST-GAOE-L-3SWPAN","name":"Laptop"},{"id":13,"code":"AST-9T87LQB-ZJ46-03","name":"Plastic chair"},{"id":19,"code":"AST-JY89NE4-EWSJ-04","name":"Table"},{"id":18,"code":"AST-JY89NE4-EWSJ-03","name":"Table"},{"id":52,"code":"AST-WG5VZ2S-5MIQ","name":"Test"},{"id":53,"code":"AST-WG5VZ2S-5MIQ-02","name":"Test"},{"id":41,"code":"AST-WUR7171-3RR4-02","name":"testing"},{"id":50,"code":"AST-XW31W4FR-9OGM","name":"testing"},{"id":51,"code":"AST-2JBQWLDP-8NIP","name":"testing"},{"id":84,"code":"AST-RVWJR3HB-FHW8","name":"testing"},{"id":43,"code":"AST-USFKWW9-C15S-02","name":"testing"},{"id":37,"code":"AST-CQD4I5R-A7QS","name":"Testing"},{"id":39,"code":"AST-CQD4I5R-A7QS-03","name":"Testing"},{"id":38,"code":"AST-CQD4I5R-A7QS-02","name":"Testing"},{"id":62,"code":"AST-W348LMB-SIDL-09","name":"TEsting"},{"id":61,"code":"AST-W348LMB-SIDL-08","name":"TEsting"},{"id":60,"code":"AST-W348LMB-SIDL-07","name":"TEsting"},{"id":59,"code":"AST-W348LMB-SIDL-06","name":"TEsting"},{"id":58,"code":"AST-W348LMB-SIDL-05","name":"TEsting"},{"id":56,"code":"AST-W348LMB-SIDL-03","name":"TEsting"},{"id":57,"code":"AST-W348LMB-SIDL-04","name":"TEsting"},{"id":85,"code":"AST-DX798W86-2CVR","name":"TEsting"},{"id":86,"code":"AST-SUH0QYPG-TSMM","name":"TEsting"},{"id":87,"code":"AST-00B4E7ZJ-WZKM","name":"TEsting"},{"id":63,"code":"AST-W348LMB-SIDL-10","name":"TEsting"}],"asset_count":25,"date":"2026-09-24 15:26:22","recorded_by":"Sir alex"},{"id":35,"reference":"TR-0035","status":"Approved","from":{"id":3,"name":"Joel Enriquize","email":"joel@yahoo.com","role":"Employee","employee_number":"23-0850","department":"IT Department","department_id":2},"to":{"id":5,"name":"Irene Balmes","email":"ilbalmes@nu-lipa.edu.ph","role":"Employee","employee_number":"23-0853","department":"IT Department","department_id":2},"reason":"Testing","notes":null,"assets":[{"id":21,"code":"AST-XD9WKIV7-HOZ5","name":"Laptop"}],"asset_count":1,"date":"2026-09-22 23:28:23","recorded_by":"Sir alex"},{"id":4,"reference":"TR-0004","status":"Approved","from":{"id":2,"name":"Joseph Aramil","email":"joseph@nu-lipa.edu.ph","role":"Department Head","employee_number":"23-0953","department":"IT Department","department_id":2},"to":{"id":3,"name":"Joel Enriquize","email":"joel@yahoo.com","role":"Employee","employee_number":"23-0850","department":"IT Department","department_id":2},"reason":"kay pareng joel eto","notes":null,"assets":[{"id":4,"code":"AST-FDVZ5SP-8M8I-04","name":"Laptop"}],"asset_count":1,"date":"2026-07-26 09:35:10","recorded_by":"Sir alex"}];
+        const OPEN_TRANSFER_ID  = 0;
+
+        let activeEmployee = null;   // employee object from TRANSFER_EMPLOYEES
+        let selectedAssetIds = [];   // asset ids ticked in step 1
+        let receiverId = null;       // employee id chosen in step 2
+        let submitted = false;       // the confirmation has already been sent once
+
+        const byId = (id) => document.getElementById(id);
+        const employeeById = (id) => TRANSFER_EMPLOYEES.find((e) => Number(e.id) === Number(id)) || null;
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+        }
+
+        function formatDate(value) {
+            if (!value) return '—';
+            const date = new Date(String(value).replace(' ', 'T'));
+            if (isNaN(date.getTime())) return String(value);
+            return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function metaLine(employee) {
+            const bits = [];
+            if (employee.employee_number) bits.push('Employee No. ' + employee.employee_number);
+            if (employee.role) bits.push(employee.role);
+            if (employee.department) bits.push(employee.department);
+            return bits.join(' • ') || 'No department on record';
+        }
+
+        /* ---------------- tabs ---------------- */
+        function selectTab(tab) {
+            const isHistory = tab === 'history';
+            byId('tab-employees').classList.toggle('hidden', isHistory);
+            byId('tab-history').classList.toggle('hidden', !isHistory);
+            document.querySelectorAll('.tab-btn').forEach((btn) => {
+                const on = btn.dataset.tab === tab;
+                btn.classList.toggle('tab-active', on);
+                btn.style.color = on ? 'var(--navy-900)' : 'var(--ink-400)';
+            });
+            applySearch(byId('transferSearch')?.value || '');
+        }
+
+        /* ---------------- search + department chips ---------------- */
+        function activeDepartment() {
+            const chip = document.querySelector('.filter-chip.chip-active');
+            return chip ? chip.dataset.dept : '*';
+        }
+
+        function applySearch(term) {
+            const needle = String(term || '').trim().toLowerCase();
+            const department = activeDepartment();
+
+            let employeeHits = 0;
+            document.querySelectorAll('#employees-table-body .employee-row').forEach((row) => {
+                const matchesSearch = !needle || (row.dataset.search || '').includes(needle);
+                const matchesDept = department === '*' || row.dataset.department === department;
+                const visible = matchesSearch && matchesDept;
+                row.classList.toggle('is-dimmed', !visible);
+                if (visible) employeeHits++;
+            });
+            byId('employees-no-match').classList.toggle('hidden', employeeHits > 0);
+
+            let historyHits = 0;
+            document.querySelectorAll('#history-table-body tr').forEach((row) => {
+                if (!row.dataset.search) return;
+                const visible = !needle || row.dataset.search.includes(needle);
+                row.style.display = visible ? '' : 'none';
+                if (visible) historyHits++;
+            });
+            byId('history-no-match').classList.toggle('hidden', historyHits > 0);
+        }
+
+        /* ---------------- step 1: the employee's assets ---------------- */
+        function openAssetsModal(employeeId) {
+            const employee = employeeById(employeeId);
+            if (!employee) return;
+
+            activeEmployee = employee;
+            receiverId = null;
+            selectedAssetIds = employee.assets.map((asset) => Number(asset.id));
+
+            byId('assets-modal-name').textContent = employee.name;
+            byId('assets-modal-meta').textContent = metaLine(employee);
+            byId('assets-modal-count').textContent = employee.assigned_count;
+            byId('assets-modal-status').innerHTML = employee.status === 'reassigned'
+                ? '<span style="color:var(--gold-600);">Reassigned</span>'
+                : '<span style="color:var(--forest-dark);">Current</span>';
+
+            let note = 'Every assigned asset is ticked. Untick any asset that stays behind.';
+            if (employee.not_transferable_count > 0) {
+                note += ' ' + employee.not_transferable_count + ' asset(s) already left custody (pulled out or disposed) and are not listed.';
+            }
+            byId('assets-modal-note').textContent = note;
+
+            renderAssetPicks();
+            byId('assetsModal').classList.remove('hidden');
+            byId('assetsModal').classList.add('flex');
+        }
+
+        function closeAssetsModal() {
+            byId('assetsModal').classList.add('hidden');
+            byId('assetsModal').classList.remove('flex');
+        }
+
+        function renderAssetPicks() {
+            const list = byId('assets-modal-list');
+            const assets = activeEmployee ? activeEmployee.assets : [];
+
+            if (!assets.length) {
+                list.innerHTML = `
+                    <div class="py-10 text-center">
+                        <i class="ri-inbox-line text-4xl mb-3 block" style="color:var(--gold-500);"></i>
+                        <p class="text-sm font-medium" style="color:var(--navy-900);">No assets are assigned to this employee</p>
+                        <p class="text-xs mt-1" style="color:var(--ink-400);">Nothing to transfer. Assets appear here once they are assigned to this employee.</p>
+                    </div>`;
+                updateSelectedCount();
+                return;
+            }
+
+            list.innerHTML = assets.map((asset) => {
+                const checked = selectedAssetIds.includes(Number(asset.id));
+                return `
+                    <label class="asset-pick mb-2 ${checked ? 'is-checked' : ''}" data-asset-id="${asset.id}">
+                        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleAsset(${asset.id}, this.checked)">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm font-mono" style="color:var(--navy-900);">${escapeHtml(asset.code)}</span>
+                                <span class="text-sm font-medium" style="color:var(--ink-900);">${escapeHtml(asset.name)}</span>
+                            </div>
+                            <p class="text-xs mt-1" style="color:var(--ink-400);">
+                                ${escapeHtml(asset.category || 'Uncategorised')}
+                                ${asset.location ? ' • ' + escapeHtml(asset.location) : ''}
+                                ${asset.lifecycle ? ' • ' + escapeHtml(asset.lifecycle) : ''}
+                            </p>
+                        </div>
+                    </label>`;
+            }).join('');
+
+            byId('select-all-assets').checked = selectedAssetIds.length === assets.length;
+            updateSelectedCount();
+        }
+
+        function toggleAsset(assetId, checked) {
+            const id = Number(assetId);
+            selectedAssetIds = checked
+                ? Array.from(new Set([...selectedAssetIds, id]))
+                : selectedAssetIds.filter((x) => x !== id);
+
+            const pick = document.querySelector(`.asset-pick[data-asset-id="${id}"]`);
+            if (pick) pick.classList.toggle('is-checked', checked);
+
+            const total = activeEmployee ? activeEmployee.assets.length : 0;
+            byId('select-all-assets').checked = total > 0 && selectedAssetIds.length === total;
+            updateSelectedCount();
+        }
+
+        function toggleAllAssets(checked) {
+            selectedAssetIds = checked ? activeEmployee.assets.map((a) => Number(a.id)) : [];
+            renderAssetPicks();
+        }
+
+        function updateSelectedCount() {
+            byId('assets-modal-selected').textContent = selectedAssetIds.length;
+            const btn = byId('transfer-selected-btn');
+            const label = byId('transfer-selected-label');
+            const n = selectedAssetIds.length;
+
+            btn.disabled = n === 0;
+            btn.style.opacity = n === 0 ? '.5' : '1';
+            label.textContent = n === 0
+                ? 'Transfer Assets'
+                : `Transfer ${n} Asset${n === 1 ? '' : 's'}`;
+        }
+
+        /* ---------------- step 2: receiving employee ---------------- */
+        function startTransfer() {
+            if (!activeEmployee || !selectedAssetIds.length) return;
+
+            byId('receiver-from-name').textContent = activeEmployee.name;
+            byId('receiver-from-meta').textContent = metaLine(activeEmployee);
+            byId('receiver-asset-count').textContent = selectedAssetIds.length;
+            byId('receiver-search').value = '';
+            clearReceiver();
+            renderReceiverResults('');
+
+            closeAssetsModal();
+            byId('receiverModal').classList.remove('hidden');
+            byId('receiverModal').classList.add('flex');
+            setTimeout(() => byId('receiver-search').focus(), 80);
+        }
+
+        function closeReceiverModal() {
+            byId('receiverModal').classList.add('hidden');
+            byId('receiverModal').classList.remove('flex');
+        }
+
+        function renderReceiverResults(term) {
+            const needle = String(term || '').trim().toLowerCase();
+            const box = byId('receiver-results');
+
+            const matches = TRANSFER_EMPLOYEES.filter((employee) => {
+                if (!activeEmployee || Number(employee.id) === Number(activeEmployee.id)) return false;
+                if (!needle) return true;
+                return metaLine(employee).toLowerCase().includes(needle)
+                    || String(employee.name || '').toLowerCase().includes(needle)
+                    || String(employee.email || '').toLowerCase().includes(needle);
+            });
+
+            if (!matches.length) {
+                box.innerHTML = '<p class="text-xs px-3 py-3" style="color:var(--ink-400);">No employee matches that search.</p>';
+                return;
+            }
+
+            box.innerHTML = matches.map((employee) => `
+                <div class="pick-row ${Number(employee.id) === Number(receiverId) ? 'is-selected' : ''}"
+                     data-receiver-id="${employee.id}" onclick="pickReceiver(${employee.id})">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style="background:var(--navy-900); color:var(--gold-300);">${escapeHtml((employee.name || 'U').substring(0, 1).toUpperCase())}</span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-medium truncate" style="color:var(--navy-900);">${escapeHtml(employee.name)}</p>
+                        <p class="text-xs truncate" style="color:var(--ink-400);">${escapeHtml(metaLine(employee))}</p>
+                    </div>
+                    <span class="text-xs whitespace-nowrap" style="color:var(--ink-400);">${employee.assigned_count} asset(s)</span>
+                </div>`).join('');
+        }
+
+        function pickReceiver(employeeId) {
+            receiverId = Number(employeeId);
+            const employee = employeeById(receiverId);
+            if (!employee) return;
+
+            byId('receiver-picked-name').textContent = employee.name;
+            byId('receiver-picked-meta').textContent = metaLine(employee);
+            byId('receiver-selected').classList.remove('hidden');
+
+            document.querySelectorAll('#receiver-results .pick-row').forEach((row) => {
+                row.classList.toggle('is-selected', Number(row.dataset.receiverId) === receiverId);
+            });
+
+            updateContinueButton();
+        }
+
+        function clearReceiver() {
+            receiverId = null;
+            byId('receiver-selected').classList.add('hidden');
+            document.querySelectorAll('#receiver-results .pick-row').forEach((row) => row.classList.remove('is-selected'));
+            updateContinueButton();
+        }
+
+        function updateContinueButton() {
+            const btn = byId('continue-btn');
+            const ready = !!receiverId && !!byId('reason-select').value;
+            btn.disabled = !ready;
+            btn.style.opacity = ready ? '1' : '.5';
+        }
+
+        /* ---------------- step 3: confirm ---------------- */
+        function reviewedAssets() {
+            if (!activeEmployee) return [];
+            return activeEmployee.assets.filter((asset) => selectedAssetIds.includes(Number(asset.id)));
+        }
+
+        function reviewTransfer() {
+            if (!activeEmployee || !receiverId) return;
+
+            const receiver = employeeById(receiverId);
+            const assets = reviewedAssets();
+
+            byId('confirm-from-name').textContent = activeEmployee.name;
+            byId('confirm-from-meta').textContent = metaLine(activeEmployee);
+            byId('confirm-to-name').textContent = receiver.name;
+            byId('confirm-to-meta').textContent = metaLine(receiver);
+            byId('confirm-asset-count').textContent = assets.length;
+            byId('confirm-reason').textContent = byId('reason-select').value;
+            byId('confirm-notes').textContent = byId('transfer-notes').value.trim() || '—';
+
+            byId('confirm-asset-list').innerHTML = assets.map((asset) => `
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background:var(--paper-3);">
+                    <i class="ri-arrow-right-s-line" style="color:var(--gold-600);"></i>
+                    <span class="text-xs font-mono" style="color:var(--navy-900);">${escapeHtml(asset.code)}</span>
+                    <span class="text-xs" style="color:var(--ink-600);">${escapeHtml(asset.name)}</span>
+                </div>`).join('');
+
+            closeReceiverModal();
+            byId('confirmModal').classList.remove('hidden');
+            byId('confirmModal').classList.add('flex');
+        }
+
+        function closeConfirmModal() {
+            byId('confirmModal').classList.add('hidden');
+            byId('confirmModal').classList.remove('flex');
+        }
+
+        function submitTransfer() {
+            if (submitted) return;   // one confirmation per page — no double sends
+            if (!activeEmployee || !receiverId || !selectedAssetIds.length) return;
+
+            submitted = true;
+
+            const btn = byId('confirm-transfer-btn');
+            btn.disabled = true;
+            btn.style.opacity = '.6';
+            btn.innerHTML = '<i class="ri-loader-4-line mr-1.5 animate-spin inline-block"></i>Transferring...';
+
+            byId('form-from-user').value = activeEmployee.id;
+            byId('form-to-user').value = receiverId;
+            byId('form-reason').value = byId('reason-select').value;
+            byId('form-notes').value = byId('transfer-notes').value.trim();
+            byId('form-asset-inputs').innerHTML = selectedAssetIds
+                .map((id) => `<input type="hidden" name="asset_ids[]" value="${id}">`).join('');
+
+            byId('transferForm').submit();
+        }
+
+        /* ---------------- history details ---------------- */
+        function openHistoryModal(transferId) {
+            const transfer = TRANSFER_HISTORY.find((t) => Number(t.id) === Number(transferId));
+            if (!transfer) return;
+
+            byId('history-modal-title').textContent = 'Transfer ' + transfer.reference + ' — ' + (transfer.status || 'Completed');
+
+            const assetRows = (transfer.assets || []).map((asset) => `
+                <div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background:var(--paper-3);">
+                    <span class="text-xs font-mono" style="color:var(--navy-900);">${escapeHtml(asset.code)}</span>
+                    <span class="text-xs" style="color:var(--ink-600);">${escapeHtml(asset.name)}</span>
+                </div>`).join('') || '<p class="text-xs" style="color:var(--ink-400);">No assets recorded on this transfer.</p>';
+
+            byId('history-modal-body').innerHTML = `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                    <div class="rounded-xl px-4 py-3" style="background:var(--paper-3);">
+                        <p class="eyebrow mb-1">Previous employee</p>
+                        <p class="text-sm font-semibold" style="color:var(--navy-900);">${escapeHtml(transfer.from?.name || 'Unknown')}</p>
+                    </div>
+                    <div class="rounded-xl px-4 py-3" style="background:var(--gold-100);">
+                        <p class="eyebrow mb-1">New employee</p>
+                        <p class="text-sm font-semibold" style="color:var(--navy-900);">${escapeHtml(transfer.to?.name || 'Unknown')}</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+                    <div><p class="eyebrow mb-1">Assets</p><p class="text-sm font-semibold" style="color:var(--navy-900);">${transfer.asset_count}</p></div>
+                    <div><p class="eyebrow mb-1">Reason</p><p class="text-sm" style="color:var(--ink-600);">${escapeHtml(transfer.reason || '—')}</p></div>
+                    <div><p class="eyebrow mb-1">Date</p><p class="text-sm" style="color:var(--ink-600);">${escapeHtml(formatDate(transfer.date))}</p></div>
+                    <div><p class="eyebrow mb-1">Recorded by</p><p class="text-sm" style="color:var(--ink-600);">${escapeHtml(transfer.recorded_by || '—')}</p></div>
+                </div>
+                ${transfer.notes ? `<div class="mb-5"><p class="eyebrow mb-1">Notes</p><p class="text-sm" style="color:var(--ink-600);">${escapeHtml(transfer.notes)}</p></div>` : ''}
+                <p class="eyebrow mb-2">Assets transferred</p>
+                <div class="space-y-1">${assetRows}</div>`;
+
+            byId('historyModal').classList.remove('hidden');
+            byId('historyModal').classList.add('flex');
+        }
+
+        function closeHistoryModal() {
+            byId('historyModal').classList.add('hidden');
+            byId('historyModal').classList.remove('flex');
+        }
+
+        /* ---------------- wiring ---------------- */
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.tab-btn').forEach((btn) => {
+                btn.addEventListener('click', () => selectTab(btn.dataset.tab));
+            });
+
+            document.querySelectorAll('.filter-chip').forEach((chip) => {
+                chip.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('chip-active'));
+                    chip.classList.add('chip-active');
+                    applySearch(byId('transferSearch')?.value || '');
+                });
+            });
+
+            byId('transferSearch')?.addEventListener('input', (event) => applySearch(event.target.value));
+            byId('reason-select')?.addEventListener('change', updateContinueButton);
+
+            // History rows stay searchable while the search box lives in the page header.
+            selectTab('employees');
+
+            if (OPEN_TRANSFER_ID) {
+                selectTab('history');
+                openHistoryModal(OPEN_TRANSFER_ID);
+            }
+        });
+
+        // Coming back to this page from the history (browser Back / Forward) restores
+        // the old screen, its open confirmation included. Put the button back in
+        // working order so the Admin is never stuck on a dead "Transferring..." —
+        // a repeat confirmation is harmless, the server answers it with the transfer
+        // that already did the work instead of an error.
+        window.addEventListener('pageshow', (event) => {
+            if (!event.persisted) return;
+
+            submitted = false;
+
+            const btn = byId('confirm-transfer-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.innerHTML = '<i class="ri-check-line mr-1.5"></i>Confirm Transfer';
+            }
+
+            closeConfirmModal();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            closeConfirmModal();
+            closeReceiverModal();
+            closeAssetsModal();
+            closeHistoryModal();
+        });
+    </script>
+</body>
+</html>

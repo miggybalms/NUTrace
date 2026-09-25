@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -219,13 +220,73 @@ class AssetTransfer
     }
 
     /**
+     * How far back a completed transfer still counts as "the confirmation the
+     * Admin just sent again" rather than a genuine conflict. A replayed POST
+     * (double click, browser retry, a tab put aside and submitted later) always
+     * lands moments to minutes after the transfer that did the work.
+     */
+    public const REPLAY_WINDOW_MINUTES = 120;
+
+    /**
+     * The transfer that already moved this exact batch, if there is one.
+     *
+     * Only answers when the assets are *already* sitting with the receiving
+     * employee and a recent A → B transfer covers every one of them — the
+     * unmistakable fingerprint of the same confirmation arriving twice. A
+     * genuine conflict (the assets were moved somewhere else, or by someone
+     * else's transfer) returns null and is reported as an error.
+     *
+     * @param  array<int, int>  $assetIds
+     */
+    protected static function replayedTransferId(int $fromUserId, int $toUserId, array $assetIds): ?int
+    {
+        $withReceiver = DB::table('assets')
+            ->whereIn('id', $assetIds)
+            ->where('user_id', $toUserId)
+            ->count();
+
+        if ($withReceiver !== count($assetIds)) {
+            return null;
+        }
+
+        $candidates = DB::table('requests')
+            ->where('request_type', 'Transfer')
+            ->where('status', 'Approved')
+            ->where('user_id', $fromUserId)
+            ->where('assign_to_user_id', $toUserId)
+            ->where('created_at', '>=', now()->subMinutes(self::REPLAY_WINDOW_MINUTES))
+            ->orderByDesc('id')
+            ->pluck('id');
+
+        foreach ($candidates as $candidateId) {
+            $covered = DB::table('request_items')
+                ->where('request_id', $candidateId)
+                ->whereIn('asset_id', $assetIds)
+                ->count();
+
+            if ($covered === count($assetIds)) {
+                return (int) $candidateId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Perform the relocation.
      *
      * Everything happens in one transaction: the transfer request, its assets,
      * the closed/open accountability rows, the assets' new custodian, the audit
-     * trail and the two notifications. Returns the transfer's request id.
+     * trail and the two notifications.
+     *
+     * The same confirmation can reach the server more than once (a double
+     * click, a browser re-sending the POST, a tab submitted twice). The second
+     * copy is not an error — the requested end state is already in place — so
+     * it is answered with the transfer that did the work and `replayed = true`
+     * instead of an error the Admin cannot act on.
      *
      * @param  array<int, int>  $assetIds
+     * @return array{id: int, replayed: bool}
      *
      * @throws RuntimeException when an asset is no longer the sender's to give away
      */
@@ -236,7 +297,7 @@ class AssetTransfer
         string $reason,
         ?string $notes = null,
         ?int $adminId = null
-    ): int {
+    ): array {
         if ($fromUserId === $toUserId) {
             throw new RuntimeException('Choose a different employee to receive the assets.');
         }
@@ -260,6 +321,19 @@ class AssetTransfer
             $foreign = $assets->where('user_id', '!=', $fromUserId);
 
             if ($foreign->isNotEmpty()) {
+                $replay = self::replayedTransferId($fromUserId, $toUserId, $assetIds);
+
+                if ($replay !== null) {
+                    Log::info('Duplicate transfer confirmation ignored; the transfer was already completed.', [
+                        'transfer_id'  => $replay,
+                        'from_user_id' => $fromUserId,
+                        'to_user_id'   => $toUserId,
+                        'assets'       => count($assetIds),
+                    ]);
+
+                    return ['id' => $replay, 'replayed' => true];
+                }
+
                 throw new RuntimeException(
                     'These assets are no longer assigned to the employee you are transferring from: '
                     . $foreign->pluck('Asset_code')->implode(', ')
@@ -358,7 +432,7 @@ class AssetTransfer
                 'request'
             );
 
-            return (int) $requestId;
+            return ['id' => (int) $requestId, 'replayed' => false];
         });
     }
 

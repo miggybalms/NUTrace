@@ -116,6 +116,21 @@
                     </div>
                 @endif
 
+                @if(session('notice'))
+                    <div class="mb-6 px-4 py-3 rounded-xl flex items-start gap-3" style="background:var(--steel-tint); border:1px solid #CFDCE8;">
+                        <i class="ri-information-line text-lg mt-0.5" style="color:var(--steel);"></i>
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium" style="color:var(--steel);">{{ session('notice') }}</p>
+                            @if(session('transfer_receipt'))
+                                <button type="button" class="text-xs font-semibold mt-1 underline" style="color:var(--steel);"
+                                        onclick="openHistoryModal({{ (int) session('transfer_receipt')['id'] }})">
+                                    View transfer #TR-{{ str_pad(session('transfer_receipt')['id'], 4, '0', STR_PAD_LEFT) }}
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
                 @if($errors->any())
                     <div class="mb-6 px-4 py-3 rounded-xl flex items-start gap-3" style="background:var(--brick-tint); border:1px solid #EFD5D0;">
                         <i class="ri-error-warning-line text-lg mt-0.5" style="color:var(--brick);"></i>
@@ -585,6 +600,7 @@
         let activeEmployee = null;   // employee object from TRANSFER_EMPLOYEES
         let selectedAssetIds = [];   // asset ids ticked in step 1
         let receiverId = null;       // employee id chosen in step 2
+        let submitted = false;       // the confirmation has already been sent once
 
         const byId = (id) => document.getElementById(id);
         const employeeById = (id) => TRANSFER_EMPLOYEES.find((e) => Number(e.id) === Number(id)) || null;
@@ -875,7 +891,10 @@
         }
 
         function submitTransfer() {
+            if (submitted) return;   // one confirmation per page — no double sends
             if (!activeEmployee || !receiverId || !selectedAssetIds.length) return;
+
+            submitted = true;
 
             const btn = byId('confirm-transfer-btn');
             btn.disabled = true;
@@ -959,6 +978,26 @@
                 selectTab('history');
                 openHistoryModal(OPEN_TRANSFER_ID);
             }
+        });
+
+        // Coming back to this page from the history (browser Back / Forward) restores
+        // the old screen, its open confirmation included. Put the button back in
+        // working order so the Admin is never stuck on a dead "Transferring..." —
+        // a repeat confirmation is harmless, the server answers it with the transfer
+        // that already did the work instead of an error.
+        window.addEventListener('pageshow', (event) => {
+            if (!event.persisted) return;
+
+            submitted = false;
+
+            const btn = byId('confirm-transfer-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.innerHTML = '<i class="ri-check-line mr-1.5"></i>Confirm Transfer';
+            }
+
+            closeConfirmModal();
         });
 
         document.addEventListener('keydown', (event) => {

@@ -96,7 +96,7 @@ class TransferController extends Controller
         ]);
 
         try {
-            $requestId = AssetTransfer::create(
+            $result = AssetTransfer::create(
                 (int) $validated['from_user_id'],
                 (int) $validated['to_user_id'],
                 $validated['asset_ids'],
@@ -118,8 +118,18 @@ class TransferController extends Controller
             ])->withInput();
         }
 
+        // The same confirmation reached the server twice (a double click, a
+        // retried POST, a tab submitted again). Nothing was changed the second
+        // time because there was nothing left to change — say so plainly rather
+        // than reporting a failure for work that is already done.
+        if ($result['replayed']) {
+            return redirect('/admin/transfer')
+                ->with('notice', 'This transfer was already completed, so nothing was changed — the assets are already with the receiving employee.')
+                ->with('transfer_receipt', ['id' => $result['id']]);
+        }
+
         return redirect('/admin/transfer')
             ->with('success', 'Transfer completed. The assets now belong to the receiving employee — their asset codes, QR codes and history are unchanged.')
-            ->with('transfer_receipt', ['id' => $requestId]);
+            ->with('transfer_receipt', ['id' => $result['id']]);
     }
 }
