@@ -46,8 +46,9 @@ class MediaDoctor extends Command
         $this->line('  APP_URL   '.env('APP_URL', '(unset)'));
         $this->line('  config    '.(app()->configurationIsCached() ? 'cached — run `php artisan config:clear` after changing variables' : 'not cached'));
 
-        $keySource = $this->keySource();
+        [$keySource, $keyOrigin] = $this->keySummary($key);
         $this->line('  key       '.$keySource.' — '.$this->describeKey($key));
+        $this->line('  key from  '.$keyOrigin);
 
         if ($driver !== 'supabase') {
             $this->newLine();
@@ -136,27 +137,62 @@ class MediaDoctor extends Command
     }
 
     /**
-     * Which variable the active key came from, without ever printing the key.
+     * Which variable the active key came from, and whether the process
+     * environment or the .env file supplied it.
+     *
+     * The distinction is the whole point of running this from outside the
+     * container: `railway run` executes locally, where a complete .env would
+     * happily stand in for a variable the deployment is still missing, and the
+     * round trip would look green for the wrong reason.
+     *
+     * @return array{0: string, 1: string}
      */
-    protected function keySource(): string
+    protected function keySummary(string $used): array
     {
-        $used = (string) config('filesystems.disks.'.Media::DISK.'.key');
-        $service = (string) env('SUPABASE_SERVICE_ROLE_KEY');
-        $anon = (string) env('SUPABASE_ANON_KEY');
-
         if ($used === '') {
-            return 'none configured';
+            return ['none configured', '—'];
         }
 
-        if ($service !== '' && $used === $service) {
-            return 'SUPABASE_SERVICE_ROLE_KEY';
+        foreach (['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY'] as $name) {
+            if ((string) env($name) !== $used) {
+                continue;
+            }
+
+            $file = $this->envFileValue($name);
+
+            return [
+                $name,
+                $file !== null && $file === $used
+                    ? 'the .env file — no injected variable, so this does not prove anything about the deployment'
+                    : 'the process environment (injected)',
+            ];
         }
 
-        if ($anon !== '' && $used === $anon) {
-            return 'SUPABASE_ANON_KEY';
+        return ['filesystems.disks.public.key (config)', 'config'];
+    }
+
+    /**
+     * Raw value of one key in the .env file, or null when it is not set there.
+     */
+    protected function envFileValue(string $name): ?string
+    {
+        $path = app()->environmentFilePath();
+
+        if (! is_file($path)) {
+            return null;
         }
 
-        return 'filesystems.disks.public.key (config)';
+        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $line = trim($line);
+
+            if ($line === '' || str_starts_with($line, '#') || ! str_starts_with($line, $name.'=')) {
+                continue;
+            }
+
+            return trim(substr($line, strlen($name) + 1), " \t\"'");
+        }
+
+        return null;
     }
 
     /**
