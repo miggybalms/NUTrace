@@ -3,7 +3,9 @@
 namespace App\Support;
 
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
@@ -184,6 +186,51 @@ class Media
 
             return false;
         }
+    }
+
+    /**
+     * Store an uploaded file and return its path on the media disk.
+     *
+     * Every upload goes through here instead of calling $file->store()
+     * directly, because a disk that refuses the write (a bucket with no
+     * insert policy, a missing key, an unreachable endpoint) makes store()
+     * return false rather than throw. Callers then save the asset without an
+     * image and the UI simply shows "No image", which is how a storage
+     * outage stays invisible. This reports the failure with enough detail to
+     * find it in the logs and returns null so the caller can carry on.
+     */
+    public static function storeUploadedFile(UploadedFile $file, string $folder): ?string
+    {
+        $context = [
+            'folder' => $folder,
+            'original_name' => $file->getClientOriginalName(),
+            'size' => $file->getSize(),
+            'mime_type' => $file->getClientMimeType(),
+            'disk' => self::DISK,
+            'driver' => config('filesystems.disks.'.self::DISK.'.driver'),
+            'bucket' => config('filesystems.disks.'.self::DISK.'.bucket'),
+        ];
+
+        try {
+            $path = $file->store($folder, self::DISK);
+        } catch (Throwable $e) {
+            Log::error('Media upload threw: '.$e->getMessage(), $context + ['exception' => $e]);
+
+            return null;
+        }
+
+        if (! is_string($path) || $path === '') {
+            Log::error(
+                'Media upload was rejected by the "'.self::DISK.'" disk; '
+                .'the file was saved locally or not at all, so the record will have no image. '
+                .'Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, then run `php artisan media:doctor`.',
+                $context
+            );
+
+            return null;
+        }
+
+        return $path;
     }
 
     public static function exists(?string $path): bool

@@ -152,7 +152,7 @@ public function store(HttpRequest $request)
         $fileName = $filePath = $fileSize = $mimeType = $url = null;
 
         if ($uploadedFile) {
-            $filePath = $uploadedFile->store('request_files', Media::DISK) ?: null;
+            $filePath = Media::storeUploadedFile($uploadedFile, 'request_files');
 
             // Only record the attachment when it really reached the media disk.
             if ($filePath) {

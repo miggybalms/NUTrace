@@ -218,7 +218,7 @@ Route::post('/register', function (Request $request) {
     // Check if profile photo exists (stored on the media disk)
     $photoPath = null;
     if ($request->hasFile('profile_photo')) {
-        $photoPath = $request->file('profile_photo')->store('profile_photos', Media::DISK) ?: null;
+        $photoPath = Media::storeUploadedFile($request->file('profile_photo'), 'profile_photos');
     }
 
     // Determine user role
@@ -3782,7 +3782,7 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Reque
 
             // Save photo if uploaded
             $filePath = $request->hasFile('asset_photo')
-                ? ($request->file('asset_photo')->store('assets', Media::DISK) ?: null)
+                ? Media::storeUploadedFile($request->file('asset_photo'), 'assets')
                 : null;
 
             if ($filePath) {
@@ -4445,7 +4445,7 @@ Route::post('/admin/assets', function (Request $request) {
     $url = null;
     if ($request->hasFile('asset_photo')) {
         $file = $request->file('asset_photo');
-        $filePath = $file->store('assets', Media::DISK);
+        $filePath = Media::storeUploadedFile($file, 'assets');
         $fileName = $file->getClientOriginalName();
         $fileSize = $file->getSize();
         $mime = $file->getClientMimeType();
@@ -4605,8 +4605,15 @@ Route::post('/admin/assets', function (Request $request) {
         return back()->withErrors(['error' => 'Failed to register asset(s): ' . $e->getMessage()])->withInput();
     }
 
+    // A storage outage must not look like a successful registration with a
+    // missing photo: the operator needs to know the image was dropped so they
+    // can re-upload it once the disk is reachable again.
+    $photoWarning = ($request->hasFile('asset_photo') && ! $filePath)
+        ? ' The photo could not be saved to storage, so these assets have no image.'
+        : '';
+
     return redirect('/admin/assets/registry')
-        ->with('success', 'Successfully registered ' . count($createdAssets) . ' asset(s).')
+        ->with('success', 'Successfully registered ' . count($createdAssets) . ' asset(s).' . $photoWarning)
         ->with('bulk_qr_labels', $createdAssets)
         ->with('bulk_registered_count', count($createdAssets));
 })->name('admin.assets.store');
