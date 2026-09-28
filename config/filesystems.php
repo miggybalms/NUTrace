@@ -65,7 +65,9 @@ return [
         ] : [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // ASSET_URL (a conventional Laravel override) lets deployments fix
+            // just the media URL scheme/host without touching APP_URL itself.
+            'url' => rtrim(env('ASSET_URL', env('APP_URL', 'http://localhost')), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
