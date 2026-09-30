@@ -2606,12 +2606,145 @@ Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
         : redirect('/admin/disposal')->with('success', $message);
 })->middleware('auth');
 
-// The old "permanently delete the asset" action used to live here. It issued
-// `delete from assets where id = …`, which PostgreSQL refused for any asset
-// still referenced by request_items (SQLSTATE 23503) and which destroyed an
-// asset's repair / replacement / request / file history for the ones it did
-// delete. Removing an asset from the inventory is not a disposal concern, so
-// the action is gone: a disposal record is archived, never deleted.
+// What permanently deleting an archived record would remove — asked before the
+// Admin is allowed to commit, so the consequences are visible up front instead
+// of arriving as a surprise (or as a foreign-key error half way through).
+Route::get('/admin/disposal/{id}/delete-impact', function ($id) {
+    $admin = Auth::user();
+    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+        return response()->json(['success' => false, 'message' => 'Only the Asset Management Office can delete an archived disposal record.'], 403);
+    }
+
+    $impact = Disposals::deletionImpact((int) $id);
+
+    if (!$impact) {
+        return response()->json(['success' => false, 'message' => 'Disposal record not found.'], 404);
+    }
+
+    return response()->json(['success' => true, 'impact' => $impact]);
+})->middleware('auth');
+
+// Permanently delete every archived disposal record, and with each of them the
+// asset it names. Registered before the {id} routes: its literal second segment
+// must win over the wildcard.
+Route::post('/admin/disposal/archived/delete-all', function (Request $request) {
+    $wantsJson = $request->expectsJson();
+
+    $admin = Auth::user();
+    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+        $message = 'Only the Asset Management Office can permanently delete archived disposal records.';
+
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], 403)
+            : redirect('/admin/disposal/archived')->with('error', $message);
+    }
+
+    $result = Disposals::destroyAllArchived();
+
+    if ($result['deleted']) {
+        try {
+            DB::table('audit_logs')->insert([
+                'user_id'            => Auth::id(),
+                'request_id'         => null,
+                'asset_id'           => null,
+                'action_type'        => 'DISPOSAL',
+                'notes'              => 'Archived disposal records permanently deleted',
+                'action_description' => 'Permanently deleted ' . $result['deleted_count'] . ' archived disposal record(s)'
+                    . ($result['asset_count'] > 0 ? ' and the ' . $result['asset_count'] . ' asset record(s) they named' : '')
+                    . '.',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Audit log skipped on bulk archived disposal delete: ' . $e->getMessage());
+        }
+    }
+
+    return $wantsJson
+        ? response()->json(['success' => $result['deleted'], 'message' => $result['message']] + [
+            'deleted_count' => $result['deleted_count'],
+            'asset_count'   => $result['asset_count'],
+            'failed'        => $result['failed'],
+        ], $result['deleted'] ? 200 : 422)
+        : redirect('/admin/disposal/archived')->with($result['deleted'] ? 'success' : 'error', $result['message']);
+})->middleware('auth');
+
+// Permanently delete one archived disposal record and the asset it names.
+//
+// Only reachable from Archived Disposal Assets: the record has to be archived
+// first. Support\Disposals::destroy() clears, in one transaction, the rows
+// PostgreSQL will not let an asset leave behind — request_items, repairs,
+// replacements and disposal records are RESTRICT — while keeping any request
+// that is shared with another asset.
+//
+// Like archiving, this is posted by an ordinary HTML form, so the browser always
+// gets a redirect with a flash message. Callers that ask for JSON get JSON.
+Route::post('/admin/disposal/{id}/delete-archived', function (Request $request, $id) {
+    $wantsJson = $request->expectsJson();
+
+    $fail = function (string $message, int $status) use ($wantsJson, $id) {
+        \Log::info('Permanent delete of archived disposal #' . $id . ' refused: ' . $message);
+
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], $status)
+            : redirect('/admin/disposal/archived')->with('error', $message);
+    };
+
+    $admin = Auth::user();
+    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+        return $fail('Only the Asset Management Office can permanently delete an archived disposal record.', 403);
+    }
+
+    $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
+    if (!$disposal) {
+        return $fail('Disposal record not found.', 404);
+    }
+
+    $result = Disposals::destroy((int) $id);
+
+    if (! $result['deleted']) {
+        return $fail($result['message'], 422);
+    }
+
+    // The rows are gone, so this is the only place the removal is recorded: the
+    // audit entry names the asset code in its description.
+    try {
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'request_id'         => null,
+            'asset_id'           => null,
+            'action_type'        => 'DISPOSAL',
+            'notes'              => 'Archived disposal record and asset permanently deleted',
+            'action_description' => $result['asset_code']
+                ? 'Archived disposal record #' . $id . ' for asset ' . $result['asset_code'] . ' was permanently deleted, together with the asset record.'
+                : 'Archived disposal record #' . $id . ' was permanently deleted.',
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    } catch (\Throwable $e) {
+        \Log::warning('Audit log skipped on archived disposal delete: ' . $e->getMessage());
+    }
+
+    return $wantsJson
+        ? response()->json([
+            'success'            => true,
+            'message'            => $result['message'],
+            'asset_deleted'      => $result['asset_deleted'],
+            'asset_code'         => $result['asset_code'],
+            'removed'            => $result['removed'],
+            'preserved_requests' => $result['preserved_requests'],
+        ])
+        : redirect('/admin/disposal/archived')->with('success', $result['message']);
+})->middleware('auth');
+
+// The old "permanently delete the asset" action used to live here, on the main
+// Disposal page. It issued `delete from assets where id = …` straight away, so
+// PostgreSQL refused it for any asset still referenced by request_items
+// (SQLSTATE 23503) and, for the rows it did delete, silently destroyed the
+// asset's repair / replacement / request / file history in an order nothing
+// controlled. That action is gone: deleting now happens only from Archived
+// Disposal Assets, only after the disposal is complete and archived, and it is
+// dependency-ordered inside one transaction by Support\Disposals::destroy().
 
 // Get single disposal details (for the View Details modal).
 //

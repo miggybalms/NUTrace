@@ -44,6 +44,8 @@
 
         .btn-ghost{ font-family:'Inter',sans-serif; font-weight:500; border-radius:9px; padding:.55rem 1.1rem; color:var(--navy-800); border:1px solid var(--line); background:#fff; transition:background .15s; display:inline-flex; align-items:center; }
         .btn-ghost:hover{ background:var(--paper-2); }
+        .btn-danger{ font-family:'Inter',sans-serif; font-weight:600; border-radius:9px; padding:.55rem 1.1rem; background:var(--brick); color:#fff; display:inline-flex; align-items:center; transition:filter .15s ease; }
+        .btn-danger:hover{ filter:brightness(1.08); }
 
         .hero-card{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); border-radius:14px; position:relative; overflow:hidden; }
         .hero-card::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:linear-gradient(90deg,transparent, var(--gold-500), transparent); }
@@ -97,13 +99,29 @@
 
             <!-- Content -->
             <div class="p-4 sm:p-8">
+                {{-- Deleting posts an ordinary form, so its result comes back as a
+                     flash message rather than a background response. --}}
+                @if(session('success'))
+                    <div class="mb-6 p-4 rounded-xl text-sm flex items-start" style="background:var(--forest-tint); border-left:4px solid var(--forest); color:var(--forest-dark);">
+                        <i class="ri-checkbox-circle-line text-xl mr-3 mt-0.5"></i>
+                        <p>{{ session('success') }}</p>
+                    </div>
+                @endif
+                @if(session('error'))
+                    <div class="mb-6 p-4 rounded-xl text-sm flex items-start" style="background:var(--brick-tint); border-left:4px solid var(--brick); color:var(--brick-dark);">
+                        <i class="ri-error-warning-line text-xl mr-3 mt-0.5"></i>
+                        <p>{{ session('error') }}</p>
+                    </div>
+                @endif
+
                 <div class="hero-card p-6 mb-6 text-white">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="eyebrow" style="color:var(--gold-500);">Archived Disposal Assets</p>
                             <p class="font-display text-4xl font-bold mt-2">{{ $disposalRecords->count() }}</p>
                             <p class="text-xs mt-2" style="color:#C7D2E3;">
-                                Older disposal records are stored here for historical reference.
+                                Completed disposal records are stored here. Deleting one from this page also deletes the
+                                asset record it names.
                             </p>
                         </div>
                         <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(201,162,39,.28); border:1px solid rgba(255,255,255,.15);">
@@ -112,16 +130,24 @@
                     </div>
                 </div>
 
-                <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <a href="/admin/disposal" class="btn-ghost self-start">
                         <i class="ri-arrow-left-line mr-2"></i>
                         Back to Disposal
                     </a>
-                    <p class="text-xs sm:max-w-md sm:text-right" style="color:var(--ink-600);">
-                        These records are no longer part of the active Disposal list. Archiving also took their
-                        assets out of the inventory — nothing here can be deleted, so the record and the asset's
-                        history stay readable.
-                    </p>
+                    <div class="flex flex-col sm:items-end gap-3">
+                        <p class="text-xs sm:max-w-md sm:text-right" style="color:var(--ink-600);">
+                            These records are no longer part of the active Disposal list, and their assets have
+                            already left the inventory. Leaving a record here keeps it, and the asset it names,
+                            readable; deleting it erases both from the database for good.
+                        </p>
+                        @if($disposalRecords->count() > 0)
+                            <button type="button" onclick="openDeleteAllModal()" class="btn-danger self-start sm:self-end">
+                                <i class="ri-delete-bin-6-line mr-1.5"></i>
+                                Permanently delete all {{ $disposalRecords->count() }}
+                            </button>
+                        @endif
+                    </div>
                 </div>
 
                 <!-- Search -->
@@ -149,7 +175,7 @@
                                         <th class="eyebrow py-3 px-4 whitespace-nowrap">Reason</th>
                                         <th class="eyebrow py-3 px-4 whitespace-nowrap">Archived Date</th>
                                         <th class="eyebrow py-3 px-4 whitespace-nowrap">Archived By</th>
-                                        <th class="eyebrow py-3 px-4 whitespace-nowrap">Details</th>
+                                        <th class="eyebrow py-3 px-4 whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="archivedRecordsBody">
@@ -160,10 +186,10 @@
                                         <td class="py-3 px-4">
                                             <p class="text-sm font-medium detail-value" style="color:var(--navy-900);">{{ $record->asset_name ?? 'Asset' }}</p>
                                             @unless($record->asset_still_exists)
-                                                <span class="chip chip-historic mt-1" title="The asset row itself is gone; this disposal record is the only remaining trace. Nothing can be deleted from here."><i class="ri-history-line"></i>Asset record removed</span>
+                                                <span class="chip chip-historic mt-1" title="The asset row itself is already gone; this disposal record is the only remaining trace of it."><i class="ri-history-line"></i>Asset record removed</span>
                                             @else
                                                 @if($record->inventory_removed ?? false)
-                                                    <span class="chip chip-archived mt-1" title="Taken out of the inventory when this record was archived. The asset row and its history are still kept."><i class="ri-archive-line"></i>Removed from inventory</span>
+                                                    <span class="chip chip-archived mt-1" title="Taken out of the inventory when this record was archived. The asset row stays until this record is deleted."><i class="ri-archive-line"></i>Removed from inventory</span>
                                                 @endif
                                             @endunless
                                         </td>
@@ -173,13 +199,23 @@
                                         <td class="py-3 px-4 text-sm" style="color:var(--ink-600);">{{ $record->archived_at ? \Illuminate\Support\Carbon::parse($record->archived_at)->format('M d, Y') : '—' }}</td>
                                         <td class="py-3 px-4 text-sm detail-value" style="color:var(--ink-600);">{{ $record->archived_by_name ?: '—' }}</td>
                                         <td class="py-3 px-4">
-                                            <button type="button" onclick="viewDisposalDetails({{ $record->id }})"
-                                                    class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                                                    style="color:var(--steel); border:1px solid var(--line);"
-                                                    onmouseover="this.style.background='var(--steel-tint)'" onmouseout="this.style.background='transparent'"
-                                                    title="View details">
-                                                <i class="ri-eye-line mr-1"></i>View Details
-                                            </button>
+                                            <div class="flex items-center gap-2">
+                                                <button type="button" onclick="viewDisposalDetails({{ $record->id }})"
+                                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                                                        style="color:var(--steel); border:1px solid var(--line);"
+                                                        onmouseover="this.style.background='var(--steel-tint)'" onmouseout="this.style.background='transparent'"
+                                                        title="View details">
+                                                    <i class="ri-eye-line mr-1"></i>View Details
+                                                </button>
+                                                <button type="button" onclick="openDeleteModal({{ $record->id }}, this)"
+                                                        data-label="{{ $record->asset_name ?? 'Asset' }} · {{ $record->asset_code ?? 'N/A' }}"
+                                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all"
+                                                        style="color:#fff; background:var(--brick);"
+                                                        onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'"
+                                                        title="Permanently delete this record and its asset from the database">
+                                                    <i class="ri-delete-bin-line mr-1"></i>Delete
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     @endforeach
@@ -235,7 +271,56 @@
         </div>
     </div>
 
+    <!-- Permanent Delete Confirmation Modal.
+
+         The only destructive action in the disposal workflow, so it is never one
+         click: the modal states what will be removed (fetched first from
+         /delete-impact), and the Admin has to type DELETE before the button
+         unlocks. The submit itself is an ordinary form POST — the browser gets a
+         redirect and a flash message, which keeps the result visible even when a
+         background request would not be. -->
+    <div id="deleteModal" class="hidden fixed inset-0 z-50 items-center justify-center modal p-4" style="background:rgba(10,24,48,.55);" onclick="closeDeleteModal()">
+        <div class="rounded-xl shadow-2xl max-w-lg w-full" style="background:#fff;" onclick="event.stopPropagation();">
+            <div class="modal-head p-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-display text-xl font-semibold text-white" id="deleteModalTitle">Permanently Delete?</h3>
+                    <button type="button" onclick="closeDeleteModal()" class="text-white/60 hover:text-white">
+                        <i class="ri-close-line text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+            <form id="deleteForm" method="POST" action="/admin/disposal/archived/delete-all" class="p-6">
+                @csrf
+                <p class="text-sm leading-relaxed" style="color:var(--ink-600);">
+                    This cannot be undone. Each archived disposal record is erased from the database, and so is the
+                    asset row it names — together with the records that exist only because that asset does.
+                </p>
+                <p class="text-xs mt-3 p-3 rounded-lg" id="deleteModalRecord" style="background:var(--paper-2); color:var(--ink-600);"></p>
+                <div id="deleteImpact" class="mt-3 text-xs" style="color:var(--ink-600);"></div>
+                <div id="deleteBlockers" class="hidden mt-3 p-3 rounded-lg text-xs" style="background:var(--brick-tint); border-left:4px solid var(--brick); color:var(--brick-dark);"></div>
+
+                <div class="mt-4">
+                    <label for="deleteConfirmInput" class="text-xs" style="color:var(--ink-400);">
+                        Type <span class="font-mono font-semibold" style="color:var(--brick);">DELETE</span> to confirm
+                    </label>
+                    <input type="text" id="deleteConfirmInput" class="form-input mt-1 font-mono" autocomplete="off"
+                           placeholder="DELETE" oninput="syncDeleteConfirm()" />
+                </div>
+
+                <div class="flex justify-end gap-2 mt-6 pt-5" style="border-top:1px solid var(--line);">
+                    <button type="button" onclick="closeDeleteModal()" class="btn-ghost">Cancel</button>
+                    <button type="submit" id="deleteModalConfirm" class="btn-danger" disabled style="opacity:.5; cursor:not-allowed;">
+                        <i class="ri-delete-bin-line mr-1.5"></i>Delete permanently
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
+        const DELETE_ONE_ACTION = '/admin/disposal/';
+        const DELETE_ALL_ACTION = '/admin/disposal/archived/delete-all';
+        const ARCHIVED_COUNT = {{ $disposalRecords->count() }};
         function esc(value) {
             if (value === null || value === undefined) return '';
             return String(value)
@@ -446,8 +531,197 @@
             `;
         }
 
+        /* ── permanent delete ───────────────────────────────────────
+           Deleting is the one action here that cannot be undone, so the modal
+           is filled with what will actually be removed before the Admin can
+           confirm, and the confirm button stays locked until DELETE is typed. */
+        function impactList(counts) {
+            return Object.entries(counts || {})
+                .map(([label, count]) => `<li><span class="font-semibold" style="color:var(--navy-900);">${esc(count)}&times;</span> ${esc(label)}</li>`)
+                .join('');
+        }
+
+        function blockDeleteConfirm(message) {
+            const button = document.getElementById('deleteModalConfirm');
+            const box = document.getElementById('deleteBlockers');
+
+            if (button) {
+                button.dataset.blocked = '1';
+                button.disabled = true;
+                button.style.opacity = '.5';
+                button.style.cursor = 'not-allowed';
+            }
+
+            if (box && message) {
+                box.textContent = message;
+                box.classList.remove('hidden');
+            }
+        }
+
+        function syncDeleteConfirm() {
+            const input = document.getElementById('deleteConfirmInput');
+            const button = document.getElementById('deleteModalConfirm');
+            if (!button) return;
+
+            const typed = (input?.value || '').trim().toUpperCase() === 'DELETE';
+            const ready = typed && button.dataset.blocked !== '1';
+
+            button.disabled = !ready;
+            button.style.opacity = ready ? '1' : '.5';
+            button.style.cursor = ready ? 'pointer' : 'not-allowed';
+        }
+
+        function resetDeleteModal() {
+            const input = document.getElementById('deleteConfirmInput');
+            const button = document.getElementById('deleteModalConfirm');
+            const blockers = document.getElementById('deleteBlockers');
+
+            if (input) input.value = '';
+            if (button) {
+                delete button.dataset.blocked;
+                button.disabled = true;
+                button.innerHTML = '<i class="ri-delete-bin-line mr-1.5"></i>Delete permanently';
+            }
+            if (blockers) blockers.classList.add('hidden');
+
+            syncDeleteConfirm();
+        }
+
+        function renderDeleteImpact(impact) {
+            const box = document.getElementById('deleteImpact');
+            let html = '';
+
+            if (impact.asset_code || impact.asset_id) {
+                html += `<p class="mb-2">Asset <span class="font-mono font-semibold" style="color:var(--navy-900);">${esc(impact.asset_code || ('#' + impact.asset_id))}</span>${impact.asset_name ? ' — ' + esc(impact.asset_name) : ''}</p>`;
+            }
+
+            const removes = impactList(impact.removes);
+            html += `<p class="font-semibold mb-1" style="color:var(--brick-dark);"><i class="ri-delete-bin-line mr-1"></i>Will be removed</p>`;
+            html += removes
+                ? `<ul class="list-disc pl-5 space-y-0.5">${removes}</ul>`
+                : `<p class="italic" style="color:var(--ink-400);">Only the record itself.</p>`;
+
+            const keeps = impactList(impact.keeps);
+            if (keeps) {
+                html += `<p class="font-semibold mt-3 mb-1" style="color:var(--forest);"><i class="ri-shield-check-line mr-1"></i>Will be kept</p>`;
+                html += `<ul class="list-disc pl-5 space-y-0.5">${keeps}</ul>`;
+            }
+
+            if (impact.files) {
+                html += `<p class="mt-3" style="color:var(--ink-400);">${esc(impact.files)} stored photo / QR file(s) are removed from storage as well.</p>`;
+            }
+
+            if ((impact.preserved_requests || []).length) {
+                html += `<p class="mt-3" style="color:var(--bronze-dark);"><i class="ri-links-line mr-1"></i>Request #${impact.preserved_requests.map((id) => esc(id)).join(', #')} also covers other assets, so it is kept — it simply stops naming this one.</p>`;
+            }
+
+            box.innerHTML = html;
+
+            if ((impact.blockers || []).length) {
+                blockDeleteConfirm(impact.blockers.join(' '));
+            }
+        }
+
+        async function loadDeleteImpact(disposalId) {
+            const box = document.getElementById('deleteImpact');
+
+            try {
+                const res = await fetch(DELETE_ONE_ACTION + disposalId + '/delete-impact', {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const json = await res.json().catch(() => ({}));
+
+                if (!res.ok || !json.success) {
+                    throw new Error(json.message || 'This record cannot be deleted.');
+                }
+
+                renderDeleteImpact(json.impact);
+            } catch (err) {
+                const message = err.message || 'This record cannot be deleted.';
+                box.innerHTML = `<p style="color:var(--brick-dark);">${esc(message)}</p>`;
+                blockDeleteConfirm(message);
+            }
+        }
+
+        function openDeleteModal(disposalId, button) {
+            const modal = document.getElementById('deleteModal');
+            const form = document.getElementById('deleteForm');
+            const title = document.getElementById('deleteModalTitle');
+            const record = document.getElementById('deleteModalRecord');
+
+            resetDeleteModal();
+
+            if (title) title.textContent = 'Permanently Delete Record?';
+            if (form) form.action = DELETE_ONE_ACTION + disposalId + '/delete-archived';
+            if (record) {
+                record.textContent = 'Disposal record #' + disposalId
+                    + (button?.dataset?.label ? ' · ' + button.dataset.label : '');
+            }
+            if (document.getElementById('deleteImpact')) {
+                document.getElementById('deleteImpact').innerHTML =
+                    '<p class="italic" style="color:var(--ink-400);">Checking what will be removed…</p>';
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            loadDeleteImpact(disposalId);
+        }
+
+        function openDeleteAllModal() {
+            const modal = document.getElementById('deleteModal');
+            const form = document.getElementById('deleteForm');
+            const title = document.getElementById('deleteModalTitle');
+            const record = document.getElementById('deleteModalRecord');
+            const impact = document.getElementById('deleteImpact');
+
+            resetDeleteModal();
+
+            if (title) title.textContent = 'Permanently Delete All Archived Records?';
+            if (form) form.action = DELETE_ALL_ACTION;
+            if (record) record.textContent = ARCHIVED_COUNT + ' archived disposal record(s) listed on this page';
+            if (impact) {
+                impact.innerHTML = `
+                    <p class="font-semibold mb-1" style="color:var(--brick-dark);"><i class="ri-delete-bin-line mr-1"></i>Will be removed</p>
+                    <ul class="list-disc pl-5 space-y-0.5">
+                        <li><span class="font-semibold" style="color:var(--navy-900);">${esc(ARCHIVED_COUNT)}&times;</span> Archived disposal record</li>
+                        <li>Every asset record those records still name, with that asset's repairs, replacements, requests, request line items, pullouts, accountability and file rows</li>
+                    </ul>
+                    <p class="mt-3" style="color:var(--ink-400);">Requests that also cover other assets are kept — they simply stop naming the deleted one.</p>`;
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeDeleteModal() {
+            const modal = document.getElementById('deleteModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // One delete at a time: the second click can only ever be a duplicate.
+        document.getElementById('deleteForm')?.addEventListener('submit', function (e) {
+            const button = document.getElementById('deleteModalConfirm');
+
+            if (button?.disabled) {
+                e.preventDefault();
+
+                return;
+            }
+
+            if (button) {
+                button.disabled = true;
+                button.style.opacity = '1';
+                button.innerHTML = '<i class="ri-loader-4-line mr-1.5"></i>Deleting…';
+            }
+        });
+
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeViewDisposalModal();
+            if (e.key === 'Escape') {
+                closeViewDisposalModal();
+                closeDeleteModal();
+            }
         });
     </script>
 </body>

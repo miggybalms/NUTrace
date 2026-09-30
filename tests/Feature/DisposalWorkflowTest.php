@@ -501,4 +501,303 @@ class DisposalWorkflowTest extends TestCase
         $this->assertSame($this->admin->id, (int) $asset->inventory_removed_by);
         $this->assertFalse(Asset::inInventory()->whereKey($this->assetId)->exists());
     }
+
+    /* ── permanently deleting an archived record and its asset ──────────── */
+
+    /** Approve a disposal request and archive it: the state deletion requires. */
+    private function archivedDisposal(): int
+    {
+        $disposalId = $this->approveDisposalRequest();
+
+        $this->actingAs($this->admin)->postJson("/admin/disposal/{$disposalId}/archive")->assertOk();
+
+        return $disposalId;
+    }
+
+    /** A second asset, for the records that have to point at one. */
+    private function secondAsset(string $code = 'AST-0002', string $name = 'Printer'): int
+    {
+        return (int) DB::table('assets')->insertGetId([
+            'user_id' => $this->employee->id, 'Asset_code' => $code, 'Asset_name' => $name,
+            'Category' => 'Info and Equipment', 'Condition' => 'Good', 'Lifecycle_Status' => 'Active',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
+    public function test_an_admin_can_permanently_delete_an_archived_record_and_its_asset(): void
+    {
+        $disposalId = $this->archivedDisposal();
+        $requestId  = (int) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('Request_id');
+
+        $this->actingAs($this->admin)
+            ->post("/admin/disposal/{$disposalId}/delete-archived")
+            ->assertRedirect('/admin/disposal/archived')
+            ->assertSessionHas('success', fn ($message) => str_contains($message, 'AST-0001')
+                && str_contains($message, 'permanently deleted'));
+
+        // The record, the asset, and the rows that only existed because the asset
+        // did (request_items is RESTRICT, so it is what broke the old action).
+        $this->assertSame(0, DB::table('disposals')->where('Disposal_ID', $disposalId)->count());
+        $this->assertSame(0, DB::table('assets')->where('id', $this->assetId)->count());
+        $this->assertSame(0, DB::table('request_items')->where('asset_id', $this->assetId)->count());
+        $this->assertSame(0, DB::table('requests')->where('id', $requestId)->count());
+
+        // Neither page knows the record any more. (The flash message from the
+        // delete is deliberately not part of this assertion.)
+        $this->flushSession();
+
+        $this->actingAs($this->admin)->get('/admin/disposal/archived')->assertOk()->assertDontSee('AST-0001');
+        $this->actingAs($this->admin)->get('/admin/disposal')->assertOk()->assertDontSee('AST-0001');
+
+        // The removal itself is the one thing that stays behind: the audit trail
+        // names the asset the database no longer has.
+        $audit = DB::table('audit_logs')->where('action_description', 'like', '%was permanently deleted%')->first();
+        $this->assertNotNull($audit, 'removing an asset must leave an audit trail');
+        $this->assertSame('DISPOSAL', $audit->action_type);
+        $this->assertStringContainsString('AST-0001', $audit->action_description);
+        $this->assertNull($audit->asset_id);
+    }
+
+    public function test_deleting_an_archived_record_clears_the_rows_that_restrict_the_asset(): void
+    {
+        $disposalId = $this->archivedDisposal();
+        $requestId  = (int) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('Request_id');
+
+        $otherAssetId = $this->secondAsset();
+        $otherRequestId = (int) DB::table('requests')->insertGetId([
+            'user_id' => $this->employee->id, 'asset_id' => $otherAssetId, 'request_type' => 'Repair',
+            'status' => 'Pending', 'Note' => 'Other asset, other request.',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('request_items')->insert([
+            'request_id' => $otherRequestId, 'asset_id' => $otherAssetId,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        // The exact fan-in that made the old delete fail with SQLSTATE 23503:
+        // the request line the disposal request already added, plus a repair, a
+        // replacement, a file, a pullout and an accountability record.
+        $this->assertSame(1, DB::table('request_items')->where('asset_id', $this->assetId)->count());
+
+        DB::table('repairs')->insert([
+            'Assets_id' => $this->assetId, 'Request_id' => $requestId,
+            'Repair_Description' => 'Replaced the mainboard.', 'Repair_Date' => now()->subMonth(),
+            'Approve_by' => 'Sir alex', 'Repair_Cost' => 3200.00,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('replacements')->insert([
+            'Request_id' => $requestId, 'old_assets_id' => $this->assetId, 'new_assets_id' => $otherAssetId,
+            'reason' => 'Beyond repair', 'replacement_reason' => 'Damage',
+            'Replacement_Date' => now()->subMonth(), 'Approve_by' => 'Sir alex',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('asset_files')->insert([
+            'Asset_id' => $this->assetId, 'file_name' => 'unit.png', 'file_path' => 'assets/photos/ast-0001.png',
+            'file_size' => 1024, 'mime_type' => 'image/png', 'uploaded_at' => now()->toDateTimeString(),
+            'url' => 'assets/photos/ast-0001.png', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('pullouts')->insert([
+            'request_id' => $requestId, 'asset_id' => $this->assetId, 'Approve_by' => 'Sir alex',
+            'pullout_date' => now()->subWeeks(2)->toDateString(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('asset_accountability')->insert([
+            'asset_id' => $this->assetId, 'user_id' => $this->employee->id,
+            'Assign_date' => now()->subMonths(6), 'Is_Current' => 1,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/disposal/{$disposalId}/delete-archived")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('asset_deleted', true)
+            ->assertJsonPath('asset_code', 'AST-0001');
+
+        foreach ([
+            'disposals'           => 'Asset_id',
+            'requests'            => 'asset_id',
+            'request_items'       => 'asset_id',
+            'repairs'             => 'Assets_id',
+            'asset_files'         => 'Asset_id',
+            'pullouts'            => 'asset_id',
+            'asset_accountability' => 'asset_id',
+        ] as $table => $column) {
+            $this->assertSame(
+                0,
+                DB::table($table)->where($column, $this->assetId)->count(),
+                $table . ' must not outlive the asset it was restricted by'
+            );
+        }
+
+        // The disposal request existed only for this asset, so it goes with it.
+        $this->assertSame(0, DB::table('requests')->where('id', $requestId)->count());
+
+        // The replacement record pointed at two assets; it belonged to the one
+        // being deleted, so it goes with it.
+        $this->assertSame(0, DB::table('replacements')->where('Request_id', $requestId)->count());
+        $this->assertSame(0, DB::table('assets')->where('id', $this->assetId)->count());
+
+        // Nothing that belongs to another asset was touched.
+        $this->assertNotNull(DB::table('assets')->where('id', $otherAssetId)->first());
+        $this->assertNotNull(DB::table('requests')->where('id', $otherRequestId)->first());
+        $this->assertSame(1, DB::table('request_items')->where('asset_id', $otherAssetId)->count());
+    }
+
+    public function test_a_request_shared_with_another_asset_survives_the_deletion(): void
+    {
+        $disposalId = $this->archivedDisposal();
+        $requestId  = (int) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('Request_id');
+
+        // The same request also covers a second asset — the Requests page can do
+        // that, and deleting one asset must not strip the other one's history.
+        $otherAssetId = $this->secondAsset();
+        DB::table('requests')->where('id', $requestId)->update(['asset_id' => $this->assetId]);
+        DB::table('request_items')->insert([
+            'request_id' => $requestId, 'asset_id' => $otherAssetId,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/disposal/{$disposalId}/delete-archived")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('preserved_requests', [$requestId]);
+
+        // The asset and its own record are gone …
+        $this->assertSame(0, DB::table('assets')->where('id', $this->assetId)->count());
+        $this->assertSame(0, DB::table('disposals')->where('Disposal_ID', $disposalId)->count());
+        $this->assertSame(0, DB::table('request_items')->where('asset_id', $this->assetId)->count());
+
+        // … but the shared request survives, no longer naming it.
+        $request = DB::table('requests')->where('id', $requestId)->first();
+        $this->assertNotNull($request, 'a request that also covers another asset must survive');
+        $this->assertNull($request->asset_id);
+        $this->assertSame(1, DB::table('request_items')->where('asset_id', $otherAssetId)->count());
+        $this->assertNotNull(DB::table('assets')->where('id', $otherAssetId)->first());
+    }
+
+    public function test_a_disposal_record_that_is_not_archived_cannot_be_deleted(): void
+    {
+        $disposalId = $this->approveDisposalRequest();
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/disposal/{$disposalId}/delete-archived")
+            ->assertStatus(422);
+
+        $this->assertSame(1, DB::table('disposals')->where('Disposal_ID', $disposalId)->count());
+        $this->assertNotNull(
+            DB::table('assets')->where('id', $this->assetId)->first(),
+            'a record that is not archived must never take its asset with it'
+        );
+    }
+
+    public function test_only_the_asset_management_office_can_permanently_delete_archived_records(): void
+    {
+        $disposalId = $this->archivedDisposal();
+
+        $this->actingAs($this->employee)
+            ->post("/admin/disposal/{$disposalId}/delete-archived")
+            ->assertRedirect('/admin/disposal/archived')
+            ->assertSessionHas('error', 'Only the Asset Management Office can permanently delete an archived disposal record.');
+
+        $this->actingAs($this->employee)
+            ->getJson("/admin/disposal/{$disposalId}/delete-impact")
+            ->assertStatus(403);
+
+        $this->actingAs($this->employee)
+            ->post('/admin/disposal/archived/delete-all')
+            ->assertRedirect('/admin/disposal/archived')
+            ->assertSessionHas('error', 'Only the Asset Management Office can permanently delete archived disposal records.');
+
+        $this->assertSame(1, DB::table('disposals')->where('Disposal_ID', $disposalId)->count());
+        $this->assertNotNull(DB::table('assets')->where('id', $this->assetId)->first());
+    }
+
+    public function test_delete_all_removes_every_archived_record_and_the_assets_they_name(): void
+    {
+        $this->archivedDisposal();
+
+        // A legacy record with no asset at all, exactly like the ones already
+        // sitting on the deployed site ("Scanned Disposal", code N/A).
+        DB::table('disposals')->insert([
+            'Asset_id' => null, 'Request_id' => null, 'Approve_by' => 'System',
+            'Description' => 'Scanned Disposal', 'disposal_date' => now()->subMonth()->toDateString(),
+            'disposal_reason' => 'Obsolete', 'is_archived' => true,
+            'archived_at' => now(), 'archived_by' => $this->admin->id,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->assertSame(2, DB::table('disposals')->where('is_archived', true)->count());
+
+        $this->actingAs($this->admin)
+            ->post('/admin/disposal/archived/delete-all')
+            ->assertRedirect('/admin/disposal/archived')
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '2 archived disposal records')
+                && str_contains($message, '1 asset record'));
+
+        $this->assertSame(0, DB::table('disposals')->count());
+        $this->assertSame(0, DB::table('assets')->where('id', $this->assetId)->count());
+        $this->assertSame(0, DB::table('request_items')->where('asset_id', $this->assetId)->count());
+
+        $this->flushSession();
+
+        $this->actingAs($this->admin)->get('/admin/disposal/archived')
+            ->assertOk()
+            ->assertSee('Nothing archived yet');
+
+        $this->assertNotNull(
+            DB::table('audit_logs')->where('action_description', 'like', '%Permanently deleted 2 archived disposal record%')->first(),
+            'a bulk delete has to be recorded too'
+        );
+    }
+
+    public function test_the_delete_preview_lists_what_will_be_removed_and_why_it_may_be_refused(): void
+    {
+        $disposalId = $this->archivedDisposal();
+
+        DB::table('asset_files')->insert([
+            'Asset_id' => $this->assetId, 'file_name' => 'unit.png', 'file_path' => 'assets/photos/ast-0001.png',
+            'file_size' => 1024, 'mime_type' => 'image/png', 'uploaded_at' => now()->toDateTimeString(),
+            'url' => 'assets/photos/ast-0001.png', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $preview = $this->actingAs($this->admin)
+            ->getJson("/admin/disposal/{$disposalId}/delete-impact")
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('impact.is_archived', true)
+            ->assertJsonPath('impact.asset_code', 'AST-0001')
+            ->assertJsonPath('impact.asset_exists', true)
+            ->assertJsonPath('impact.blockers', [])
+            ->assertJsonPath('impact.removes.Asset record', 1)
+            ->assertJsonPath('impact.removes.Disposal record', 1)
+            ->assertJsonPath('impact.removes.Request line item', 1)
+            ->assertJsonPath('impact.removes.Asset file', 1)
+            ->assertJsonPath('impact.files', 1);
+
+        // The audit trail is reported as surviving, because it does.
+        $this->assertGreaterThan(0, $preview->json('impact.keeps.Audit entry'));
+
+        // A record that is not archived yet says why it cannot be deleted.
+        $activeId = $this->approveDisposalRequest();
+
+        $active = $this->actingAs($this->admin)
+            ->getJson("/admin/disposal/{$activeId}/delete-impact")
+            ->assertOk()
+            ->assertJsonPath('impact.is_archived', false);
+
+        $this->assertStringContainsString('archive this record first', implode(' ', $active->json('impact.blockers')));
+    }
+
+    public function test_the_archived_page_offers_deletion_instead_of_claiming_nothing_can_be_deleted(): void
+    {
+        $this->archivedDisposal();
+
+        $page = $this->actingAs($this->admin)->get('/admin/disposal/archived')->assertOk();
+
+        $page->assertSee('openDeleteModal');
+        $page->assertSee('Permanently delete all 1');
+        $page->assertSee('/delete-impact');
+        $page->assertDontSee('nothing here can be deleted');
+    }
 }

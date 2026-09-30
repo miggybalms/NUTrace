@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -12,8 +13,15 @@ use Throwable;
  *
  * The request is the source of the disposal transaction: approving a Disposal
  * request creates the record, marks the asset Disposed and leaves the asset row
- * — and everything hanging off it — in place. Nothing here ever deletes an
- * asset or a disposal record; records are archived, never removed.
+ * — and everything hanging off it — in place.
+ *
+ * Archiving is the reversible-feeling step: the record leaves the main list, the
+ * asset leaves the inventory, both rows stay. Deleting is the one deliberate
+ * exception, and it is only ever available on an already-archived record:
+ * disposal id records itself plus the asset row it names are removed from the
+ * database, together with the rows that cannot outlive the asset (see
+ * destroy()). Everything else — the audit trail, records of other assets —
+ * survives.
  */
 class Disposals
 {
@@ -180,8 +188,10 @@ class Disposals
      *
      * Archiving is the point at which the asset leaves the inventory: its
      * disposal is complete and recorded, so it stops being counted as an asset
-     * the institution holds. The row is never deleted — the archived record has
-     * to be able to name the asset, and the asset's own history stays readable.
+     * the institution holds. Archiving itself never deletes the row — the
+     * archived record has to be able to name the asset, and the asset's own
+     * history stays readable. Deleting is a separate, explicit action on an
+     * archived record (see destroy()).
      *
      * A record can only be archived once, and the record plus the inventory
      * change are one transaction so they can never disagree.
@@ -250,6 +260,460 @@ class Disposals
             'asset_removed' => $removed,
             'asset_code'    => $assetCode,
         ];
+    }
+
+    /**
+     * What permanently deleting an archived record is about to remove.
+     *
+     * Deleting an archived record is the only destructive action in the disposal
+     * workflow, so it is never a surprise: the Archived Disposal Assets page asks
+     * this first and shows the Admin exactly which rows — and how many — will go,
+     * and why the action is refused when it is not allowed yet.
+     *
+     * Returns null when the record does not exist.
+     *
+     * @return array{
+     *     disposal_id: int,
+     *     is_archived: bool,
+     *     asset_id: ?int,
+     *     asset_code: ?string,
+     *     asset_name: ?string,
+     *     asset_exists: bool,
+     *     blockers: array<int, string>,
+     *     removes: array<string, int>,
+     *     keeps: array<string, int>,
+     *     preserved_requests: array<int, int>,
+     *     files: int
+     * }|null
+     */
+    public static function deletionImpact(int $disposalId): ?array
+    {
+        $disposal = DB::table('disposals')->where('Disposal_ID', $disposalId)->first();
+
+        if (! $disposal) {
+            return null;
+        }
+
+        $assetId = $disposal->Asset_id ? (int) $disposal->Asset_id : null;
+        $asset   = $assetId ? DB::table('assets')->where('id', $assetId)->first() : null;
+
+        $blockers = [];
+
+        if (! self::archiveColumnsReady()) {
+            $blockers[] = 'The archive database migration has not been run on this server.';
+        } elseif (empty($disposal->is_archived)) {
+            $blockers[] = 'Only archived disposal records can be permanently deleted — archive this record first.';
+        }
+
+        if ($assetId && self::activeDisposalsFor($assetId) > 0) {
+            $blockers[] = 'This asset still has an active disposal record on the Disposal page. Archive that record first.';
+        }
+
+        $removes = [];
+
+        if ($assetId && $asset) {
+            $requestIds = self::requestsOfAsset($assetId);
+
+            // Requests that also cover another asset are kept, so only the rest
+            // of this asset's own requests are part of the delete.
+            $preserved = array_values(array_filter(
+                $requestIds,
+                static fn (int $requestId): bool => self::requestLinksAnotherAsset($requestId, $assetId)
+            ));
+
+            $removes['Disposal record'] = DB::table('disposals')->where('Asset_id', $assetId)->count();
+            $removes['Asset record']    = 1;
+            $removes['Request line item'] = DB::table('request_items')->where('asset_id', $assetId)->count();
+            $removes['Repair record']   = DB::table('repairs')->where('Assets_id', $assetId)->count();
+            $removes['Repair evaluation'] = DB::table('repair_evaluations')
+                ->join('repairs', 'repair_evaluations.repair_id', '=', 'repairs.Repair_id')
+                ->where('repairs.Assets_id', $assetId)
+                ->count();
+            $removes['Replacement record'] = DB::table('replacements')
+                ->where('old_assets_id', $assetId)->orWhere('new_assets_id', $assetId)->count();
+            $removes['Pullout record']  = DB::table('pullouts')->where('asset_id', $assetId)->count();
+            $removes['Accountability record'] = DB::table('asset_accountability')->where('asset_id', $assetId)->count();
+            $removes['Asset file']      = DB::table('asset_files')->where('Asset_id', $assetId)->count();
+            $removes['Request']         = count(array_diff($requestIds, $preserved));
+        } else {
+            $removes['Disposal record'] = 1;
+            $preserved = [];
+        }
+
+        return [
+            'disposal_id'        => $disposalId,
+            'is_archived'        => ! empty($disposal->is_archived),
+            'asset_id'           => $assetId,
+            'asset_code'         => $asset?->Asset_code,
+            'asset_name'         => $asset?->Asset_name ?? ($disposal->Description ?: null),
+            'asset_exists'       => (bool) $asset,
+            'blockers'           => $blockers,
+            'removes'            => array_filter($removes, static fn (int $count): bool => $count > 0),
+            // The audit trail deliberately stays: it is the only record of who
+            // removed the asset, and its asset_id is cleared by the database.
+            'keeps'              => array_filter([
+                'Audit entry' => $assetId ? DB::table('audit_logs')->where('asset_id', $assetId)->count() : 0,
+            ], static fn (int $count): bool => $count > 0),
+            'preserved_requests' => $preserved,
+            'files'              => $assetId ? count(self::storedFiles($assetId)) : 0,
+        ];
+    }
+
+    /**
+     * Permanently delete an archived disposal record and the asset it names.
+     *
+     * This is the one destructive action in the disposal workflow, and the only
+     * way an asset ever leaves the database. It is deliberately narrow:
+     *
+     *   - the record has to be archived already;
+     *   - the asset may not still have an active disposal record waiting;
+     *   - a request shared with another asset is kept (its asset link is cleared
+     *     instead), so deleting one asset cannot strip another asset's history.
+     *
+     * The asset's own rows exist only because the asset does, and PostgreSQL
+     * refuses to remove the asset while they reference it
+     * (request_items / repairs / replacements / disposals are RESTRICT), so they
+     * are cleared in dependency order first: disposal records, replacements,
+     * repairs, request line items, then the asset itself — whose request, pullout,
+     * file and accountability rows the database then cascades away. All of it is
+     * one transaction: either the record and its asset are gone, or nothing
+     * changed at all.
+     *
+     * The audit entry that records who did this is written by the caller, after
+     * this has committed and the rows it names are gone.
+     *
+     * @return array{deleted: bool, message: string, asset_deleted: bool, asset_code: ?string, removed: array<string, int>, preserved_requests: array<int, int>, files: int}
+     */
+    public static function destroy(int $disposalId): array
+    {
+        $fail = static fn (string $message): array => [
+            'deleted'            => false,
+            'message'            => $message,
+            'asset_deleted'      => false,
+            'asset_code'         => null,
+            'removed'            => [],
+            'preserved_requests' => [],
+            'files'              => 0,
+        ];
+
+        if (! self::archiveColumnsReady()) {
+            return $fail('Permanent deletion is not available yet — the archive database migration has not been run.');
+        }
+
+        $disposal = DB::table('disposals')->where('Disposal_ID', $disposalId)->first();
+
+        if (! $disposal) {
+            return $fail('Disposal record not found.');
+        }
+
+        if (empty($disposal->is_archived)) {
+            return $fail('Only archived disposal records can be permanently deleted. Archive this record first.');
+        }
+
+        $assetId = $disposal->Asset_id ? (int) $disposal->Asset_id : null;
+        $asset   = $assetId ? DB::table('assets')->where('id', $assetId)->first() : null;
+
+        // The asset is the thing being retired; if it still has a live disposal
+        // record the Admin has not finished the workflow for it yet.
+        if ($assetId && self::activeDisposalsFor($assetId) > 0) {
+            return $fail('This asset still has an active disposal record on the Disposal page. Archive that record first, then delete it.');
+        }
+
+        $assetCode = $asset?->Asset_code;
+        $removed   = [];
+        $preserved = [];
+        $files     = [];
+
+        try {
+            DB::transaction(function () use ($assetId, $disposalId, &$removed, &$preserved, &$files) {
+                if (! $assetId || ! DB::table('assets')->where('id', $assetId)->exists()) {
+                    // A legacy record whose asset row is long gone: only the
+                    // record itself is left to remove.
+                    $removed['Disposal record'] = DB::table('disposals')->where('Disposal_ID', $disposalId)->delete();
+
+                    return;
+                }
+
+                // Every request this asset is part of, and the ones among them
+                // that also cover another asset (those are kept, the rest go with
+                // the asset).
+                $requestIds = self::requestsOfAsset($assetId);
+                $preserved  = self::preserveSharedRequests($assetId);
+
+                // Stored photos and the QR image go with the row they belong to;
+                // the files are removed from the media disk after this commits.
+                $files = self::storedFiles($assetId);
+
+                // Dependency order, forced by the RESTRICT / NO ACTION keys that
+                // point at assets and requests. Every row is removed explicitly
+                // instead of leaning on ON DELETE CASCADE, so the order is this
+                // code's decision rather than the schema's, and a database whose
+                // keys were declared differently still gets the same result.
+                $removed['Disposal record']    = DB::table('disposals')->where('Asset_id', $assetId)->delete();
+                $removed['Replacement record'] = DB::table('replacements')
+                    ->where('old_assets_id', $assetId)->orWhere('new_assets_id', $assetId)->delete();
+                $removed['Repair record']      = DB::table('repairs')->where('Assets_id', $assetId)->delete();
+                $removed['Request line item']  = DB::table('request_items')->where('asset_id', $assetId)->delete();
+                $removed['Request']            = DB::table('requests')
+                    ->whereIn('id', array_values(array_diff($requestIds, $preserved)))
+                    ->delete();
+                $removed['Asset file']         = DB::table('asset_files')->where('Asset_id', $assetId)->delete();
+                $removed['Pullout record']     = DB::table('pullouts')->where('asset_id', $assetId)->delete();
+                $removed['Accountability record'] = DB::table('asset_accountability')->where('asset_id', $assetId)->delete();
+                $removed['Asset record']       = DB::table('assets')->where('id', $assetId)->delete();
+            });
+        } catch (Throwable $e) {
+            Log::error('Permanently deleting archived disposal #' . $disposalId . ' failed: ' . $e->getMessage());
+
+            return $fail('The archived record could not be deleted — nothing was removed. The asset is still referenced by records that have to be cleared first; try again or ask the system administrator.');
+        }
+
+        // Media is cleaned up only after the database has committed, so a
+        // storage outage can never leave a half-deleted record behind.
+        foreach ($files as $path) {
+            Media::delete($path);
+        }
+
+        $message = $assetCode
+            ? 'Archived disposal record for asset ' . $assetCode . ' and the asset record itself were permanently deleted.'
+            : 'Archived disposal record permanently deleted.';
+
+        if ($preserved) {
+            $message .= ' Request #' . implode(', #', $preserved)
+                . ' was kept because it also covers other assets; it no longer names this one.';
+        }
+
+        return [
+            'deleted'            => true,
+            'message'            => $message,
+            'asset_deleted'      => ! empty($removed['Asset record']),
+            'asset_code'         => $assetCode,
+            'removed'            => array_filter($removed, static fn (int $count): bool => $count > 0),
+            'preserved_requests' => $preserved,
+            'files'              => count($files),
+        ];
+    }
+
+    /**
+     * Permanently delete every archived disposal record and, with each of them,
+     * the asset it names.
+     *
+     * Each record is deleted in its own transaction through destroy(), so one
+     * record that cannot be removed (a shared request the database still needs, a
+     * record already gone) never takes the rest of the batch down with it. The
+     * outcome reports both sides honestly.
+     *
+     * @return array{deleted: bool, message: string, deleted_count: int, asset_count: int, failed: array<int, string>, destroyed: array<int, int>}
+     */
+    public static function destroyAllArchived(): array
+    {
+        if (! self::archiveColumnsReady()) {
+            return [
+                'deleted'       => false,
+                'message'       => 'Permanent deletion is not available yet — the archive database migration has not been run.',
+                'deleted_count' => 0,
+                'asset_count'   => 0,
+                'failed'        => [],
+                'destroyed'     => [],
+            ];
+        }
+
+        $rows = DB::table('disposals')->where('is_archived', true)
+            ->orderBy('Disposal_ID')
+            ->get(['Disposal_ID', 'Asset_id']);
+
+        $destroyed = [];
+        $assetCount = 0;
+        $failed = [];
+        $handledAssets = [];
+
+        foreach ($rows as $row) {
+            // All records of one asset are removed together by the first of
+            // them, so the rest of that asset's records are already accounted
+            // for.
+            if ($row->Asset_id) {
+                if (isset($handledAssets[$row->Asset_id])) {
+                    continue;
+                }
+
+                $handledAssets[$row->Asset_id] = true;
+            }
+
+            $result = self::destroy((int) $row->Disposal_ID);
+
+            if (! $result['deleted']) {
+                $failed[] = '#Disposal ' . $row->Disposal_ID . ': ' . $result['message'];
+
+                continue;
+            }
+
+            $destroyed[] = (int) $row->Disposal_ID;
+            $assetCount += $result['asset_deleted'] ? 1 : 0;
+        }
+
+        if (! $destroyed) {
+            return [
+                'deleted'       => false,
+                'message'       => $failed
+                    ? 'No archived records could be deleted. ' . implode(' ', $failed)
+                    : 'There are no archived disposal records to delete.',
+                'deleted_count' => 0,
+                'asset_count'   => 0,
+                'failed'        => $failed,
+                'destroyed'     => [],
+            ];
+        }
+
+        $message = count($destroyed) . ' archived disposal record' . (count($destroyed) === 1 ? '' : 's')
+            . ' permanently deleted';
+
+        if ($assetCount > 0) {
+            $message .= ', together with ' . $assetCount . ' asset record' . ($assetCount === 1 ? '' : 's');
+        }
+
+        $message .= '.';
+
+        if ($failed) {
+            $message .= ' ' . count($failed) . ' could not be deleted: ' . implode(' ', $failed);
+        }
+
+        return [
+            'deleted'       => true,
+            'message'       => $message,
+            'deleted_count' => count($destroyed),
+            'asset_count'   => $assetCount,
+            'failed'        => $failed,
+            'destroyed'     => $destroyed,
+        ];
+    }
+
+    /** How many disposal records for this asset are still on the Disposal page. */
+    private static function activeDisposalsFor(int $assetId): int
+    {
+        return DB::table('disposals')
+            ->where('Asset_id', $assetId)
+            ->where(function (Builder $query) {
+                $query->where('is_archived', false)->orWhereNull('is_archived');
+            })
+            ->count();
+    }
+
+    /**
+     * Every request this asset is part of.
+     *
+     * A disposal request does not have to name its asset in requests.asset_id —
+     * the asset is held in request_items, and a repair / replacement / pullout
+     * request reaches its asset through its own record. Any of those links makes
+     * the request part of this asset's history.
+     *
+     * @return array<int, int>
+     */
+    public static function requestsOfAsset(int $assetId): array
+    {
+        if ($assetId <= 0) {
+            return [];
+        }
+
+        return collect()
+            ->merge(DB::table('requests')->where('asset_id', $assetId)->pluck('id'))
+            ->merge(DB::table('request_items')->where('asset_id', $assetId)->pluck('request_id'))
+            ->merge(DB::table('pullouts')->where('asset_id', $assetId)->pluck('request_id'))
+            ->merge(DB::table('repairs')->where('Assets_id', $assetId)->pluck('Request_id'))
+            ->merge(DB::table('replacements')->where('old_assets_id', $assetId)->pluck('Request_id'))
+            ->merge(DB::table('replacements')->where('new_assets_id', $assetId)->pluck('Request_id'))
+            ->merge(DB::table('disposals')->where('Asset_id', $assetId)->pluck('Request_id'))
+            ->merge(DB::table('asset_accountability')->where('asset_id', $assetId)->pluck('request_id'))
+            ->filter(static fn ($id): bool => ! empty($id))
+            ->map(static fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Does this request still mean something to a different asset?
+     *
+     * Everything that belongs to the asset being deleted is excluded from the
+     * test, so only links the delete would not remove count — the other assets'
+     * request lines, pullouts, repairs, replacements, accountability rows and
+     * even legacy disposal records with no asset at all.
+     */
+    private static function requestLinksAnotherAsset(int $requestId, int $assetId): bool
+    {
+        return DB::table('requests')->where('id', $requestId)
+                ->whereNotNull('asset_id')->where('asset_id', '!=', $assetId)->exists()
+            || DB::table('request_items')->where('request_id', $requestId)
+                ->where('asset_id', '!=', $assetId)->exists()
+            || DB::table('repairs')->where('Request_id', $requestId)
+                ->where('Assets_id', '!=', $assetId)->exists()
+            || DB::table('replacements')->where('Request_id', $requestId)
+                ->where('old_assets_id', '!=', $assetId)->where('new_assets_id', '!=', $assetId)->exists()
+            || DB::table('disposals')->where('Request_id', $requestId)
+                ->where(function (Builder $query) use ($assetId) {
+                    $query->whereNull('Asset_id')->orWhere('Asset_id', '!=', $assetId);
+                })->exists()
+            || DB::table('asset_accountability')->where('request_id', $requestId)
+                ->where('asset_id', '!=', $assetId)->exists()
+            || DB::table('pullouts')
+                ->leftJoin('pullout_items', 'pullout_items.pullout_id', '=', 'pullouts.id')
+                ->where('pullouts.request_id', $requestId)
+                ->where(function (Builder $query) use ($assetId) {
+                    $query->where(function (Builder $inner) use ($assetId) {
+                        $inner->whereNotNull('pullouts.asset_id')->where('pullouts.asset_id', '!=', $assetId);
+                    })->orWhere(function (Builder $inner) use ($assetId) {
+                        $inner->whereNotNull('pullout_items.asset_id')->where('pullout_items.asset_id', '!=', $assetId);
+                    });
+                })->exists();
+    }
+
+    /**
+     * The requests of this asset that also cover other assets.
+     *
+     * Deleting the asset would take its requests away through the database's own
+     * cascade, and with them the other assets' line items, pullouts and
+     * evaluations. Those requests are kept instead, and their asset link is
+     * cleared so they no longer claim an asset that is gone.
+     *
+     * @return array<int, int> request ids that are shared with another asset
+     */
+    private static function preserveSharedRequests(int $assetId): array
+    {
+        $shared = array_values(array_filter(
+            self::requestsOfAsset($assetId),
+            static fn (int $requestId): bool => self::requestLinksAnotherAsset($requestId, $assetId)
+        ));
+
+        if ($shared) {
+            DB::table('requests')->whereIn('id', $shared)->where('asset_id', $assetId)->update([
+                'asset_id'   => null,
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $shared;
+    }
+
+    /**
+     * Files on the media disk that belong to an asset: its uploaded photos and
+     * its stored QR image.
+     *
+     * @return array<int, string>
+     */
+    private static function storedFiles(int $assetId): array
+    {
+        $paths = DB::table('asset_files')->where('Asset_id', $assetId)
+            ->whereNotNull('url')
+            ->pluck('url')
+            ->all();
+
+        if ($qr = DB::table('assets')->where('id', $assetId)->value('qr_code_path')) {
+            $paths[] = $qr;
+        }
+
+        return array_values(array_filter(array_map(
+            static fn ($path): ?string => is_string($path) && trim($path) !== '' ? $path : null,
+            $paths
+        )));
     }
 
     /**
