@@ -241,7 +241,7 @@
                                         <td class="py-3 px-3 whitespace-nowrap">
                                             <div class="flex items-center space-x-2" onclick="event.stopPropagation()">
                                                 @if($request->status == 'pending')
-                                                <button onclick="approveRequest({{ $request->id }})" class="p-1.5 rounded transition" style="color:var(--forest);" onmouseover="this.style.background='var(--forest-tint)'" onmouseout="this.style.background='transparent'" title="Approve">
+                                                <button onclick="approveRequest({{ $request->id }})" class="p-1.5 rounded transition" style="color:var(--forest);" onmouseover="this.style.background='var(--forest-tint)'" onmouseout="this.style.background='transparent'" title="{{ $request->type === 'disposal' ? 'Approve / Record Disposal' : 'Approve' }}">
                                                     <i class="ri-checkbox-circle-line text-lg"></i>
                                                 </button>
                                                 <button onclick="rejectRequest({{ $request->id }})" class="p-1.5 rounded transition" style="color:var(--brick);" onmouseover="this.style.background='var(--brick-tint)'" onmouseout="this.style.background='transparent'" title="Reject">
@@ -341,7 +341,18 @@
                                         </p>
                                     </div>
 
-                                    <!-- Admin Remarks are recorded only when a request is rejected. -->
+                                    <!-- Disposal requests: the reason the Admin confirms
+                                     when approving. It is read from the requester's note,
+                                     so nothing has to be re-typed. -->
+                                <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem; display:none;" id="detail-disposal-block">
+                                    <p class="eyebrow mb-1">Disposal Reason</p>
+                                    <p class="text-sm font-semibold detail-value" style="color:var(--navy-900);" id="detail-disposal-reason">—</p>
+                                    <p class="text-xs mt-1" style="color:var(--ink-400);">
+                                        Taken from the requester's note. Approving records the disposal with this reason.
+                                    </p>
+                                </div>
+
+                                <!-- Admin Remarks are recorded only when a request is rejected. -->
                                     <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem; display:none;" id="detail-admin-remarks-block">
                                         <p class="eyebrow mb-1">Admin Remarks</p>
                                         <p class="text-sm detail-note" style="color:var(--ink-600);" id="detail-admin-remarks">—</p>
@@ -354,9 +365,9 @@
                                 
                                 <!-- Action Buttons -->
                                 <div class="mt-6 pt-5 flex gap-3" style="border-top:1px solid var(--line);" id="detail-actions">
-                                    <button onclick="approveCurrentRequest()" class="flex-1 text-white px-4 py-2 rounded-lg transition flex items-center justify-center" style="background:var(--forest);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
+                                    <button onclick="approveCurrentRequest()" id="detail-approve-btn" class="flex-1 text-white px-4 py-2 rounded-lg transition flex items-center justify-center" style="background:var(--forest);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                                         <i class="ri-checkbox-circle-line mr-2"></i>
-                                        Approve
+                                        <span id="detail-approve-label">Approve</span>
                                     </button>
                                     <button onclick="rejectCurrentRequest()" class="flex-1 text-white px-4 py-2 rounded-lg transition flex items-center justify-center" style="background:var(--brick);" onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'">
                                         <i class="ri-close-circle-line mr-2"></i>
@@ -405,6 +416,56 @@
                         class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
                         style="background:var(--brick);">
                     <i class="ri-close-circle-line mr-1.5"></i>Reject Request
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approve / Record Disposal modal: the approval IS the disposal record, so
+         the reason and date travel with it. -->
+    <div id="approveModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4"
+         style="background:rgba(10,24,48,.6);" onclick="closeApproveModal()">
+        <div class="panel rounded-xl w-full max-w-md p-6" onclick="event.stopPropagation();">
+            <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Approve / Record Disposal</h3>
+            <p class="text-sm mt-1 mb-4 detail-value" id="approve-modal-subtitle" style="color:var(--ink-400);">-</p>
+
+            <div class="rounded-lg p-3 mb-4" style="background:var(--paper-2);">
+                <p class="eyebrow mb-2">Asset(s) to be disposed</p>
+                <div id="approve-modal-assets" class="space-y-1"></div>
+            </div>
+
+            <label for="approve-reason" class="eyebrow mb-1 block">Disposal reason</label>
+            <select id="approve-reason" class="w-full px-3 py-2 rounded-lg text-sm mb-3"
+                    style="border:1px solid var(--line); color:var(--ink-900);">
+                @foreach(($disposalReasons ?? []) as $reason)
+                    <option value="{{ $reason }}">{{ $reason }}</option>
+                @endforeach
+            </select>
+            <p class="text-xs mb-4" style="color:var(--ink-400);">
+                Pre-filled from the requester's note — change it only if it is wrong.
+            </p>
+
+            <label for="approve-date" class="eyebrow mb-1 block">Disposal date</label>
+            <input type="date" id="approve-date" class="w-full px-3 py-2 rounded-lg text-sm"
+                   style="border:1px solid var(--line); color:var(--ink-900);">
+
+            <p class="text-xs mt-3" style="color:var(--ink-600);">
+                Approving marks the asset <strong>Disposed</strong>, creates the disposal record and
+                notifies the requester. The asset itself is never deleted — its history is kept.
+            </p>
+
+            <p class="text-xs mt-2 hidden" id="approve-modal-status"></p>
+
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" onclick="closeApproveModal()"
+                        class="px-4 py-2 rounded-lg text-sm font-medium"
+                        style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="approve-modal-confirm" onclick="confirmApprove()"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                        style="background:var(--forest);">
+                    <i class="ri-checkbox-circle-line mr-1.5"></i>Approve / Record Disposal
                 </button>
             </div>
         </div>
@@ -560,6 +621,24 @@
                     assignedBlock.style.display = 'none';
                 }
 
+                // Disposal requests: the reason the approval will record, and the
+                // matching label on the action button.
+                const isDisposal = request.type === 'disposal';
+                const disposalBlock = document.getElementById('detail-disposal-block');
+                if (disposalBlock) {
+                    if (isDisposal) {
+                        document.getElementById('detail-disposal-reason').textContent = request.disposal_reason || '—';
+                        disposalBlock.style.display = 'block';
+                    } else {
+                        disposalBlock.style.display = 'none';
+                    }
+                }
+
+                const approveLabel = document.getElementById('detail-approve-label');
+                if (approveLabel) {
+                    approveLabel.textContent = isDisposal ? 'Approve / Record Disposal' : 'Approve';
+                }
+
                 // ─── Assets list (supports bulk) ───────────────────────
                 const assetsContainer = document.getElementById('detail-assets-list');
                 assetsContainer.innerHTML = '';
@@ -637,15 +716,122 @@
             return data;
         }
         
+        // ── Approval ─────────────────────────────────────────────────────────
+        // Approving a Disposal request creates the disposal record and retires the
+        // asset, so it goes through its own confirmation step. The reason is read
+        // from the requester's note and the date defaults to today — the Admin
+        // confirms them, and never re-enters what the requester already submitted.
         async function approveRequest(requestId) {
-            if (confirm('Are you sure you want to approve this request?')) {
-                try {
-                    const result = await sendRequestAction(requestId, 'approve');
-                    alert(result.message || `Request #REQ-${String(requestId).padStart(4, '0')} approved!`);
-                    location.reload();
-                } catch (error) {
-                    alert(error.message || 'Unable to approve request.');
+            const request = requestsData.find(r => r.id == requestId);
+
+            if (request && request.type === 'disposal') {
+                openApproveModal(requestId);
+                return;
+            }
+
+            if (!confirm('Are you sure you want to approve this request?')) return;
+            await submitApproval(requestId, {});
+        }
+
+        async function submitApproval(requestId, payload) {
+            try {
+                const result = await sendRequestAction(requestId, 'approve', payload);
+                closeApproveModal();
+                alert(result.message || `Request #REQ-${String(requestId).padStart(4, '0')} approved!`);
+                location.reload();
+            } catch (error) {
+                alert(error.message || 'Unable to approve request.');
+                throw error;
+            }
+        }
+
+        let pendingApproveId = null;
+
+        function openApproveModal(requestId) {
+            const modal = document.getElementById('approveModal');
+            if (!modal) return;
+
+            const request = requestsData.find(r => r.id == requestId);
+            pendingApproveId = requestId;
+
+            if (request && request.disposal_recorded) {
+                alert('This disposal request has already been recorded as disposed.');
+                pendingApproveId = null;
+                return;
+            }
+
+            const sub = document.getElementById('approve-modal-subtitle');
+            if (sub) {
+                sub.textContent = request
+                    ? `#REQ-${String(requestId).padStart(4, '0')} · ${request.asset_name || ''}`
+                    : `#REQ-${String(requestId).padStart(4, '0')}`;
+            }
+
+            // Show exactly which assets this approval retires.
+            const list = document.getElementById('approve-modal-assets');
+            if (list) {
+                list.innerHTML = '';
+                (request?.assets || []).forEach(asset => {
+                    const row = document.createElement('div');
+                    row.className = 'text-sm detail-value';
+                    row.style.color = 'var(--ink-600)';
+                    row.innerHTML = `<i class="ri-record-circle-line mr-1.5 text-xs" style="color:var(--gold-600);"></i>${escapeHtml(asset.name || 'Unnamed')} <span class="font-mono text-xs" style="color:var(--ink-400);">${escapeHtml(asset.code || '')}</span>`;
+                    list.appendChild(row);
+                });
+            }
+
+            const reason = document.getElementById('approve-reason');
+            if (reason) reason.value = request?.disposal_reason || 'Obsolete';
+
+            const date = document.getElementById('approve-date');
+            if (date) date.value = request?.disposal_date || new Date().toISOString().slice(0, 10);
+
+            const status = document.getElementById('approve-modal-status');
+            if (status) status.classList.add('hidden');
+
+            const confirmBtn = document.getElementById('approve-modal-confirm');
+            if (confirmBtn) confirmBtn.disabled = false;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeApproveModal() {
+            const modal = document.getElementById('approveModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            pendingApproveId = null;
+        }
+
+        async function confirmApprove() {
+            if (!pendingApproveId) return;
+
+            const requestId = pendingApproveId;
+            const confirmBtn = document.getElementById('approve-modal-confirm');
+            const status = document.getElementById('approve-modal-status');
+
+            const payload = {
+                disposal_reason: document.getElementById('approve-reason')?.value || '',
+                disposal_date: document.getElementById('approve-date')?.value || '',
+            };
+
+            if (confirmBtn) confirmBtn.disabled = true;
+            if (status) {
+                status.textContent = 'Approving and recording the disposal…';
+                status.classList.remove('hidden');
+                status.style.color = 'var(--ink-400)';
+            }
+
+            try {
+                await submitApproval(requestId, payload);
+            } catch (error) {
+                if (status) {
+                    status.textContent = error.message || 'Unable to approve this disposal request.';
+                    status.classList.remove('hidden');
+                    status.style.color = 'var(--brick)';
                 }
+                if (confirmBtn) confirmBtn.disabled = false;
             }
         }
         
@@ -804,9 +990,12 @@
             filterRequests(initialTab);
         })();
 
-        // Escape closes the rejection modal
+        // Escape closes whichever modal is open
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeRejectModal();
+            if (e.key === 'Escape') {
+                closeRejectModal();
+                closeApproveModal();
+            }
         });
     </script>
 </body>

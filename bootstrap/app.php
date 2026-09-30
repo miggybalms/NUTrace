@@ -20,6 +20,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // print-QR labels after registering assets) and resets the page.
         $middleware->trustProxies(at: '*');
 
+        // There is no route named `login`; without this, `auth` sends a guest to
+        // route('login') and the request dies with "Route [login] not defined."
+        // Guests belong on the landing page.
+        $middleware->redirectGuestsTo('/');
+
+        // Copied admin/user URLs must not work in another browser. This runs
+        // before the controllers so no private page is ever rendered for a
+        // request that carries no session.
+        $middleware->web(append: \App\Http\Middleware\RedirectGuestToLanding::class);
+
         // Log user login events
         $middleware->web(append: \App\Http\Middleware\LogUserLogin::class);
     })

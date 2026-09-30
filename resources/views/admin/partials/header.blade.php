@@ -164,12 +164,10 @@
                     @case('department_assets')
                         @break
 
-                    {{-- Disposal --}}
+                    {{-- Disposal: view-only. Disposal records are created by
+                         approving a Disposal request on the Requests page, so
+                         there is no "record a disposal" action here. --}}
                     @case('disposal')
-                        <button type="button" onclick="openScannerAuto()" class="btn-gold">
-                            <i class="ri-add-line sm:mr-2"></i>
-                            <span class="hidden sm:inline">Record Disposal</span>
-                        </button>
                         @break
                 @endswitch
 

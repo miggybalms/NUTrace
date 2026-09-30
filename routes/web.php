@@ -18,6 +18,8 @@ use App\Support\Media;
 use App\Support\AssetDetails;
 use App\Support\AssetCode;
 use App\Support\AssetTransfer;
+use App\Support\Disposals;
+use App\Support\DisposalReason;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -165,9 +167,10 @@ Route::get('/learn-more', function () {
 });
 
 // Auth views (simple GET routes so header buttons load the pages)
+// Named so Laravel's auth redirects can never fail with "Route [login] not defined".
 Route::get('/login', function () {
     return view('auth.login');
-});
+})->name('login');
 
 Route::get('/register', function () {
     $isFirstUser = User::count() === 0;
@@ -2472,167 +2475,116 @@ Route::get('/api/notifications/user', function () {
     return response()->json(['repairs' => $repairs]);
 })->middleware('auth');
 
-// Admin disposal page
+// Admin disposal page — the completed log of disposed assets.
+//
+// Approval happens on the Requests page, where a Disposal request is turned
+// into the record automatically: the request is the source of the disposal
+// transaction, so this page has no manual "record a disposal" form. It views,
+// searches, explains and archives records — and only ever lists the records
+// that have NOT been archived.
 Route::get('/admin/disposal', function () {
-    $disposalRecords = DB::table('disposals')
-        ->leftJoin('assets', 'disposals.Asset_id', '=', 'assets.id')
-        ->select(
-            'disposals.*',
-            DB::raw('COALESCE(assets."Asset_name", disposals."Description") as asset_name'),
-            DB::raw('COALESCE(assets."Asset_code", \'N/A\') as asset_code'),
-            DB::raw('assets."purchase_Price" as original_value'),
-            DB::raw('CASE WHEN assets.id IS NULL THEN 0 ELSE 1 END as asset_still_exists')
-        )
+    $disposalRecords = Disposals::query(false)
         ->orderByDesc('disposals.disposal_date')
         ->get()
-        ->map(function ($r) {
-            $r->id                 = $r->Disposal_ID;
-            $r->asset_still_exists = (bool) $r->asset_still_exists;
-            $r->disposed_by        = $r->Approve_by ?? '-';
-            $r->reason             = $r->disposal_reason ?? $r->Description ?? $r->notes ?? '-';
-            return $r;
-        });
+        ->map(fn ($row) => Disposals::present($row));
 
-    $totalDisposed = $disposalRecords->count();
-
-    $availableAssets = DB::table('assets')
-        ->whereNotIn('Lifecycle_Status', ['Disposal', 'Disposed'])
-        ->select(
-            'id',
-            DB::raw('"Asset_name" as name'),
-            DB::raw('"Asset_code" as asset_code'),
-            'Lifecycle_Status'
-        )
-        ->orderBy('Asset_name')
-        ->get();
+    $archivedCount = Disposals::archiveColumnsReady()
+        ? DB::table('disposals')->where('is_archived', true)->count()
+        : 0;
 
     return view('admin.disposal.disposal', [
-        'disposalRecords' => $disposalRecords,
-        'totalDisposed'   => $totalDisposed,
-        'availableAssets' => $availableAssets,
+        'disposalRecords'  => $disposalRecords,
+        'totalDisposed'    => $disposalRecords->count(),
+        'archivedCount'    => $archivedCount,
+        'archiveReady'     => Disposals::archiveColumnsReady(),
     ]);
 })->middleware('auth');
 
-Route::post('/admin/disposal/{id}/permanent-delete', function (Request $request, $id) {
-    $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
+// Archived Disposal Assets — older records kept separately for reference.
+Route::get('/admin/disposal/archived', function () {
+    $archiveReady = Disposals::archiveColumnsReady();
+    $records      = Disposals::query(true);
 
-    if (!$disposal) {
-        return response()->json(['success' => false, 'message' => 'Disposal record not found'], 404);
+    // The archive stamp only exists once the migration has been run.
+    if ($archiveReady) {
+        $records->orderByDesc('disposals.archived_at');
     }
 
-    $assetId = $disposal->Asset_id ?? null;
+    $disposalRecords = $records
+        ->orderByDesc('disposals.disposal_date')
+        ->get()
+        ->map(fn ($row) => Disposals::present($row));
 
-    if (!$assetId) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Asset was already permanently removed. Disposal record kept.',
-            'already_deleted' => true,
-        ]);
-    }
-
-    $asset = DB::table('assets')->where('id', $assetId)->first();
-
-    if (!$asset) {
-        try {
-            DB::statement('ALTER TABLE disposals ALTER COLUMN "Asset_id" DROP NOT NULL');
-            DB::table('disposals')->where('Disposal_ID', $id)->update([
-                'Asset_id'   => null,
-                'Request_id' => null,
-                'notes'      => trim(($disposal->notes ? $disposal->notes . ' | ' : '') . 'Asset already gone; link cleared on ' . now()->toDateString()),
-                'updated_at' => now(),
-            ]);
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Asset was already permanently removed. Disposal record kept.',
-            'already_deleted' => true,
-        ]);
-    }
-
-    try {
-        DB::beginTransaction();
-
-        // 1. Allow NULL on Asset_id (and Request_id if needed)
-        DB::statement('ALTER TABLE disposals ALTER COLUMN "Asset_id" DROP NOT NULL');
-        try {
-            DB::statement('ALTER TABLE disposals ALTER COLUMN "Request_id" DROP NOT NULL');
-        } catch (\Throwable $e) {
-            // already nullable – ignore
-        }
-
-        // 2. Unlink disposal FIRST (breaks FKs to asset + request)
-        DB::table('disposals')
-            ->where('Disposal_ID', $id)
-            ->update([
-                'Asset_id'   => null,
-                'Request_id' => null,   // ← important: clear before deleting requests
-                'notes'      => trim(($disposal->notes ? $disposal->notes . ' | ' : '') .
-                    'Asset permanently deleted on ' . now()->toDateString() .
-                    ' (was: ' . ($asset->Asset_name ?? '') . ' / ' . ($asset->Asset_code ?? '') . ')'),
-                'updated_at' => now(),
-            ]);
-
-        // 3. Now safe to clean related data
-        DB::table('asset_files')->where('Asset_id', $assetId)->delete();
-        DB::table('pullout_items')->where('asset_id', $assetId)->delete();
-        DB::table('requests')->where('asset_id', $assetId)->delete();
-        try {
-            DB::table('repairs')->where('Assets_id', $assetId)->delete();
-        } catch (\Throwable $e) {
-            // table may not exist
-        }
-
-        try {
-            DB::table('audit_logs')->where('asset_id', $assetId)->update(['asset_id' => null]);
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        try {
-            DB::table('pullouts')->where('asset_id', $assetId)->update(['asset_id' => null]);
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        // 4. Delete the asset
-        DB::table('assets')->where('id', $assetId)->delete();
-
-        // 5. Audit log
-try {
-    DB::table('audit_logs')->insert([
-        'user_id'            => Auth::id(),
-        'asset_id'           => null,
-        'action_type'        => 'DISPOSAL',   // ← change DELETE to DISPOSAL
-        'notes'              => 'Permanently deleted asset from disposal #' . $id,
-        'action_description' => 'Asset permanently removed after disposal. Disposal record retained.',
-        'created_at'         => now(),
-        'updated_at'         => now(),
+    return view('admin.disposal.archived', [
+        'disposalRecords' => $disposalRecords,
+        'archiveReady'    => $archiveReady,
     ]);
-} catch (\Throwable $e) {
-    \Log::warning('Audit log skipped on permanent delete: ' . $e->getMessage());
-}
-        DB::commit();
+})->middleware('auth');
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Asset permanently deleted. Disposal record kept for history.',
-        ]);
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        \Log::error('Permanent disposal delete failed: ' . $e->getMessage());
-
+// Archive a disposal record. This never deletes anything: the record simply
+// leaves the main Disposal list and stays readable under Archived Disposal
+// Assets, so the history of a retired asset is never lost.
+Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
+    $admin = Auth::user();
+    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
         return response()->json([
             'success' => false,
-            'message' => 'Failed to permanently delete asset',
-            'error'   => $e->getMessage(),
-        ], 500);
+            'message' => 'Only the Asset Management Office can archive a disposal record.',
+        ], 403);
     }
+
+    $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
+    if (!$disposal) {
+        return response()->json(['success' => false, 'message' => 'Disposal record not found.'], 404);
+    }
+
+    $result = Disposals::archive((int) $id, (int) $admin->id);
+
+    if (! $result['archived']) {
+        return response()->json(['success' => false, 'message' => $result['message']], 422);
+    }
+
+    // Audit: the disposal record itself is untouched, only its visibility moved.
+    try {
+        $assetCode = $disposal->Asset_id
+            ? (DB::table('assets')->where('id', $disposal->Asset_id)->value('Asset_code') ?? 'N/A')
+            : 'N/A';
+
+        DB::table('audit_logs')->insert([
+            'user_id'            => Auth::id(),
+            'request_id'         => $disposal->Request_id,
+            'asset_id'           => $disposal->Asset_id,
+            'action_type'        => 'UPDATE',
+            'notes'              => 'Disposal record archived',
+            'action_description' => 'Disposal record #' . $id . ' for asset ' . $assetCode . ' was archived.',
+            'created_at'         => now(),
+            'updated_at'         => now(),
+        ]);
+    } catch (\Throwable $e) {
+        \Log::warning('Audit log skipped on disposal archive: ' . $e->getMessage());
+    }
+
+    return response()->json([
+        'success'   => true,
+        'message'   => $result['message'],
+        'archived'  => true,
+    ]);
 })->middleware('auth');
 
-// Get single disposal details (for the view modal)
+// The old "permanently delete the asset" action used to live here. It issued
+// `delete from assets where id = …`, which PostgreSQL refused for any asset
+// still referenced by request_items (SQLSTATE 23503) and which destroyed an
+// asset's repair / replacement / request / file history for the ones it did
+// delete. Removing an asset from the inventory is not a disposal concern, so
+// the action is gone: a disposal record is archived, never deleted.
+
+// Get single disposal details (for the View Details modal).
+//
+// The Admin should be able to understand why and when an asset was disposed
+// without losing anything: the record, the request that produced it, the
+// requester's own words and the asset's accountability / repair / replacement /
+// disposal / audit history all come back together. Archived records open here
+// just as well as active ones.
 Route::get('/admin/disposal/{id}/details', function ($id) {
     $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
 
@@ -2640,28 +2592,91 @@ Route::get('/admin/disposal/{id}/details', function ($id) {
         return response()->json(['success' => false, 'message' => 'Disposal record not found'], 404);
     }
 
-    $asset = $disposal->Asset_id
-        ? DB::table('assets')->where('id', $disposal->Asset_id)->first()
+    $assetId = $disposal->Asset_id ? (int) $disposal->Asset_id : null;
+
+    $asset = $assetId
+        ? DB::table('assets')->where('id', $assetId)->first()
         : null;
 
+    // The request is the source of this disposal, so its note is shown verbatim.
+    $request = $disposal->Request_id
+        ? DB::table('requests')
+            ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+            ->where('requests.id', $disposal->Request_id)
+            ->select(
+                'requests.id',
+                'requests.request_type',
+                'requests.status',
+                'requests.Note',
+                'requests.url',
+                'requests.file_name',
+                'requests.admin_remarks',
+                'requests.created_at',
+                DB::raw('requests."updated_at" as updated_at'),
+                DB::raw('employee_numbers."Full_Name" as requester_name'),
+                'users.email as requester_email'
+            )
+            ->first()
+        : null;
+
+    $archivedBy = null;
+    if (Disposals::archiveColumnsReady() && !empty($disposal->archived_by)) {
+        $archiver = DB::table('users')
+            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+            ->where('users.id', $disposal->archived_by)
+            ->select('users.email', DB::raw('employee_numbers."Full_Name" as full_name'))
+            ->first();
+
+        $archivedBy = $archiver->full_name ?? $archiver->email ?? null;
+    }
+
     return response()->json([
-        'asset_name'      => $asset->Asset_name ?? $disposal->Description ?? null,
-        'asset_code'      => $asset->Asset_code ?? null,
-        'disposal_date'   => $disposal->disposal_date,
-        'reason'          => $disposal->disposal_reason ?? $disposal->Description ?? null,
-        'disposed_by'     => $disposal->Approve_by,
-        'notes'           => $disposal->notes,
-        'original_value'  => $asset->purchase_Price ?? null,
-        'category'        => $asset->Category ?? null,
-        'condition'       => $asset->Condition ?? null,
-        'serial_number'   => $asset->serial_Number ?? null,
-        'asset_location'  => $asset->asset_location ?? null,
-        'supplier'        => $asset->supplier ?? null,
-        'model'           => $asset->model ?? null,
-        'manufacture'     => $asset->manufacture ?? null,
-        'purchase_price'  => $asset->purchase_Price ?? null,
-        'warranty_months' => $asset->warranty_months ?? null,
-        'lifespan_months' => $asset->lifespan_months ?? null,
+        // ── The disposal record itself ────────────────────────────────
+        'id'                 => $disposal->Disposal_ID,
+        'request_id'         => $disposal->Request_id,
+        'disposal_date'      => $disposal->disposal_date,
+        'reason'             => $disposal->disposal_reason ?? $disposal->Description ?? null,
+        'description'        => $disposal->Description,
+        'disposed_by'        => $disposal->Approve_by,
+        'notes'              => $disposal->notes,
+        'is_archived'        => (bool) ($disposal->is_archived ?? false),
+        'archived_at'        => $disposal->archived_at ?? null,
+        'archived_by'        => $archivedBy,
+
+        // ── The asset ─────────────────────────────────────────────────
+        'asset_still_exists' => (bool) $asset,
+        'asset_name'         => $asset->Asset_name ?? $disposal->Description ?? null,
+        'asset_code'         => $asset->Asset_code ?? null,
+        'original_value'     => $asset->purchase_Price ?? null,
+        'category'           => $asset->Category ?? null,
+        'condition'          => $asset->Condition ?? null,
+        'serial_number'      => $asset->serial_Number ?? null,
+        'asset_location'     => $asset->asset_location ?? null,
+        'supplier'           => $asset->supplier ?? null,
+        'model'              => $asset->model ?? null,
+        'manufacture'        => $asset->manufacture ?? null,
+        'purchase_price'     => $asset->purchase_Price ?? null,
+        'warranty_months'    => $asset->warranty_months ?? null,
+        'lifespan_months'    => $asset->lifespan_months ?? null,
+        'lifecycle_status'   => $asset->Lifecycle_Status ?? null,
+
+        // ── The request that produced the record ──────────────────────
+        'request' => $request ? [
+            'id'              => $request->id,
+            'type'            => $request->request_type,
+            'status'          => $request->status,
+            'note'            => $request->Note,
+            'attachment_url'  => $request->url,
+            'attachment_name' => $request->file_name,
+            'admin_remarks'   => $request->admin_remarks,
+            'created_at'      => $request->created_at,
+            'requester_name'  => $request->requester_name,
+            'requester_email' => $request->requester_email,
+        ] : null,
+
+        // ── Lifecycle history ─────────────────────────────────────────
+        'history' => Disposals::history($assetId),
     ]);
 })->middleware('auth');
 
@@ -2716,7 +2731,15 @@ Route::get('/admin/requests', function () {
             ->groupBy('request_id');
     }
 
-    $requests = $requests->map(function ($request) use ($itemsByRequest) {
+    // Disposal requests that already produced their disposal record. The
+    // request stays Approved, but its Approve action must never run again.
+    $recordedDisposalRequests = DB::table('disposals')
+        ->whereNotNull('Request_id')
+        ->pluck('Request_id')
+        ->map(fn ($id) => (int) $id)
+        ->all();
+
+    $requests = $requests->map(function ($request) use ($itemsByRequest, $recordedDisposalRequests) {
         $related = $itemsByRequest->get($request->id, collect());
 
         // Build clean list of assets
@@ -2751,6 +2774,8 @@ Route::get('/admin/requests', function () {
             $displayName = $assetList[0]['name'] . ' +' . ($count - 1) . ' more';
         }
 
+        $isDisposalRequest = strtolower((string) $request->request_type) === 'disposal';
+
         return (object) [
             'id'           => $request->id,
             'asset_name'   => $displayName,   // shown in the table
@@ -2773,6 +2798,16 @@ Route::get('/admin/requests', function () {
                                     : null,
             'assigned_to'  => $request->assigned_to ?? null,
             'image'        => Media::url($request->url ?? null),
+
+            // ── Disposal requests ─────────────────────────────────────
+            // A disposal request carries its reason inside the requester's note.
+            // Read it back out here so the Admin confirms the reason instead of
+            // re-typing it, and flag requests whose disposal record already
+            // exists so their Approve action can be locked.
+            'disposal_reason'   => $isDisposalRequest ? DisposalReason::derive($request->Note) : null,
+            'disposal_date'     => $isDisposalRequest ? now()->toDateString() : null,
+            'disposal_recorded' => $isDisposalRequest
+                                    && in_array((int) $request->id, $recordedDisposalRequests, true),
         ];
     });
 
@@ -2781,12 +2816,9 @@ Route::get('/admin/requests', function () {
     $approvedRequests = $requests->where('status', 'approved')->count();
     $rejectedRequests = $requests->where('status', 'rejected')->count();
 
-    return view('admin.request.request', compact(
-        'requests',
-        'totalRequests',
-        'pendingRequests',
-        'approvedRequests',
-        'rejectedRequests'
+    return view('admin.request.request', array_merge(
+        compact('requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'),
+        ['disposalReasons' => DisposalReason::VALUES]
     ));
 });
 
@@ -4618,7 +4650,7 @@ Route::post('/admin/assets', function (Request $request) {
         ->with('bulk_registered_count', count($createdAssets));
 })->name('admin.assets.store');
 
-Route::post('/admin/requests/{id}/approve', function ($id) {
+Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
     if (!$requestRecord) {
@@ -4631,6 +4663,41 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
 
     $approvedBy  = Auth::user()?->email ?? Auth::user()?->full_name ?? 'Admin';
     $requestType = strtolower((string) $requestRecord->request_type);
+    $isDisposal  = $requestType === 'disposal';
+
+    // Approving a disposal retires an asset and creates a permanent record, so
+    // it belongs to the Asset Management Office alone. The other request types
+    // keep the behaviour they already had.
+    if ($isDisposal) {
+        $admin = Auth::user();
+        if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+            return response()->json([
+                'message' => 'Only the Asset Management Office can approve a disposal request.',
+            ], 403);
+        }
+    }
+
+    // ─── A disposal approval records a real disposal ─────────────────
+    // The reason and date are read from the request (a disposal request carries
+    // its reason inside the requester's note), so the Admin confirms rather than
+    // re-types what the requester already submitted.
+    $disposalReason = $isDisposal
+        ? DisposalReason::normalize($request->input('disposal_reason'), $requestRecord->Note)
+        : null;
+
+    $disposalDate = $isDisposal
+        ? (trim((string) $request->input('disposal_date', '')) ?: now()->toDateString())
+        : null;
+
+    if ($isDisposal) {
+        $dateCheck = $request->validate([
+            'disposal_date' => 'nullable|date',
+        ], [
+            'disposal_date.date' => 'The disposal date is not a valid date.',
+        ]);
+
+        $disposalDate = ($dateCheck['disposal_date'] ?? null) ?: now()->toDateString();
+    }
 
     // ─── Get all asset IDs for this request ─────────────────
     $assetIds = DB::table('request_items')
@@ -4650,8 +4717,39 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
         return response()->json(['message' => 'No assets found for this request.'], 422);
     }
 
+    // Everything the audit entry and the notification below need to name.
+    $assetCodes = [];
+    $existingAssetIds = [];
+    foreach (DB::table('assets')->whereIn('id', $assetIds)->get(['id', 'Asset_code']) as $row) {
+        $assetCodes[(int) $row->id] = $row->Asset_code;
+        $existingAssetIds[]        = (int) $row->id;
+    }
+
+    // ─── Disposal requests must be approvable ───────────────────────
+    if ($isDisposal) {
+        $missing = array_values(array_diff($assetIds, $existingAssetIds));
+
+        if (! empty($missing)) {
+            return response()->json([
+                'message' => 'This disposal request refers to asset(s) that no longer exist (#'
+                    . implode(', #', $missing)
+                    . '), so there is nothing to retire. The request cannot be approved.',
+            ], 422);
+        }
+
+        if (trim((string) $requestRecord->Note) === '' && trim((string) $request->input('disposal_reason', '')) === '') {
+            return response()->json([
+                'message' => 'This disposal request has neither a note nor a reason, so the disposal record would have nothing to explain. Add a reason before approving.',
+            ], 422);
+        }
+    }
+
+    // Disposal records created by this call, keyed by asset id. Empty means the
+    // records already existed, so nothing is written twice.
+    $createdDisposals = [];
+
     try {
-        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds) {
+        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds, $isDisposal, $disposalReason, $disposalDate, $assetCodes, &$createdDisposals) {
 
             // 1. Mark the request as Approved
             DB::table('requests')
@@ -4693,28 +4791,37 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
                 }
 
                 // ─────────────── DISPOSAL ───────────────
-                if ($requestType === 'disposal') {
-                    $exists = DB::table('disposals')
-                        ->where('Request_id', $requestRecord->id)
-                        ->where('Asset_id', $assetId)
-                        ->exists();
+                // The request is the source of the disposal transaction: the
+                // record is created here from what the requester submitted, and
+                // the asset is retired — never deleted, so its whole history
+                // (accountability, repairs, replacements, disposals) survives.
+                if ($isDisposal) {
+                    $assetStillExists = DB::table('assets')->where('id', $assetId)->exists();
 
-                    if (!$exists) {
-                        DB::table('disposals')->insert([
-                            'Request_id'      => $requestRecord->id,
-                            'Asset_id'        => $assetId,
-                            'Approve_by'      => $approvedBy,
-                            'Description'     => 'Approved disposal request',
-                            'disposal_reason' => 'Obsolete',
-                            'disposal_date'   => now()->toDateString(),
-                            'notes'           => $requestRecord->Note,
-                            'created_at'      => now(),
-                            'updated_at'      => now(),
-                        ]);
+                    if (! $assetStillExists) {
+                        throw new \RuntimeException(
+                            'Asset #' . $assetId . ' no longer exists, so this disposal request cannot be approved.'
+                        );
+                    }
+
+                    $disposalId = Disposals::createFromRequest(
+                        (int) $requestRecord->id,
+                        (int) $assetId,
+                        $approvedBy,
+                        (string) $disposalReason,
+                        $requestRecord->Note,
+                        'Disposal request #' . $requestRecord->id . ' approved',
+                        $disposalDate
+                    );
+
+                    // null => a record already existed for this request. The
+                    // Admin clicking Approve twice must not duplicate history.
+                    if ($disposalId !== null) {
+                        $createdDisposals[(int) $assetId] = $disposalId;
                     }
 
                     DB::table('assets')->where('id', $assetId)->update([
-                        'Lifecycle_Status' => 'Disposal',
+                        'Lifecycle_Status' => Disposals::DISPOSED_STATUS,
                         'updated_at'       => now(),
                     ]);
                 }
@@ -4802,17 +4909,37 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
                 }
             }
 
-            // 3. Audit log
-            DB::table('audit_logs')->insert([
-                'user_id'            => Auth::id(),
-                'request_id'         => $requestRecord->id,
-                'asset_id'           => null,
-                'action_type'        => 'APPROVAL',
-                'notes'              => 'Approved bulk ' . ($requestRecord->request_type ?? '') . ' request with ' . count($assetIds) . ' asset(s)',
-                'action_description' => ucfirst($requestRecord->request_type ?? 'Unknown') . ' request #' . $requestRecord->id . ' approved',
-                'created_at'         => now(),
-                'updated_at'         => now(),
-            ]);
+            // 3. Audit log — a disposal approval is recorded as a DISPOSAL
+            //    event against the retired asset, because that is what happened.
+            if ($isDisposal) {
+                foreach ($createdDisposals as $assetId => $disposalId) {
+                    $code = $assetCodes[$assetId] ?? ('asset #' . $assetId);
+
+                    DB::table('audit_logs')->insert([
+                        'user_id'            => Auth::id(),
+                        'request_id'         => $requestRecord->id,
+                        'asset_id'           => $assetId,
+                        'action_type'        => 'DISPOSAL',
+                        'notes'              => 'Approved disposal request #' . $requestRecord->id
+                            . ' (disposal record #' . $disposalId . ', reason: ' . $disposalReason . ')',
+                        'action_description' => 'Disposal request #' . $requestRecord->id
+                            . ' was approved and a disposal record was created for asset ' . $code . '.',
+                        'created_at'         => now(),
+                        'updated_at'         => now(),
+                    ]);
+                }
+            } else {
+                DB::table('audit_logs')->insert([
+                    'user_id'            => Auth::id(),
+                    'request_id'         => $requestRecord->id,
+                    'asset_id'           => null,
+                    'action_type'        => 'APPROVAL',
+                    'notes'              => 'Approved bulk ' . ($requestRecord->request_type ?? '') . ' request with ' . count($assetIds) . ' asset(s)',
+                    'action_description' => ucfirst($requestRecord->request_type ?? 'Unknown') . ' request #' . $requestRecord->id . ' approved',
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+            }
 
             // ─── Notify the requester ───────────────────────────────
             $assetNames = DB::table('assets')
@@ -4834,19 +4961,51 @@ Route::post('/admin/requests/{id}/approve', function ($id) {
                 $assetLabel = implode(', ', $assetNames) . ', and ' . $last;
             }
 
-            $typeLabel = ucfirst($requestRecord->request_type ?? 'request');
+            if ($isDisposal) {
+                // Only tell the requester when this call really created the
+                // record, so a repeated approval cannot send a second notice.
+                if (! empty($createdDisposals)) {
+                    $codes = array_values(array_map(
+                        fn ($assetId) => $assetCodes[$assetId] ?? ('asset #' . $assetId),
+                        array_keys($createdDisposals)
+                    ));
 
-            createNotification(
-                (int) $requestRecord->user_id,
-                'Request Approved',
-                "Your {$typeLabel} request for {$assetLabel} has been approved.",
-                'REQUEST',
-                (int) $requestRecord->id,
-                'request'
-            );
+                    $disposedLabel = count($codes) === 1
+                        ? $codes[0]
+                        : (implode(', ', array_slice($codes, 0, -1)) . ' and ' . end($codes));
+
+                    createNotification(
+                        (int) $requestRecord->user_id,
+                        'Disposal Request Approved',
+                        count($codes) === 1
+                            ? "Your disposal request for asset {$disposedLabel} has been approved and recorded as disposed."
+                            : "Your disposal request for assets {$disposedLabel} has been approved and recorded as disposed.",
+                        'DISPOSAL',
+                        (int) $requestRecord->id,
+                        'disposal'
+                    );
+                }
+            } else {
+                $typeLabel = ucfirst($requestRecord->request_type ?? 'request');
+
+                createNotification(
+                    (int) $requestRecord->user_id,
+                    'Request Approved',
+                    "Your {$typeLabel} request for {$assetLabel} has been approved.",
+                    'REQUEST',
+                    (int) $requestRecord->id,
+                    'request'
+                );
+            }
         });
 
         return response()->json(['message' => 'Request approved successfully.']);
+    } catch (\RuntimeException $e) {
+        // The transaction rolled back, so the request is still Pending and no
+        // disposal record, asset status or notification was written.
+        \Log::warning('Approve request rejected: ' . $e->getMessage());
+
+        return response()->json(['message' => $e->getMessage()], 422);
     } catch (\Throwable $e) {
         \Log::error('Approve request failed: ' . $e->getMessage());
         return response()->json([
@@ -4981,7 +5140,13 @@ Route::get('/admin/assets/find-by-code', function (Request $request) {
     ]);
 })->middleware('auth');
 
-// Record disposal (called by scanner auto-submit or manual form)
+// Legacy direct entry: records a disposal that is NOT tied to a request.
+//
+// The request-driven workflow is the normal path (approve a Disposal request on
+// the Requests page), and nothing in the UI calls this any more — the Disposal
+// page has no "record a disposal" action. It is kept because the repair and
+// asset-detail tools still create disposals outside a request, and a stale page
+// posting here must not 500.
 Route::post('/admin/disposal/record', function (Request $request) {
     $data = $request->only(['asset_id', 'disposal_date', 'reason', 'disposed_by', 'notes']);
 
