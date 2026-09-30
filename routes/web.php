@@ -20,6 +20,7 @@ use App\Support\AssetCode;
 use App\Support\AssetTransfer;
 use App\Support\Disposals;
 use App\Support\DisposalReason;
+use App\Support\Inventory;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -464,8 +465,9 @@ Route::get('/users/assets', function () {
     $user = Auth::user();
     $assignedAssets = collect([]);
     if ($user) {
-        // Fetch assets with their first attached image from asset_files table
-        $assignedAssets = DB::table('assets')
+        // Fetch assets with their first attached image from asset_files table.
+        // Disposed assets leave the inventory once their disposal is archived.
+        $assignedAssets = Inventory::excludeRemoved(DB::table('assets'))
             ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
             ->where('assets.user_id', $user->id)
             ->select(
@@ -549,7 +551,7 @@ Route::get('/users', function () {
         return view('users.dashboard', compact('totalAssets', 'stats', 'recentRequests', 'assignedAssets', 'user', 'currentUser'));
     }
 
-    $assets = Asset::where('user_id', $user->id)->get();
+    $assets = Asset::where('user_id', $user->id)->inInventory()->get();
     $totalAssets = $assets->count();
 
     $acquired = $assets->where('Lifecycle_Status', 'Acquired')->count();
@@ -620,8 +622,10 @@ Route::get('/department-head', function () {
         return redirect('/login');
     }
 
-    // Assets belonging to the department
+    // Assets belonging to the department. Archived disposals are out of the
+    // inventory, so they no longer count towards the department's holdings.
     $assets = Asset::with('user')
+        ->inInventory()
         ->whereHas('user', function ($q) use ($user) {
             $q->where('department_id', $user->department_id);
         })
@@ -708,8 +712,9 @@ Route::get('/department-head/assets', function (Request $request) {
     }
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    // Fetch all assets in the department with their images from asset_files
-    $assets = DB::table('assets')
+    // Fetch all assets in the department with their images from asset_files.
+    // Assets removed from the inventory are no longer held by the department.
+    $assets = Inventory::excludeRemoved(DB::table('assets'))
         ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
         ->where('users.department_id', $user->department_id)
@@ -781,7 +786,8 @@ Route::post('/department-head/assets/{id}/accountable', function (Request $reque
     if (!$user) return redirect('/login');
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    $asset = Asset::with('user')->find($id);
+    // Only assets still in the department's holdings can change hands.
+    $asset = Asset::with('user')->inInventory()->find($id);
     if (!$asset) return abort(404);
     if (($asset->user?->department_id ?? null) !== $user->department_id) return abort(403);
 
@@ -795,10 +801,12 @@ Route::post('/department-head/assets/{id}/accountable', function (Request $reque
 Route::get('/admin', function () {
     // Metrics for admin dashboard
     try {
-        $acquiredThisMonth = Asset::whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])->count();
+        // Every metric below counts the inventory the institution still holds:
+        // a disposed asset whose record is archived is no longer part of it.
+        $acquiredThisMonth = Asset::inInventory()->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])->count();
         $lastMonthStart = now()->subMonthNoOverflow()->startOfMonth();
         $lastMonthEnd = now()->subMonthNoOverflow()->endOfMonth();
-        $acquiredLastMonth = Asset::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count();
+        $acquiredLastMonth = Asset::inInventory()->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count();
 
         // compute percent change vs last month (positive if more this month)
         if ($acquiredLastMonth === 0) {
@@ -807,13 +815,13 @@ Route::get('/admin', function () {
             $acquiredChangePercent = (int) round((($acquiredThisMonth - $acquiredLastMonth) / $acquiredLastMonth) * 100);
         }
 
-        $activeAssets = Asset::where('Lifecycle_Status', 'Active')->count();
-        $forRepairAssets = Asset::where('Lifecycle_Status', 'For Repair')->count();
+        $activeAssets = Asset::inInventory()->where('Lifecycle_Status', 'Active')->count();
+        $forRepairAssets = Asset::inInventory()->where('Lifecycle_Status', 'For Repair')->count();
         // pending requests (case-insensitive)
         $pendingRequests = DB::table('requests')->whereRaw('LOWER(status) = ?', [strtolower('pending')])->count();
 
         $overviewMetrics = [
-            'total_assets' => Asset::count(),
+            'total_assets' => Asset::inInventory()->count(),
             'active_assets' => $activeAssets,
             'pending_requests' => $pendingRequests,
             'assets_for_repair' => $forRepairAssets,
@@ -1097,7 +1105,7 @@ Route::get('/admin/assets', function () {
               'users.employee_numbers_id',
               'employee_numbers.Full_Name as full_name'
           );
-    }])->get();
+    }])->inInventory()->get();
 
     // Get all departments from database
     $allDepartments = DB::table('departments')->orderBy('Name')->get();
@@ -1345,7 +1353,7 @@ Route::get('/admin/api/maintenance-alerts', function () {
     }
 
     // Get all assets where next_maintenance_date is today or in the past
-    $maintenanceAlerts = DB::table('assets')
+    $maintenanceAlerts = Inventory::excludeRemoved(DB::table('assets'))
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->whereNotNull('assets.next_maintenance_date')
@@ -1381,7 +1389,7 @@ Route::get('/admin/api/lifespan-alerts', function () {
 
     // Get all assets where expiration_date <= today (expired assets needing evaluation)
     // Shows both assets in "For Checking" status and assets that expired but haven't been auto-transitioned yet
-    $lifespanAlerts = DB::table('assets')
+    $lifespanAlerts = Inventory::excludeRemoved(DB::table('assets'))
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->whereNotNull('assets.expiration_date')
@@ -2032,7 +2040,7 @@ Route::get('/admin/assets/department/{departmentId?}', function (Request $reques
     $search   = trim((string) $request->query('search', ''));
     $category = $request->query('category', 'all');
 
-    $query = DB::table('assets')
+    $query = Inventory::excludeRemoved(DB::table('assets'))
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
         ->where('users.department_id', $departmentId)   // or however you scope to the department
@@ -2109,7 +2117,7 @@ $assets = $query
     $paginator->setCollection($assets);
 
     // Category options for the dropdown (optional)
-    $categoryOptions = DB::table('assets')
+    $categoryOptions = Inventory::excludeRemoved(DB::table('assets'))
         ->whereIn('user_id', function ($q) use ($departmentId) {
             $q->select('id')->from('users')->where('department_id', $departmentId);
         })
@@ -2236,8 +2244,9 @@ Route::get('/admin/assets/{id}', function ($id) {
 // Download Inventory - Export all assets as CSV with full reporting data - IMPORTANT: place before catch-all routes
 Route::get('/admin/inventory-download', function () {
     try {
-        // Fetch all assets with full reporting data
-        $assets = DB::table('assets')
+        // Fetch all assets with full reporting data. This is the inventory, so
+        // assets whose disposal is archived are not in it any more.
+        $assets = Inventory::excludeRemoved(DB::table('assets'))
             ->leftJoin('users', 'assets.user_id', '=', 'users.id')
             ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
             ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
@@ -2556,19 +2565,29 @@ Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
         return $fail($result['message'], 422);
     }
 
+    // Archiving is the moment the asset leaves the inventory, so say so. The
+    // asset row is kept either way — only its visibility changed.
+    $message = $result['message'];
+    if ($result['asset_removed']) {
+        $message .= ' Asset ' . ($result['asset_code'] ?: ('#' . $disposal->Asset_id))
+            . ' has been removed from the inventory — the record and its history are kept for reference.';
+    }
+
     // Audit: the disposal record itself is untouched, only its visibility moved.
     try {
-        $assetCode = $disposal->Asset_id
-            ? (DB::table('assets')->where('id', $disposal->Asset_id)->value('Asset_code') ?? 'N/A')
-            : 'N/A';
+        $assetCode = $result['asset_code'] ?: 'N/A';
 
         DB::table('audit_logs')->insert([
             'user_id'            => Auth::id(),
             'request_id'         => $disposal->Request_id,
             'asset_id'           => $disposal->Asset_id,
             'action_type'        => 'UPDATE',
-            'notes'              => 'Disposal record archived',
-            'action_description' => 'Disposal record #' . $id . ' for asset ' . $assetCode . ' was archived.',
+            'notes'              => $result['asset_removed']
+                ? 'Disposal record archived and asset removed from the inventory'
+                : 'Disposal record archived',
+            'action_description' => $result['asset_removed']
+                ? 'Disposal record #' . $id . ' for asset ' . $assetCode . ' was archived and the asset was removed from the inventory.'
+                : 'Disposal record #' . $id . ' for asset ' . $assetCode . ' was archived.',
             'created_at'         => now(),
             'updated_at'         => now(),
         ]);
@@ -2577,8 +2596,14 @@ Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
     }
 
     return $wantsJson
-        ? response()->json(['success' => true, 'message' => $result['message'], 'archived' => true])
-        : redirect('/admin/disposal')->with('success', $result['message']);
+        ? response()->json([
+            'success'        => true,
+            'message'        => $message,
+            'archived'       => true,
+            'asset_removed'  => $result['asset_removed'],
+            'asset_code'     => $result['asset_code'],
+        ])
+        : redirect('/admin/disposal')->with('success', $message);
 })->middleware('auth');
 
 // The old "permanently delete the asset" action used to live here. It issued
@@ -2655,7 +2680,9 @@ Route::get('/admin/disposal/{id}/details', function ($id) {
         'archived_by'        => $archivedBy,
 
         // ── The asset ─────────────────────────────────────────────────
-        'asset_still_exists' => (bool) $asset,
+        'asset_still_exists'   => (bool) $asset,
+        'inventory_removed'    => Inventory::isRemoved($asset),
+        'inventory_removed_at' => $asset->{Inventory::REMOVED_AT} ?? null,
         'asset_name'         => $asset->Asset_name ?? $disposal->Description ?? null,
         'asset_code'         => $asset->Asset_code ?? null,
         'original_value'     => $asset->purchase_Price ?? null,
@@ -3027,7 +3054,7 @@ Route::get('/admin/repair', function () {
     });
 
     // 2. Active assets for the "Select Asset" dropdown
-$availableAssets = DB::table('assets')
+$availableAssets = Inventory::excludeRemoved(DB::table('assets'))
         ->where('Lifecycle_Status', 'Active')
         ->orderBy('Asset_name')
         ->get(['id', 'Asset_name', 'Asset_code', 'Lifecycle_Status']);
@@ -4301,6 +4328,7 @@ Route::get('/admin/pullout', function () {
                 ->all();
 
             $availableAssets = Asset::with('user.employee_numbers')
+                ->inInventory()
                 ->where('Lifecycle_Status', '!=', 'Pullout')
                 ->whereNotIn('id', $blockedAssetIds)
                 ->orderBy('Asset_name')

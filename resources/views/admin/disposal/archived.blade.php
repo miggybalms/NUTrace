@@ -117,9 +117,10 @@
                         <i class="ri-arrow-left-line mr-2"></i>
                         Back to Disposal
                     </a>
-                    <p class="text-xs" style="color:var(--ink-600);">
-                        These records are no longer part of the active Disposal list. Nothing here can be deleted —
-                        the history of a disposed asset is kept.
+                    <p class="text-xs sm:max-w-md sm:text-right" style="color:var(--ink-600);">
+                        These records are no longer part of the active Disposal list. Archiving also took their
+                        assets out of the inventory — nothing here can be deleted, so the record and the asset's
+                        history stay readable.
                     </p>
                 </div>
 
@@ -159,7 +160,11 @@
                                         <td class="py-3 px-4">
                                             <p class="text-sm font-medium detail-value" style="color:var(--navy-900);">{{ $record->asset_name ?? 'Asset' }}</p>
                                             @unless($record->asset_still_exists)
-                                                <span class="chip chip-historic mt-1"><i class="ri-history-line"></i>Asset record removed</span>
+                                                <span class="chip chip-historic mt-1" title="The asset row itself is gone; this disposal record is the only remaining trace. Nothing can be deleted from here."><i class="ri-history-line"></i>Asset record removed</span>
+                                            @else
+                                                @if($record->inventory_removed ?? false)
+                                                    <span class="chip chip-archived mt-1" title="Taken out of the inventory when this record was archived. The asset row and its history are still kept."><i class="ri-archive-line"></i>Removed from inventory</span>
+                                                @endif
                                             @endunless
                                         </td>
                                         <td class="py-3 px-4 text-xs font-mono detail-value" style="color:var(--ink-600);">{{ $record->asset_code ?? 'N/A' }}</td>
@@ -385,6 +390,9 @@
                     fieldRow('Original Value', money(d.original_value)),
                     fieldRow('Archived On', dateTime(d.archived_at)),
                     fieldRow('Archived By', d.archived_by),
+                    fieldRow('Inventory', d.inventory_removed
+                        ? ('Removed from inventory' + (d.inventory_removed_at ? ' · ' + dateTime(d.inventory_removed_at) : ''))
+                        : ''),
                 ])}
                 ${!isEmptyVal(d.description) ? `
                     <div class="rounded-lg p-3.5 mt-3" style="background:var(--paper-2);">

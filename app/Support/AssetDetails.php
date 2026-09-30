@@ -20,10 +20,14 @@ class AssetDetails
 
     /**
      * Load a single asset with its owner/assignment info and primary photo.
+     *
+     * Returns null for an asset that has left the inventory (its disposal is
+     * archived): the employee and department pages are about what the
+     * institution still holds, and the caller turns null into a 404.
      */
     public static function load(int $assetId): ?object
     {
-        $asset = DB::table('assets')->where('id', $assetId)->first();
+        $asset = Inventory::excludeRemoved(DB::table('assets'))->where('id', $assetId)->first();
         if (! $asset) {
             return null;
         }

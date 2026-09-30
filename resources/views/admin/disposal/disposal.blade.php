@@ -143,7 +143,8 @@
                         <div>
                             <p class="text-sm font-semibold" style="color:var(--navy-900);">Archived Disposal Assets</p>
                             <p class="text-xs mt-1" style="color:var(--ink-600);">
-                                Older disposal records are kept separately for historical reference.
+                                Archived records, and the assets that left the inventory with them,
+                                are kept separately for historical reference.
                                 @if($archivedCount > 0)
                                     <span class="font-medium">{{ $archivedCount }}</span> record{{ $archivedCount === 1 ? '' : 's' }} archived.
                                 @endif
@@ -190,6 +191,12 @@
                                                         <span class="chip chip-historic" title="The asset row is no longer in the inventory; the disposal record is the only remaining trace.">
                                                             <i class="ri-history-line"></i>Asset record removed
                                                         </span>
+                                                    @else
+                                                        @if($record->inventory_removed ?? false)
+                                                            <span class="chip chip-archived" title="This asset is no longer part of the institution's inventory. Its row and its history are kept.">
+                                                                <i class="ri-archive-line"></i>Removed from inventory
+                                                            </span>
+                                                        @endif
                                                     @endunless
                                                 </div>
                                                 <p class="text-xs font-mono detail-value" style="color:var(--ink-400);">{{ $record->asset_code ?? 'N/A' }}</p>
@@ -302,7 +309,12 @@
                 <p class="text-sm leading-relaxed" style="color:var(--ink-600);">
                     This record will be removed from the main Disposal list and moved to
                     <strong style="color:var(--navy-900);">Archived Disposal Assets</strong>.
-                    Historical information will remain accessible.
+                </p>
+                <p class="text-sm leading-relaxed mt-3" style="color:var(--ink-600);">
+                    The asset then leaves the inventory: it stops appearing in the Assets lists,
+                    the department views and the inventory download. Nothing is deleted — the asset
+                    row and its accountability, repair, replacement and audit history are kept, so
+                    this archived record can still name it.
                 </p>
                 <p class="text-xs mt-3 p-3 rounded-lg" id="archiveModalRecord" style="background:var(--paper-2); color:var(--ink-600);"></p>
 
@@ -537,6 +549,9 @@
             const archivedBlock = d.is_archived ? rows([
                 fieldRow('Archived On', dateTime(d.archived_at)),
                 fieldRow('Archived By', d.archived_by),
+                fieldRow('Inventory', d.inventory_removed
+                    ? ('Removed from inventory' + (d.inventory_removed_at ? ' · ' + dateTime(d.inventory_removed_at) : ''))
+                    : ''),
             ]) : '';
 
             /* ── the request that produced this record ── */

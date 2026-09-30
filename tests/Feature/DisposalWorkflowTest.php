@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Asset;
 use App\Models\User;
 use App\Support\Disposals;
+use App\Support\Inventory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -213,10 +215,18 @@ class DisposalWorkflowTest extends TestCase
             ->assertSee('AST-0001')
             ->assertDontSee('Archived Disposal Asset</span>');
 
-        $this->actingAs($this->admin)
+        $archived = $this->actingAs($this->admin)
             ->postJson("/admin/disposal/{$disposalId}/archive")
             ->assertOk()
-            ->assertJson(['success' => true, 'message' => 'Disposal record archived successfully.']);
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('asset_removed', true)
+            ->assertJsonPath('asset_code', 'AST-0001');
+
+        $this->assertStringContainsString('Disposal record archived successfully.', $archived->json('message'));
+        $this->assertStringContainsString(
+            'Asset AST-0001 has been removed from the inventory',
+            $archived->json('message')
+        );
 
         // … and no longer there, but still on the archived page.
         $this->actingAs($this->admin)->get('/admin/disposal')
@@ -237,15 +247,16 @@ class DisposalWorkflowTest extends TestCase
             ->where('action_description', 'like', '%was archived%')->first();
         $this->assertNotNull($audit);
         $this->assertSame(
-            "Disposal record #{$disposalId} for asset AST-0001 was archived.",
+            "Disposal record #{$disposalId} for asset AST-0001 was archived and the asset was removed from the inventory.",
             $audit->action_description
         );
 
-        // The asset is untouched by archiving.
+        // The asset row is untouched by archiving — only its inventory state moved.
         $this->assertSame(
             Disposals::DISPOSED_STATUS,
             DB::table('assets')->where('id', $this->assetId)->value('Lifecycle_Status')
         );
+        $this->assertNotNull(DB::table('assets')->where('id', $this->assetId)->value('inventory_removed_at'));
     }
 
     public function test_archiving_works_as_a_plain_form_post_without_javascript(): void
@@ -262,7 +273,7 @@ class DisposalWorkflowTest extends TestCase
         $this->actingAs($this->admin)
             ->post("/admin/disposal/{$disposalId}/archive")
             ->assertRedirect('/admin/disposal')
-            ->assertSessionHas('success', 'Disposal record archived successfully.');
+            ->assertSessionHas('success', fn ($message) => str_contains($message, 'Disposal record archived successfully.'));
 
         $this->assertTrue((bool) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('is_archived'));
 
@@ -349,5 +360,145 @@ class DisposalWorkflowTest extends TestCase
         // include 'Disposed'. Writing 'Disposed' would be rejected by the CHECK
         // constraint in production, so the constant must stay on 'Disposal'.
         $this->assertSame('Disposal', Disposals::DISPOSED_STATUS);
+    }
+
+    /** Approve a disposal request and return the resulting Disposal_ID. */
+    private function approveDisposalRequest(): int
+    {
+        $requestId = $this->submitDisposalRequest();
+        $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        return (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
+    }
+
+    /** A Department Head in the same department as the asset's employee. */
+    private function departmentHead(): User
+    {
+        DB::table('employee_numbers')->insert([
+            'id' => 3, 'Employee_number' => 'EMP-3', 'Full_Name' => 'Dept Head',
+            'Department_id' => 1, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        return User::create([
+            'employee_numbers_id' => 3, 'department_id' => 1, 'email' => 'head@nu-lipa.edu.ph',
+            'password' => Hash::make('secret-password'), 'role' => 'Department Head', 'status' => 'Active',
+        ]);
+    }
+
+    public function test_archiving_takes_the_asset_out_of_the_inventory_but_keeps_the_row(): void
+    {
+        $disposalId = $this->approveDisposalRequest();
+
+        // While the disposal is still active the asset is still inventory.
+        $this->assertTrue(Asset::inInventory()->whereKey($this->assetId)->exists());
+        $this->assertFalse(Inventory::isRemoved(DB::table('assets')->where('id', $this->assetId)->first()));
+
+        $this->actingAs($this->admin)->postJson("/admin/disposal/{$disposalId}/archive")->assertOk();
+
+        // Out of the inventory …
+        $asset = DB::table('assets')->where('id', $this->assetId)->first();
+        $this->assertNotNull($asset, 'taking an asset out of the inventory must never delete the row');
+        $this->assertTrue(Inventory::isRemoved($asset));
+        $this->assertNotNull($asset->inventory_removed_at);
+        $this->assertSame($this->admin->id, (int) $asset->inventory_removed_by);
+        $this->assertFalse(Asset::inInventory()->whereKey($this->assetId)->exists());
+
+        // … but nothing is lost: the archived record still names it, and its own
+        // row and history stay readable.
+        $this->actingAs($this->admin)->get('/admin/disposal/archived')
+            ->assertOk()
+            ->assertSee('AST-0001')
+            ->assertSee('Removed from inventory');
+
+        $this->actingAs($this->admin)->getJson("/admin/disposal/{$disposalId}/details")
+            ->assertOk()
+            ->assertJsonPath('asset_still_exists', true)
+            ->assertJsonPath('inventory_removed', true)
+            ->assertJsonPath('asset_code', 'AST-0001');
+    }
+
+    public function test_a_removed_asset_leaves_every_listing_while_its_history_survives(): void
+    {
+        $disposalId = $this->approveDisposalRequest();
+        $head = $this->departmentHead();
+
+        DB::table('asset_accountability')->insert([
+            'asset_id' => $this->assetId, 'user_id' => $this->employee->id,
+            'Assign_date' => now()->subMonths(6), 'Is_Current' => 1,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $listedOnAdminAssets = function (): bool {
+            $page = $this->actingAs($this->admin)->get('/admin/assets')->assertOk();
+
+            return collect($page->viewData('departments'))
+                ->flatMap(fn ($dept) => $dept->assets ?? [])
+                ->pluck('id')
+                ->contains($this->assetId);
+        };
+
+        // Control: before archiving, every listing really does show the asset.
+        $this->assertTrue($listedOnAdminAssets());
+        $this->assertFalse(
+            $this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')
+                ->where('id', $this->assetId)->isEmpty()
+        );
+        $this->assertFalse(
+            $this->actingAs($head)->get('/department-head/assets')->viewData('assignedAssets')
+                ->where('id', $this->assetId)->isEmpty()
+        );
+        $this->actingAs($this->admin)->get('/admin/inventory-download')->assertOk()->assertSee('AST-0001');
+
+        $this->actingAs($this->admin)->postJson("/admin/disposal/{$disposalId}/archive")->assertOk();
+
+        // Gone from the admin Assets page, the employee's own list, the
+        // department's list and the institution's inventory export.
+        $this->assertFalse($listedOnAdminAssets(), 'a removed asset must not be listed on the Assets page');
+        $this->assertTrue(
+            $this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')
+                ->where('id', $this->assetId)->isEmpty()
+        );
+        $this->assertTrue(
+            $this->actingAs($head)->get('/department-head/assets')->viewData('assignedAssets')
+                ->where('id', $this->assetId)->isEmpty()
+        );
+        $this->actingAs($this->admin)->get('/admin/inventory-download')->assertOk()->assertDontSee('AST-0001');
+
+        // The employee can no longer open its detail page either.
+        $this->actingAs($this->employee)->get("/users/assets/{$this->assetId}")->assertNotFound();
+
+        // Nothing was deleted: the asset row, its accountability history and the
+        // disposal record are all still there.
+        $this->assertNotNull(DB::table('assets')->where('id', $this->assetId)->first());
+        $this->assertSame(1, DB::table('asset_accountability')->where('asset_id', $this->assetId)->count());
+        $this->assertSame(1, DB::table('disposals')->where('Disposal_ID', $disposalId)->count());
+    }
+
+    public function test_the_migration_backfill_removes_assets_whose_disposals_were_already_archived(): void
+    {
+        // A disposal archived before the inventory columns existed: the record is
+        // archived, but the asset still looks like inventory.
+        $disposalId = $this->approveDisposalRequest();
+
+        DB::table('disposals')->where('Disposal_ID', $disposalId)->update([
+            'is_archived' => true,
+            'archived_at' => now(),
+            'archived_by' => $this->admin->id,
+        ]);
+        DB::table('assets')->where('id', $this->assetId)->update([
+            'inventory_removed_at' => null,
+            'inventory_removed_by' => null,
+        ]);
+
+        $this->assertTrue(Asset::inInventory()->whereKey($this->assetId)->exists());
+
+        // Deploying runs the migration; the backfill has to catch these rows up.
+        $migration = require database_path('migrations/2026_09_30_010000_add_inventory_removal_to_assets_table.php');
+        $migration->up();
+
+        $asset = DB::table('assets')->where('id', $this->assetId)->first();
+        $this->assertNotNull($asset->inventory_removed_at, 'an already-archived disposal must take its asset out of the inventory');
+        $this->assertSame($this->admin->id, (int) $asset->inventory_removed_by);
+        $this->assertFalse(Asset::inInventory()->whereKey($this->assetId)->exists());
     }
 }

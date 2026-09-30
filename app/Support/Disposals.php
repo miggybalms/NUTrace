@@ -5,6 +5,7 @@ namespace App\Support;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 /**
  * Disposal records and the request-driven disposal workflow.
@@ -102,6 +103,12 @@ class Disposals
             $columns[] = DB::raw('archiver_emp."Full_Name" as archived_by_name');
         }
 
+        // Whether the asset has left the inventory (it no longer appears in the
+        // Assets list, but the row is kept for this record and for history).
+        if (Inventory::columnsReady()) {
+            $columns[] = 'assets.' . Inventory::REMOVED_AT . ' as asset_removed_from_inventory';
+        }
+
         return $query->select($columns);
     }
 
@@ -119,6 +126,7 @@ class Disposals
         $row->reason             = $row->disposal_reason ?: ($row->Description ?: ($row->notes ?: '-'));
         $row->is_archived        = (bool) ($row->is_archived ?? false);
         $row->archived_by_name   = $row->archived_by_name ?? ($row->archived_by_email ?? null);
+        $row->inventory_removed  = ! empty($row->asset_removed_from_inventory ?? null);
 
         return $row;
     }
@@ -170,43 +178,78 @@ class Disposals
     /**
      * Move a disposal record to Archived Disposal Assets.
      *
-     * The row itself is kept (plus the archive stamp) so the history of the
-     * disposed asset stays readable. A record can only be archived once.
+     * Archiving is the point at which the asset leaves the inventory: its
+     * disposal is complete and recorded, so it stops being counted as an asset
+     * the institution holds. The row is never deleted — the archived record has
+     * to be able to name the asset, and the asset's own history stays readable.
      *
-     * @return array{archived: bool, message: string}
+     * A record can only be archived once, and the record plus the inventory
+     * change are one transaction so they can never disagree.
+     *
+     * @return array{archived: bool, message: string, asset_removed: bool, asset_code: ?string}
      */
     public static function archive(int $disposalId, ?int $adminId): array
     {
+        $nothing = static fn (string $message): array => [
+            'archived'     => false,
+            'message'      => $message,
+            'asset_removed' => false,
+            'asset_code'   => null,
+        ];
+
         if (! self::archiveColumnsReady()) {
-            return [
-                'archived' => false,
-                'message'  => 'Archiving is not available yet — the archive database migration has not been run.',
-            ];
+            return $nothing('Archiving is not available yet — the archive database migration has not been run.');
         }
 
         $disposal = DB::table('disposals')->where('Disposal_ID', $disposalId)->first();
 
         if (! $disposal) {
-            return ['archived' => false, 'message' => 'Disposal record not found.'];
+            return $nothing('Disposal record not found.');
         }
 
         if (! empty($disposal->is_archived)) {
-            return ['archived' => false, 'message' => 'This disposal record is already archived.'];
+            return $nothing('This disposal record is already archived.');
         }
 
-        DB::table('disposals')
-            ->where('Disposal_ID', $disposalId)
-            ->where(function (Builder $query) {
-                $query->where('is_archived', false)->orWhereNull('is_archived');
-            })
-            ->update([
-                'is_archived' => true,
-                'archived_at' => now(),
-                'archived_by' => $adminId,
-                'updated_at'  => now(),
-            ]);
+        $assetCode = $disposal->Asset_id
+            ? (DB::table('assets')->where('id', $disposal->Asset_id)->value('Asset_code') ?? null)
+            : null;
 
-        return ['archived' => true, 'message' => 'Disposal record archived successfully.'];
+        // Whether the asset actually left the inventory is reported honestly: on
+        // a server that has not run the inventory migration yet the archive still
+        // works, it just cannot take the asset out of the listings.
+        $removed = false;
+
+        try {
+            DB::transaction(function () use ($disposal, $disposalId, $adminId, &$removed) {
+                DB::table('disposals')
+                    ->where('Disposal_ID', $disposalId)
+                    ->where(function (Builder $query) {
+                        $query->where('is_archived', false)->orWhereNull('is_archived');
+                    })
+                    ->update([
+                        'is_archived' => true,
+                        'archived_at' => now(),
+                        'archived_by' => $adminId,
+                        'updated_at'  => now(),
+                    ]);
+
+                if ($disposal->Asset_id) {
+                    $removed = Inventory::remove((int) $disposal->Asset_id, $adminId);
+                }
+            });
+        } catch (Throwable $e) {
+            \Log::error('Archiving disposal #' . $disposalId . ' failed: ' . $e->getMessage());
+
+            return $nothing('The disposal record could not be archived. Nothing was changed — please try again.');
+        }
+
+        return [
+            'archived'      => true,
+            'message'       => 'Disposal record archived successfully.',
+            'asset_removed' => $removed,
+            'asset_code'    => $assetCode,
+        ];
     }
 
     /**
