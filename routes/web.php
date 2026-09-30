@@ -2524,24 +2524,36 @@ Route::get('/admin/disposal/archived', function () {
 // Archive a disposal record. This never deletes anything: the record simply
 // leaves the main Disposal list and stays readable under Archived Disposal
 // Assets, so the history of a retired asset is never lost.
+//
+// The Disposal page posts an ordinary HTML form here, so the result is a
+// redirect back to the page with a flash message — a response the browser can
+// always complete. Callers that ask for JSON (Accept: application/json) still
+// get JSON.
 Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
+    $wantsJson = $request->expectsJson();
+
+    $fail = function (string $message, int $status) use ($wantsJson, $id) {
+        \Log::info('Disposal archive refused for record #' . $id . ': ' . $message);
+
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], $status)
+            : redirect('/admin/disposal')->with('error', $message);
+    };
+
     $admin = Auth::user();
     if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Only the Asset Management Office can archive a disposal record.',
-        ], 403);
+        return $fail('Only the Asset Management Office can archive a disposal record.', 403);
     }
 
     $disposal = DB::table('disposals')->where('Disposal_ID', $id)->first();
     if (!$disposal) {
-        return response()->json(['success' => false, 'message' => 'Disposal record not found.'], 404);
+        return $fail('Disposal record not found.', 404);
     }
 
     $result = Disposals::archive((int) $id, (int) $admin->id);
 
     if (! $result['archived']) {
-        return response()->json(['success' => false, 'message' => $result['message']], 422);
+        return $fail($result['message'], 422);
     }
 
     // Audit: the disposal record itself is untouched, only its visibility moved.
@@ -2564,11 +2576,9 @@ Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
         \Log::warning('Audit log skipped on disposal archive: ' . $e->getMessage());
     }
 
-    return response()->json([
-        'success'   => true,
-        'message'   => $result['message'],
-        'archived'  => true,
-    ]);
+    return $wantsJson
+        ? response()->json(['success' => true, 'message' => $result['message'], 'archived' => true])
+        : redirect('/admin/disposal')->with('success', $result['message']);
 })->middleware('auth');
 
 // The old "permanently delete the asset" action used to live here. It issued

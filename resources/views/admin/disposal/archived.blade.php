@@ -253,6 +253,15 @@
             return '₱' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 });
         }
 
+        function dateTime(v) {
+            if (isEmptyVal(v)) return null;
+            const parsed = new Date(String(v).replace(' ', 'T'));
+            if (isNaN(parsed)) return String(v);
+            return parsed.toLocaleString('en-US', {
+                year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+        }
+
         function fieldRow(label, value) {
             if (isEmptyVal(value)) return '';
             return `
@@ -374,7 +383,7 @@
                     fieldRow('Reason', d.reason),
                     fieldRow('Disposed / Approved By', d.disposed_by),
                     fieldRow('Original Value', money(d.original_value)),
-                    fieldRow('Archived On', d.archived_at),
+                    fieldRow('Archived On', dateTime(d.archived_at)),
                     fieldRow('Archived By', d.archived_by),
                 ])}
                 ${!isEmptyVal(d.description) ? `

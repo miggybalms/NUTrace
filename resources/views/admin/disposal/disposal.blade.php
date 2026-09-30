@@ -67,14 +67,6 @@
         .modal { transition: all .3s ease; }
         .modal.show { display: flex; animation: fadeIn .25s ease; }
 
-        .toast-notification {
-            position: fixed; bottom: 20px; right: 20px; color: white;
-            padding: 12px 24px; border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,.1); z-index: 10000;
-            animation: slideIn .3s ease; font-family:'Inter', sans-serif;
-        }
-        @keyframes slideIn { from { transform: translateX(100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
-
         .modal-head{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); position:relative; }
         .modal-head::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--gold-500); }
         .form-input{ width:100%; border:1px solid var(--line); border-radius:9px; padding:.55rem .9rem; font-size:.9rem; outline:none; transition:border-color .15s, box-shadow .15s; }
@@ -111,6 +103,21 @@
 
             <!-- Content -->
             <div class="p-4 sm:p-8">
+                {{-- Archiving is a normal form POST, so its result comes back as a
+                     flash message instead of a silent fetch. --}}
+                @if(session('success'))
+                    <div class="mb-6 p-4 rounded-xl text-sm flex items-start" style="background:var(--forest-tint); border-left:4px solid var(--forest); color:var(--forest-dark);">
+                        <i class="ri-checkbox-circle-line text-xl mr-3 mt-0.5"></i>
+                        <p>{{ session('success') }}</p>
+                    </div>
+                @endif
+                @if(session('error'))
+                    <div class="mb-6 p-4 rounded-xl text-sm flex items-start" style="background:var(--brick-tint); border-left:4px solid var(--brick); color:var(--brick-dark);">
+                        <i class="ri-error-warning-line text-xl mr-3 mt-0.5"></i>
+                        <p>{{ session('error') }}</p>
+                    </div>
+                @endif
+
                 <!-- Stats Card -->
                 <div class="hero-card p-6 mb-6 text-white">
                     <div class="flex items-center justify-between">
@@ -218,20 +225,22 @@
                                         @endif
                                     </div>
 
-                                    <div class="flex sm:flex-col space-x-1 sm:space-x-0 sm:space-y-1 flex-shrink-0">
+                                    <div class="flex flex-row sm:flex-col gap-2 flex-shrink-0">
                                         <button type="button" onclick="viewDisposalDetails({{ $record->id }})"
-                                                class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--steel);"
+                                                class="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+                                                style="color:var(--steel); border:1px solid var(--line);"
                                                 onmouseover="this.style.background='var(--steel-tint)'" onmouseout="this.style.background='transparent'"
                                                 title="View details">
-                                            <i class="ri-eye-line text-xl"></i>
+                                            <i class="ri-eye-line mr-1.5"></i>View Details
                                         </button>
                                         @if($archiveReady)
                                         <button type="button" onclick="openArchiveModal({{ $record->id }}, this)"
                                                 data-label="{{ $record->asset_name ?? 'Asset' }} · {{ $record->asset_code ?? 'N/A' }}"
-                                                class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--brick);"
-                                                onmouseover="this.style.background='var(--brick-tint)'" onmouseout="this.style.background='transparent'"
+                                                class="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all"
+                                                style="color:#fff; background:var(--brick);"
+                                                onmouseover="this.style.filter='brightness(1.08)'" onmouseout="this.style.filter='none'"
                                                 title="Archive this disposal record">
-                                            <i class="ri-archive-line text-xl"></i>
+                                            <i class="ri-archive-line mr-1.5"></i>Archive
                                         </button>
                                         @endif
                                     </div>
@@ -271,7 +280,13 @@
         </div>
     </div>
 
-    <!-- Archive Confirmation Modal -->
+    <!-- Archive Confirmation Modal.
+
+         Archiving posts a real form that is set to the clicked record's URL. It
+         deliberately does NOT depend on JavaScript doing a background request:
+         the browser performs an ordinary POST, the server redirects back to this
+         page and the result arrives as a flash message. That keeps the action
+         working even when a fetch is blocked, dropped or never answered. -->
     <div id="archiveModal" class="hidden fixed inset-0 z-50 items-center justify-center modal p-4" style="background:rgba(10,24,48,.55);" onclick="closeArchiveModal()">
         <div class="rounded-xl shadow-2xl max-w-md w-full" style="background:#fff;" onclick="event.stopPropagation();">
             <div class="modal-head p-6">
@@ -282,22 +297,22 @@
                     </button>
                 </div>
             </div>
-            <div class="p-6">
+            <form id="archiveForm" method="POST" action="/admin/disposal" class="p-6">
+                @csrf
                 <p class="text-sm leading-relaxed" style="color:var(--ink-600);">
                     This record will be removed from the main Disposal list and moved to
                     <strong style="color:var(--navy-900);">Archived Disposal Assets</strong>.
                     Historical information will remain accessible.
                 </p>
                 <p class="text-xs mt-3 p-3 rounded-lg" id="archiveModalRecord" style="background:var(--paper-2); color:var(--ink-600);"></p>
-                <p class="text-xs mt-3 hidden" id="archiveModalStatus"></p>
 
                 <div class="flex justify-end gap-2 mt-6 pt-5" style="border-top:1px solid var(--line);">
                     <button type="button" onclick="closeArchiveModal()" class="btn-ghost">Cancel</button>
-                    <button type="button" id="archiveModalConfirm" onclick="confirmArchive()" class="btn-brick">
+                    <button type="submit" id="archiveModalConfirm" class="btn-brick">
                         <i class="ri-archive-line mr-1.5"></i>Archive
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -320,9 +335,6 @@
     </div>
 
     <script>
-        const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        let pendingArchiveId = null;
-
         /* ── helpers ─────────────────────────────────────────────── */
         function esc(value) {
             if (value === null || value === undefined) return '';
@@ -346,6 +358,15 @@
             return '₱' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 });
         }
 
+        function dateTime(v) {
+            if (isEmptyVal(v)) return null;
+            const parsed = new Date(String(v).replace(' ', 'T'));
+            if (isNaN(parsed)) return String(v);
+            return parsed.toLocaleString('en-US', {
+                year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+        }
+
         function fieldRow(label, value, raw) {
             if (isEmptyVal(value)) return '';
             return `
@@ -367,22 +388,6 @@
         function rows(items) {
             const html = items.filter(Boolean).join('');
             return html ? `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${html}</div>` : '';
-        }
-
-        function showToast(message, type = 'success') {
-            const existing = document.querySelector('.toast-notification');
-            if (existing) existing.remove();
-
-            const toast = document.createElement('div');
-            toast.className = 'toast-notification';
-            toast.style.backgroundColor = type === 'error' ? '#A23B32' : '#2F7A4D';
-            toast.textContent = message;
-            document.body.appendChild(toast);
-
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 3200);
         }
 
         /* ── search ──────────────────────────────────────────────── */
@@ -416,19 +421,21 @@
             }
         }
 
-        /* ── archive ─────────────────────────────────────────────── */
+        /* ── archive ───────────────────────────────────────────────
+           The form itself does the work; all this has to do is point it at the
+           record whose Archive button was clicked. */
         function openArchiveModal(disposalId, button) {
-            pendingArchiveId = disposalId;
-
             const modal = document.getElementById('archiveModal');
+            const form = document.getElementById('archiveForm');
             const record = document.getElementById('archiveModalRecord');
-            const status = document.getElementById('archiveModalStatus');
+            const confirmBtn = document.getElementById('archiveModalConfirm');
 
-            if (record) {
-                const label = button?.dataset?.label || ('Disposal record #' + disposalId);
-                record.textContent = label;
+            if (form) form.action = '/admin/disposal/' + disposalId + '/archive';
+            if (record) record.textContent = button?.dataset?.label || ('Disposal record #' + disposalId);
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="ri-archive-line mr-1.5"></i>Archive';
             }
-            if (status) status.classList.add('hidden');
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -438,77 +445,16 @@
             const modal = document.getElementById('archiveModal');
             modal.classList.add('hidden');
             modal.classList.remove('flex');
-            pendingArchiveId = null;
         }
 
-        async function confirmArchive() {
-            if (!pendingArchiveId) return;
-
-            const disposalId = pendingArchiveId;
+        // One archive at a time: the second click can only ever be a duplicate.
+        document.getElementById('archiveForm')?.addEventListener('submit', function () {
             const confirmBtn = document.getElementById('archiveModalConfirm');
-            const status = document.getElementById('archiveModalStatus');
-
-            if (confirmBtn) confirmBtn.disabled = true;
-            if (status) {
-                status.textContent = 'Archiving…';
-                status.classList.remove('hidden');
-                status.style.color = 'var(--ink-400)';
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="ri-loader-4-line mr-1.5"></i>Archiving…';
             }
-
-            try {
-                const res = await fetch(`/admin/disposal/${disposalId}/archive`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': CSRF,
-                        'Accept': 'application/json',
-                    },
-                });
-
-                const json = await res.json().catch(() => ({}));
-
-                if (!res.ok || !json.success) {
-                    if (status) {
-                        status.textContent = json.message || 'Failed to archive this disposal record.';
-                        status.classList.remove('hidden');
-                        status.style.color = 'var(--brick)';
-                    }
-                    if (confirmBtn) confirmBtn.disabled = false;
-                    return;
-                }
-
-                closeArchiveModal();
-                showToast(json.message || 'Disposal record archived successfully.');
-
-                // Drop the row from the main list and update the counters — the
-                // record itself still exists under Archived Disposal Assets.
-                const card = document.querySelector(`.disposal-card[data-id="${disposalId}"]`);
-                if (card) card.remove();
-
-                const list = document.getElementById('disposalRecordsList');
-                const remaining = list ? list.querySelectorAll('.disposal-card').length : 0;
-                if (remaining === 0 && list) {
-                    list.outerHTML = `
-                        <div id="emptyState" class="p-12 text-center" style="background:#fff; border-radius:14px; border:1px solid var(--line);">
-                            <div class="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4" style="background:var(--paper-2);">
-                                <i class="ri-inbox-line text-4xl" style="color:var(--ink-400);"></i>
-                            </div>
-                            <h3 class="text-lg font-semibold mb-2" style="color:var(--navy-900);">No disposal records yet</h3>
-                            <p style="color:var(--ink-400);">Every disposal record has been archived. They remain available under Archived Disposal Assets.</p>
-                        </div>`;
-                }
-
-                const counter = document.getElementById('totalDisposedCount');
-                if (counter) counter.textContent = String(Math.max(0, Number(counter.textContent || '0') - 1));
-            } catch (err) {
-                if (status) {
-                    status.textContent = 'Network error: ' + err.message;
-                    status.classList.remove('hidden');
-                    status.style.color = 'var(--brick)';
-                }
-                if (confirmBtn) confirmBtn.disabled = false;
-            }
-        }
+        });
 
         /* ── view details ────────────────────────────────────────── */
         function closeViewDisposalModal() {
@@ -589,7 +535,7 @@
                 </div>` : '';
 
             const archivedBlock = d.is_archived ? rows([
-                fieldRow('Archived On', d.archived_at),
+                fieldRow('Archived On', dateTime(d.archived_at)),
                 fieldRow('Archived By', d.archived_by),
             ]) : '';
 

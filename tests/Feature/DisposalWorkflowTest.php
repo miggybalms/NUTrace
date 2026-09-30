@@ -248,6 +248,46 @@ class DisposalWorkflowTest extends TestCase
         );
     }
 
+    public function test_archiving_works_as_a_plain_form_post_without_javascript(): void
+    {
+        // The Disposal page archives through an ordinary HTML form. A result the
+        // browser can always complete matters more than a smooth fetch here: a
+        // background request that is dropped leaves the Admin with a button that
+        // silently does nothing.
+        $requestId = $this->submitDisposalRequest();
+        $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
+
+        $this->actingAs($this->admin)
+            ->post("/admin/disposal/{$disposalId}/archive")
+            ->assertRedirect('/admin/disposal')
+            ->assertSessionHas('success', 'Disposal record archived successfully.');
+
+        $this->assertTrue((bool) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('is_archived'));
+
+        // Doing it again explains itself instead of doing nothing.
+        $this->actingAs($this->admin)
+            ->post("/admin/disposal/{$disposalId}/archive")
+            ->assertRedirect('/admin/disposal')
+            ->assertSessionHas('error', 'This disposal record is already archived.');
+    }
+
+    public function test_a_non_admin_cannot_archive_even_through_the_form(): void
+    {
+        $requestId = $this->submitDisposalRequest();
+        $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
+
+        $this->actingAs($this->employee)
+            ->post("/admin/disposal/{$disposalId}/archive")
+            ->assertRedirect('/admin/disposal')
+            ->assertSessionHas('error', 'Only the Asset Management Office can archive a disposal record.');
+
+        $this->assertFalse((bool) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('is_archived'));
+    }
+
     public function test_a_record_cannot_be_archived_twice(): void
     {
         $requestId = $this->submitDisposalRequest();
