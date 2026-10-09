@@ -82,7 +82,9 @@
 
                 {{-- Notification bell --}}
                 <div class="relative" id="notification-wrapper">
+                    {{-- Icon-only, so it carries its own name; the badge is only a count. --}}
                     <button type="button" id="notification-bell"
+                            aria-label="Notifications" aria-haspopup="true" aria-expanded="false"
                             class="relative p-2 rounded-full hover:bg-[#EFE9D8] transition focus:outline-none">
                         <i class="ri-notification-3-line text-xl text-[#46536B]"></i>
                         <span id="notification-badge"
@@ -295,10 +297,14 @@
 
     function updateBadge(count) {
         if (count > 0) {
-            badgeEl.textContent = count > 99 ? '99+' : count;
+            const label = count > 99 ? '99+' : String(count);
+            badgeEl.textContent = label;
             badgeEl.classList.remove('hidden');
+            // Keep the accessible name in sync with the visible count (WCAG 2.5.3).
+            bellBtn.setAttribute('aria-label', label + ' unread notifications');
         } else {
             badgeEl.classList.add('hidden');
+            bellBtn.setAttribute('aria-label', 'Notifications');
         }
     }
 
@@ -368,12 +374,15 @@
     bellBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.classList.toggle('hidden');
-        if (!dropdown.classList.contains('hidden')) fetchNotifications();
+        const open = !dropdown.classList.contains('hidden');
+        bellBtn.setAttribute('aria-expanded', String(open));
+        if (open) fetchNotifications();
     });
 
     document.addEventListener('click', (e) => {
         if (!document.getElementById('notification-wrapper')?.contains(e.target)) {
             dropdown.classList.add('hidden');
+            bellBtn.setAttribute('aria-expanded', 'false');
         }
     });
 
