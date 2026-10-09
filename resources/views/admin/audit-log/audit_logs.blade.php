@@ -98,7 +98,10 @@
                         $currentFilter = $filter ?? 'all';
                     @endphp
                     @foreach($tabs as $key => $label)
+                        {{-- The sidebar already has a link called "Assets", and these tabs
+                             point somewhere else, so each tab names what it filters. --}}
                         <a href="{{ url('/admin/audit-logs') }}?{{ http_build_query(array_filter(['filter' => $key, 'q' => $search ?? '', 'date' => $date ?? ''])) }}"
+                        aria-label="Filter audit log entries: {{ $label }}"
                         class="filter-tab px-4 py-2.5 text-sm font-medium {{ $currentFilter === $key ? 'text-[#0F2143] border-b-2 border-[#C9A227]' : 'text-[#5B6678] hover:text-[#33425C]' }}">
                             {{ $label }}
                         </a>

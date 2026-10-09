@@ -227,7 +227,9 @@
                                 </div>
                                 <!-- View All + Expand row -->
                                 <div class="flex items-center gap-2 justify-end lg:justify-start lg:ml-3">
-                                    <a href="/admin/assets/department/{{ $dept->id }}" class="flex-1 lg:flex-none justify-center px-3.5 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap" style="background:var(--gold-100); color:var(--navy-900);" onmouseover="this.style.background='var(--gold-500)'" onmouseout="this.style.background='var(--gold-100)'">
+                                    {{-- Every department has a "View All" link, so the
+                                         name carries the department to stay distinct. --}}
+                                    <a href="/admin/assets/department/{{ $dept->id }}" aria-label="View all assets in {{ $dept->name }}" class="flex-1 lg:flex-none justify-center px-3.5 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap" style="background:var(--gold-100); color:var(--navy-900);" onmouseover="this.style.background='var(--gold-500)'" onmouseout="this.style.background='var(--gold-100)'">
                                         <i class="ri-eye-line mr-1.5"></i>
                                         View All
                                     </a>

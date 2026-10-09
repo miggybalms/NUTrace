@@ -996,7 +996,7 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                                 <a href="/admin/assets/${data.asset.id}" target="_blank"
                                     class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
                                     style="background:var(--plum-tint); color:var(--plum);"
-                                    title="View New Asset">
+                                    title="View new asset ${data.asset.code || data.asset.id}">
                                     <i class="ri-external-link-line text-sm"></i>
                                 </a>`;
 
