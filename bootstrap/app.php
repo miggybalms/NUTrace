@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -32,9 +33,20 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Log user login events
         $middleware->web(append: \App\Http\Middleware\LogUserLogin::class);
+
+        // Security response headers (HSTS, CSP, X-Frame-Options, nosniff,
+        // Referrer-Policy, Permissions-Policy) on every response the app
+        // produces. Global, not part of the web group, so downloads and JSON
+        // endpoints carry them too.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // An error response never travels back through the middleware stack, so
+        // the same headers are attached here — a 404 or 500 must not be the one
+        // page on the site that is missing them.
+        $exceptions->respond(function (Response $response) {
+            return \App\Http\Middleware\SecurityHeaders::apply($response, request()->isSecure());
+        });
     })
     ->withSchedule(function ($schedule) {
         // Check for expired assets daily at 2 AM
