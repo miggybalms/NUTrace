@@ -42,11 +42,11 @@
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div class="flex items-center min-w-0">
                 @if(!empty($adminHeaderBackUrl))
-                    <a href="{{ $adminHeaderBackUrl }}" class="text-[#8991A0] hover:text-[#33425C] mr-3.5 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#EFE9D8] transition-colors flex-shrink-0" title="Back">
+                    <a href="{{ $adminHeaderBackUrl }}" class="text-[#5C6474] hover:text-[#33425C] mr-3.5 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#EFE9D8] transition-colors flex-shrink-0" title="Back">
                         <i class="ri-arrow-left-line text-xl"></i>
                     </a>
                 @else
-                    <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400,#8991A0);" title="Menu">
+                    <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400,#5C6474);" title="Menu">
                         <i class="ri-menu-line text-2xl"></i>
                     </button>
                 @endif
@@ -60,7 +60,7 @@
                             <span class="avatar-badge w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">{{ $adminInitials }}</span>
                             <p class="text-sm truncate">
                                 <span class="font-semibold" style="color:var(--navy-900,#0F2143);">{{ $adminName }}</span>
-                                <span class="mx-1.5" style="color:var(--ink-400,#8991A0);">•</span>
+                                <span class="mx-1.5" style="color:var(--ink-400,#5C6474);">•</span>
                                 <span style="color:var(--ink-600,#5B6678);">{{ $adminHeaderBadge ?? 'Admin' }}</span>
                             </p>
                         </div>
@@ -105,7 +105,7 @@
                     {{-- Repair: search the queue + create repair --}}
                     @case('repair')
                         <div class="relative flex-1 sm:flex-none">
-                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);" aria-hidden="true"></i>
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);" aria-hidden="true"></i>
                             <input type="text" id="searchRepairs" placeholder="Search repairs..."
                                 aria-label="Search repair requests by asset, code, requester or issue"
                                 autocomplete="off"
@@ -120,7 +120,7 @@
                     {{-- Replacement: search + profile --}}
                     @case('replacement')
                         <div class="relative flex-1 sm:flex-none">
-                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);"></i>
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);"></i>
                             <input type="text" id="searchInput" placeholder="Search replacements..."
                                 class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
                         </div>
@@ -129,11 +129,13 @@
                     {{-- Audit logs: search + date filter + server CSV export --}}
                     @case('audit_logs')
                         <div class="relative">
-                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);"></i>
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);"></i>
                             <input type="text" id="searchInput" placeholder="Search logs..." value="{{ $search ?? '' }}"
+                                aria-label="Search audit log entries"
                                 class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-56"/>
                         </div>
                         <input type="date" id="dateFilter" value="{{ $date ?? '' }}"
+                            aria-label="Filter audit log entries by date"
                             class="search-input px-3 py-2.5 rounded-lg text-sm" style="color:var(--ink-600,#46536B);"/>
                         <a href="{{ url('/admin/audit-logs/export') }}" class="btn-ghost" download>
                             <i class="ri-download-line mr-2"></i>
@@ -144,7 +146,7 @@
                     {{-- Transfer: search the employee list and the transfer history --}}
                     @case('transfer')
                         <div class="relative flex-1 sm:flex-none">
-                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#8991A0);" aria-hidden="true"></i>
+                            <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);" aria-hidden="true"></i>
                             <input type="text" id="transferSearch" placeholder="Search employees..."
                                 aria-label="Search employees by name, employee number or department"
                                 autocomplete="off"
@@ -154,8 +156,10 @@
 
                     {{-- Pullout --}}
                     @case('pullout')
-                        <button type="button" onclick="openScannerAuto()" class="btn-gold">
-                            <i class="ri-add-line sm:mr-2"></i>
+                        {{-- The visible label is hidden below the sm breakpoint, so the
+                             button carries a name that does not depend on the viewport. --}}
+                        <button type="button" onclick="openScannerAuto()" class="btn-gold" aria-label="Record pullout">
+                            <i class="ri-add-line sm:mr-2" aria-hidden="true"></i>
                             <span class="hidden sm:inline">Record Pullout</span>
                         </button>
                         @break

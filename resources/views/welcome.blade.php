@@ -175,7 +175,9 @@
             align-items: center;
             gap: 0.4rem;
             background: var(--gold-pale);
-            color: var(--gold);
+            /* Darker than --gold: the bright gold only reached 2.2:1 on this
+               pale chip, which is unreadable at 12.5px. */
+            color: #8a6a14;
             font-size: 0.78rem;
             font-weight: 700;
             letter-spacing: 0.1em;
@@ -308,7 +310,10 @@
 
         .feature-icon svg { color: var(--gold); }
 
-        .feature-text h4 {
+        /* These were <h4> under an <h1>, which skips levels and fails the
+           heading-order audit. They are real section headings, so they are
+           <h2> and carry the same styling through this class. */
+        .feature-title {
             color: var(--gold-light);
             font-size: 0.95rem;
             font-weight: 700;
@@ -327,7 +332,8 @@
             text-align: center;
             padding: 1.5rem;
             font-size: 0.82rem;
-            color: #6b85a8;
+            /* #6b85a8 only reached 4.3:1 on this navy; this lighter blue clears AA. */
+            color: #7c96b9;
             border-top: 1px solid rgba(201,162,39,0.2);
         }
 
@@ -360,6 +366,8 @@
             <a href="/login" class="btn-login">Login</a>
         </div>
     </nav>
+
+    <main id="main-content">
 
     <section class="hero">
         <div class="hero-deco"></div>
@@ -401,7 +409,7 @@
                     </svg>
                 </div>
                 <div class="feature-text">
-                    <h4>Request Management</h4>
+                    <h2 class="feature-title">Request Management</h2>
                     <p>Submit and track repair, disposal, transfer, pullout, and replacement requests seamlessly.</p>
                 </div>
             </div>
@@ -415,7 +423,7 @@
                     </svg>
                 </div>
                 <div class="feature-text">
-                    <h4>QR Code Scanning</h4>
+                    <h2 class="feature-title">QR Code Scanning</h2>
                     <p>Instantly fetch asset details by scanning the auto-generated QR code with your phone.</p>
                 </div>
             </div>
@@ -426,12 +434,14 @@
                     </svg>
                 </div>
                 <div class="feature-text">
-                    <h4>Audit & Security</h4>
+                    <h2 class="feature-title">Audit & Security</h2>
                     <p>Full audit logs track every action across the system — who did what, when, and to which asset.</p>
                 </div>
             </div>
         </div>
     </section>
+
+    </main>
 
     <footer>
         &copy; {{ date('Y') }} <span>University Asset Management System</span>. All rights reserved.

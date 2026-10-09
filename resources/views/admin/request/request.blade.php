@@ -18,9 +18,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#DED2AE;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
             --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -127,7 +127,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
                 <!-- Header (shared admin header) -->
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'requests',
@@ -270,7 +270,7 @@
                     <div class="w-full lg:w-96 lg:flex-shrink-0 min-w-0 panel rounded-xl overflow-y-auto" id="request-details-panel">
                         <div class="p-6">
                             <h3 class="font-display text-lg font-semibold mb-4 flex items-center" style="color:var(--navy-900);">
-                                <i class="ri-file-info-line mr-2" style="color:var(--gold-600);"></i>
+                                <i class="ri-file-info-line mr-2" style="color:var(--gold-ink);"></i>
                                 Request Details
                             </h3>
                             
@@ -384,7 +384,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Reject Request modal: the reason becomes the request's Admin Remarks -->
@@ -775,7 +775,7 @@
                     const row = document.createElement('div');
                     row.className = 'text-sm detail-value';
                     row.style.color = 'var(--ink-600)';
-                    row.innerHTML = `<i class="ri-record-circle-line mr-1.5 text-xs" style="color:var(--gold-600);"></i>${escapeHtml(asset.name || 'Unnamed')} <span class="font-mono text-xs" style="color:var(--ink-400);">${escapeHtml(asset.code || '')}</span>`;
+                    row.innerHTML = `<i class="ri-record-circle-line mr-1.5 text-xs" style="color:var(--gold-ink);"></i>${escapeHtml(asset.name || 'Unnamed')} <span class="font-mono text-xs" style="color:var(--ink-400);">${escapeHtml(asset.code || '')}</span>`;
                     list.appendChild(row);
                 });
             }

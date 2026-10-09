@@ -12,9 +12,9 @@
     <style>
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#E6DFCD;
             --forest:#2F7A4D; --forest-dark:#245C3B;
             --bronze:#B4791E; --bronze-dark:#8F5F16;
@@ -24,7 +24,7 @@
         body{ font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink-900); }
         .font-display{ font-family:'Fraunces',serif; }
         .font-mono{ font-family:'IBM Plex Mono',monospace; }
-        .eyebrow{ font-family:'Inter',sans-serif; font-size:.7rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-600); }
+        .eyebrow{ font-family:'Inter',sans-serif; font-size:.7rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-ink); }
         .card-registry{ background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 1px 2px rgba(10,24,48,.04), 0 12px 32px -20px rgba(10,24,48,.25); overflow:hidden; }
         .registry-header{ background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); position:relative; }
         .registry-header::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:linear-gradient(90deg,transparent, var(--gold-500), transparent); }
@@ -59,7 +59,7 @@
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <div class="max-w-4xl mx-auto p-8">
                 <div class="card-registry">
 
@@ -141,7 +141,7 @@
                         @if($asset->lifespan_months || $asset->expiration_date)
                         <div class="mt-10 pt-7" style="border-top:1px solid var(--line);">
                             <p class="eyebrow mb-1">Lifecycle</p>
-                            <h3 class="section-title mb-4">Asset Lifespan</h3>
+                            <h2 class="section-title mb-4">Asset Lifespan</h2>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <p class="field-label">Lifespan Duration</p>
@@ -177,7 +177,7 @@
                             <div class="flex justify-between items-center mb-4">
                                 <div>
                                     <p class="eyebrow mb-1">Upkeep</p>
-                                    <h3 class="section-title">Maintenance Schedule</h3>
+                                    <h2 class="section-title">Maintenance Schedule</h2>
                                 </div>
                                 @if($asset->next_maintenance_date && \Carbon\Carbon::parse($asset->next_maintenance_date)->isPast())
                                     <span class="status-pill" style="background:#F7E2DF; border-color:var(--brick); color:var(--brick-dark);">OVERDUE</span>
@@ -243,13 +243,13 @@
                                         <i class="ri-error-warning-line text-xl"></i>
                                     </div>
                                     <div>
-                                        <h3 class="font-display text-lg font-semibold" style="color:var(--brick-dark);">
+                                        <h2 class="font-display text-lg font-semibold" style="color:var(--brick-dark);">
                                             @if($isPullout)
                                                 Expired Pullout Asset
                                             @else
                                                 Expired Asset Evaluation
                                             @endif
-                                        </h3>
+                                        </h2>
                                         <p class="text-sm mt-1" style="color:#7A4A44;">
                                             @if($isPullout)
                                                 This pulled-out asset has reached the end of its operational lifespan. You can extend its lifespan or proceed with disposal. Status will remain <strong>Pullout</strong>.
@@ -336,7 +336,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Mark Maintenance Complete Modal -->
@@ -344,7 +344,7 @@
         <div class="modal-panel shadow-lg max-w-md w-full mx-4" onclick="event.stopPropagation()">
             <div class="modal-head p-6 flex justify-between items-center">
                 <h3 class="font-display text-xl font-semibold text-white">Mark Maintenance Complete</h3>
-                <button onclick="closeMaintenanceCompleteModal()" class="text-white/60 hover:text-white">
+                <button onclick="closeMaintenanceCompleteModal()" class="text-white/60 hover:text-white" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -404,7 +404,7 @@
         <div class="modal-panel shadow-lg max-w-md w-full mx-4" onclick="event.stopPropagation()">
             <div class="modal-head p-6 flex justify-between items-center">
                 <h3 class="font-display text-xl font-semibold text-white">Return Asset to Active</h3>
-                <button onclick="closeReturnToActiveModal()" class="text-white/60 hover:text-white">
+                <button onclick="closeReturnToActiveModal()" class="text-white/60 hover:text-white" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -480,7 +480,7 @@
         <div class="modal-panel shadow-lg max-w-md w-full mx-4" onclick="event.stopPropagation()">
             <div class="modal-head p-6 flex justify-between items-center">
                 <h3 class="font-display text-xl font-semibold text-white">Send Asset for Repair</h3>
-                <button onclick="closeSendToRepairModal()" class="text-white/60 hover:text-white">
+                <button onclick="closeSendToRepairModal()" class="text-white/60 hover:text-white" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -533,7 +533,7 @@
         <div class="modal-panel shadow-lg max-w-md w-full mx-4" onclick="event.stopPropagation()">
             <div class="modal-head p-6 flex justify-between items-center">
                 <h3 class="font-display text-xl font-semibold text-white">Recommend Replacement</h3>
-                <button onclick="closeRecommendReplacementModal()" class="text-white/60 hover:text-white">
+                <button onclick="closeRecommendReplacementModal()" class="text-white/60 hover:text-white" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -586,7 +586,7 @@
         <div class="modal-panel shadow-lg max-w-md w-full mx-4" onclick="event.stopPropagation()">
             <div class="modal-head p-6 flex justify-between items-center">
                 <h3 class="font-display text-xl font-semibold text-white">Proceed with Disposal</h3>
-                <button onclick="closeProceedDisposalModal()" class="text-white/60 hover:text-white">
+                <button onclick="closeProceedDisposalModal()" class="text-white/60 hover:text-white" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -649,7 +649,7 @@
     <div class="modal-panel shadow-lg max-w-md w-full mx-4" onclick="event.stopPropagation()">
         <div class="modal-head p-6 flex justify-between items-center">
             <h3 class="font-display text-xl font-semibold text-white">Extend Asset Lifespan</h3>
-            <button onclick="closeExtendLifespanModal()" class="text-white/60 hover:text-white">
+            <button onclick="closeExtendLifespanModal()" class="text-white/60 hover:text-white" aria-label="Close">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>

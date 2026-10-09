@@ -58,13 +58,20 @@
         --nt-paper-3: #F5F0E2;
         --nt-cream: #F3EFE3;
 
-        /* Ink ramp */
+        /* Ink ramp.
+           The two muted steps (500 / 400) used to be #7C86A0 and #8991A0,
+           which only reached 2.8:1 and 3.2:1 on the warm paper surfaces and so
+           failed WCAG AA for the eyebrow labels and table headers that use
+           them. They are floored here at a value that clears 4.5:1 on every
+           surface in this file (worst case 4.6:1 on --nt-paper-2).
+           --nt-ink-300 is only ever used on the dark navy sidebar, where it
+           passes comfortably. */
         --nt-ink-900: #1A2233;
         --nt-ink-800: #24334F;
         --nt-ink-700: #46536B;
         --nt-ink-600: #5B6678;
-        --nt-ink-500: #7C86A0;
-        --nt-ink-400: #8991A0;
+        --nt-ink-500: #5C6474;
+        --nt-ink-400: #5C6474;
         --nt-ink-300: #B7BFD4;
 
         /* Status */

@@ -18,9 +18,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#E6DFCD;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
             --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -36,7 +36,7 @@
 
         .font-display{ font-family:'Fraunces',serif; }
         .font-mono{ font-family:'IBM Plex Mono',monospace; }
-        .eyebrow{ font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-600); }
+        .eyebrow{ font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-ink); }
         .field-label{ font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-400); }
 
         .sidebar-item {
@@ -116,7 +116,7 @@
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @section('admin_header_actions')
                 <!-- Requests bell (user submitted requests) -->
                             <div class="relative">
@@ -140,7 +140,7 @@
                                         </div>
                                     </div>
                                     <div class="p-3 text-center" style="border-top:1px solid var(--line);">
-                                        <a href="/admin/requests?tab=pending" class="text-sm font-medium" style="color:var(--gold-600);">
+                                        <a href="/admin/requests?tab=pending" class="text-sm font-medium" style="color:var(--gold-ink);">
                                             Go to Requests page <i class="ri-arrow-right-line"></i>
                                         </a>
                                     </div>
@@ -199,7 +199,7 @@
                                     <div class="rounded-xl shadow-2xl max-w-sm w-full mx-4" style="background:#fff; overflow:hidden;">
                                         <div class="flex justify-between items-center p-5" style="background:linear-gradient(135deg,var(--navy-950),var(--navy-800));">
                                             <h3 class="font-display text-base font-semibold text-white">Extend Lifespan</h3>
-                                            <button onclick="closeExtendLifespanModal()" class="text-white/60 hover:text-white"><i class="ri-close-line text-xl"></i></button>
+                                            <button onclick="closeExtendLifespanModal()" class="text-white/60 hover:text-white" aria-label="Close"><i class="ri-close-line text-xl"></i></button>
                                         </div>
                                         <div class="p-5 space-y-4">
                                             <div>
@@ -329,7 +329,7 @@
                                 <p class="text-xs mt-2" style="color:var(--ink-400);">Awaiting approval</p>
                             </div>
                             <div class="metric-icon" style="background:var(--gold-100);">
-                                <i class="ri-time-line text-xl" style="color:var(--gold-600);"></i>
+                                <i class="ri-time-line text-xl" style="color:var(--gold-ink);"></i>
                             </div>
                         </div>
                     </div>
@@ -378,7 +378,7 @@
                                 <h3 class="section-title">Recent Activity</h3>
                                 <p class="text-sm mt-1" style="color:var(--ink-600);">Latest actions and updates</p>
                             </div>
-                            <a href="/admin/audit-logs" class="text-sm font-medium flex items-center" style="color:var(--gold-600);">
+                            <a href="/admin/audit-logs" class="text-sm font-medium flex items-center" style="color:var(--gold-ink);">
                                 View All
                                 <i class="ri-arrow-right-line ml-1"></i>
                             </a>
@@ -426,7 +426,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Scanner Modal -->
@@ -434,7 +434,7 @@
         <div class="rounded-xl shadow-2xl max-w-lg w-full mx-4" style="background:#fff; overflow:hidden;">
             <div class="flex justify-between items-center p-6" style="background:linear-gradient(135deg,var(--navy-950),var(--navy-800)); position:relative;">
                 <h3 class="font-display text-lg font-semibold text-white">Asset Scanner</h3>
-                <button onclick="closeScannerModal()" class="text-white/60 hover:text-white"><i class="ri-close-line text-2xl"></i></button>
+                <button onclick="closeScannerModal()" class="text-white/60 hover:text-white" aria-label="Close scanner"><i class="ri-close-line text-2xl"></i></button>
             </div>
             <div class="space-y-4 p-6">
                 <p class="text-sm" style="color:var(--ink-600);">Scan or enter an asset code to view details.</p>
@@ -780,14 +780,14 @@
                             <div class="flex items-start justify-between gap-2">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium" style="color:var(--navy-900);">
-                                        <i class="${icon} mr-1" style="color:var(--gold-600);"></i>${req.request_type} — REQ-${String(req.id).padStart(5, '0')}
+                                        <i class="${icon} mr-1" style="color:var(--gold-ink);"></i>${req.request_type} — REQ-${String(req.id).padStart(5, '0')}
                                     </p>
                                     <p class="text-xs mt-0.5 truncate" style="color:var(--ink-600);">${req.asset_name}</p>
                                     <p class="text-xs" style="color:var(--ink-400);">By ${req.submitted_by} · ${req.time_ago}</p>
                                 </div>
                                 <div class="flex flex-col items-end gap-1 flex-shrink-0">
                                     <span class="status-pill" style="${isPending ? 'background:var(--bronze-tint); color:var(--bronze-dark);' : 'background:var(--paper-2); color:var(--ink-600);'}">${req.status}</span>
-                                    <a href="/admin/requests" class="text-xs font-medium" style="color:var(--gold-600);">Review <i class="ri-arrow-right-line"></i></a>
+                                    <a href="/admin/requests" class="text-xs font-medium" style="color:var(--gold-ink);">Review <i class="ri-arrow-right-line"></i></a>
                                 </div>
                             </div>
                         </div>`;
@@ -823,7 +823,7 @@
                                             onclick="openExtendLifespanModal(${alert.id}, '${escapeAttr(alert.Asset_name)}', '${escapeAttr(alert.Asset_code)}')">
                                             <i class="ri-calendar-extension-line mr-1"></i>Extend
                                         </button>
-                                        <a href="/admin/assets/${alert.id}" class="text-xs text-center font-medium" style="color:var(--gold-600);">
+                                        <a href="/admin/assets/${alert.id}" class="text-xs text-center font-medium" style="color:var(--gold-ink);">
                                             Evaluate <i class="ri-arrow-right-line"></i>
                                         </a>
                                     </div>
@@ -869,7 +869,7 @@
                                             onclick="markMaintenanceComplete(${alert.id}, this)">
                                             <i class="ri-check-double-line mr-1"></i>Mark Complete
                                         </button>
-                                        <a href="/admin/assets/${alert.id}" class="text-xs text-center font-medium" style="color:var(--gold-600);">
+                                        <a href="/admin/assets/${alert.id}" class="text-xs text-center font-medium" style="color:var(--gold-ink);">
                                             Service <i class="ri-arrow-right-line"></i>
                                         </a>
                                     </div>

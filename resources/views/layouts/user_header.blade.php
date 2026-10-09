@@ -64,7 +64,7 @@
             <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                 @if($showSearch)
                     <div class="relative flex-1 min-w-[140px] sm:flex-none">
-                        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#8991A0] text-sm"></i>
+                        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#5C6474] text-sm"></i>
                         <input type="text"
                                id="header-search-input"
                                placeholder="{{ $searchPlaceholder }}"
@@ -96,12 +96,12 @@
                         <div class="flex items-center justify-between px-4 py-3 border-b border-[#EFE9D8] sticky top-0 bg-white">
                             <h4 class="font-semibold text-[#0F2143]">Notifications</h4>
                             <button type="button" id="mark-all-read"
-                                    class="text-xs font-semibold text-[#A8841E] hover:text-[#0F2143]">
+                                    class="text-xs font-semibold text-[#7E5E0E] hover:text-[#0F2143]">
                                 Mark all as read
                             </button>
                         </div>
                         <div id="notification-list" class="divide-y divide-[#F0EADA]">
-                            <div class="px-4 py-8 text-center text-[#8991A0] text-sm" id="notification-empty">
+                            <div class="px-4 py-8 text-center text-[#5C6474] text-sm" id="notification-empty">
                                 No notifications yet
                             </div>
                         </div>
@@ -158,24 +158,24 @@
                 {{-- Info rows --}}
                 <div class="px-4 py-3 space-y-2.5 text-sm">
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-user-3-line text-[#8991A0] text-base"></i>
+                        <i class="ri-user-3-line text-[#5C6474] text-base"></i>
                         <div>
-                            <p class="text-xs text-[#8991A0]">Role</p>
+                            <p class="text-xs text-[#5C6474]">Role</p>
                             <p class="font-medium text-[#24334F]">{{ $user?->role ?? 'Employee' }}</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-building-2-line text-[#8991A0] text-base"></i>
+                        <i class="ri-building-2-line text-[#5C6474] text-base"></i>
                         <div>
-                            <p class="text-xs text-[#8991A0]">Department</p>
+                            <p class="text-xs text-[#5C6474]">Department</p>
                             <p class="font-medium text-[#24334F]">{{ $deptName }}</p>
                         </div>
                     </div>
                     @if($user?->unit_heads_number)
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-hashtag text-[#8991A0] text-base"></i>
+                        <i class="ri-hashtag text-[#5C6474] text-base"></i>
                         <div>
-                            <p class="text-xs text-[#8991A0]">Unit Head No.</p>
+                            <p class="text-xs text-[#5C6474]">Unit Head No.</p>
                             <p class="font-medium text-[#24334F]">{{ $user->unit_heads_number }}</p>
                         </div>
                     </div>
@@ -219,7 +219,7 @@
     if (!bellBtn || !dropdown || !listEl || !badgeEl) return;
 
     const typeIcon = {
-        REQUEST:     { icon: 'ri-file-list-3-line', bg: 'bg-[#F3E7C4]',   color: 'text-[#A8841E]',   label: 'Request' },
+        REQUEST:     { icon: 'ri-file-list-3-line', bg: 'bg-[#F3E7C4]',   color: 'text-[#7E5E0E]',   label: 'Request' },
         REPAIR:      { icon: 'ri-tools-line',       bg: 'bg-[#F7E9E6]',    color: 'text-[#7E2E27]',    label: 'Repair' },
         REPLACEMENT: { icon: 'ri-exchange-line',    bg: 'bg-[#FBF1DE]', color: 'text-[#8F5F16]', label: 'Replacement' },
     };
@@ -235,16 +235,16 @@
                 <div class="flex items-start gap-3 p-5 border-b border-[#EFE9D8]">
                     <div id="nd-icon" class="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"></div>
                     <div class="flex-1 min-w-0">
-                        <p id="nd-type" class="text-xs font-semibold uppercase tracking-wide text-[#8991A0]"></p>
+                        <p id="nd-type" class="text-xs font-semibold uppercase tracking-wide text-[#5C6474]"></p>
                         <h3 id="nd-title" class="text-lg font-bold text-[#0F2143] mt-0.5"></h3>
                     </div>
-                    <button type="button" id="nd-close" class="p-1 rounded-lg hover:bg-[#EFE9D8] text-[#8991A0] hover:text-[#46536B]">
+                    <button type="button" id="nd-close" class="p-1 rounded-lg hover:bg-[#EFE9D8] text-[#5C6474] hover:text-[#46536B]">
                         <i class="ri-close-line text-xl"></i>
                     </button>
                 </div>
                 <div class="p-5">
                     <p id="nd-message" class="text-sm text-[#33425C] leading-relaxed"></p>
-                    <p id="nd-time" class="text-xs text-[#8991A0] mt-4"></p>
+                    <p id="nd-time" class="text-xs text-[#5C6474] mt-4"></p>
                 </div>
                 <div class="flex gap-2 px-5 pb-5">
                     <button type="button" id="nd-view-related"
@@ -314,7 +314,7 @@
     function renderNotifications(items) {
         listEl.innerHTML = '';
         if (!items || items.length === 0) {
-            listEl.innerHTML = `<div class="px-4 py-8 text-center text-[#8991A0] text-sm">No notifications yet</div>`;
+            listEl.innerHTML = `<div class="px-4 py-8 text-center text-[#5C6474] text-sm">No notifications yet</div>`;
             return;
         }
 
@@ -330,7 +330,7 @@
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-[#0F2143] truncate">${escapeHtml(n.title)}</p>
                     <p class="text-xs text-[#5B6678] mt-0.5 line-clamp-2">${escapeHtml(n.message)}</p>
-                    <p class="text-[11px] text-[#8991A0] mt-1">${escapeHtml(n.time_ago)}</p>
+                    <p class="text-[11px] text-[#5C6474] mt-1">${escapeHtml(n.time_ago)}</p>
                 </div>
                 ${!n.is_read ? '<span class="w-2 h-2 bg-[#C9A227] rounded-full flex-shrink-0 mt-2"></span>' : ''}
             `;

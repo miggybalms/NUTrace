@@ -9,7 +9,7 @@
 </head>
 <body>
 
-    <div class="wrapper">
+    <main class="wrapper">
         @include('auth.partials.brand')
 
         <div class="card">
@@ -94,7 +94,7 @@
             </div>
 
         </div>
-    </div>
+    </main>
 
 </body>
 </html>

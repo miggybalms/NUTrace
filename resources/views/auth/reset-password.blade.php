@@ -6,25 +6,25 @@
     <title>Reset Password - University Asset Management</title>
     @include('auth.partials.theme')
     <script>
+                /* The eye button is icon-only, so it needs a name of its own; the label
+           follows the state so a screen reader says what the button will do. */
         function togglePasswordVisibility(fieldId) {
             const input = document.getElementById(fieldId);
             const button = event.currentTarget;
             const icon = button.querySelector('i');
+            const revealing = input.type === 'password';
 
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.className = 'ri-eye-off-line';
-            } else {
-                input.type = 'password';
-                icon.className = 'ri-eye-line';
-            }
+            input.type = revealing ? 'text' : 'password';
+            icon.className = revealing ? 'ri-eye-off-line' : 'ri-eye-line';
+            button.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+            button.setAttribute('aria-pressed', revealing ? 'true' : 'false');
         }
     </script>
     @include('partials.ui')
 </head>
 <body>
 
-    <div class="wrapper">
+    <main class="wrapper">
         @include('auth.partials.brand')
 
         <div class="card">
@@ -64,7 +64,7 @@
                             minlength="8"
                             required
                         />
-                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('password')">
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" onclick="togglePasswordVisibility('password')">
                             <i class="ri-eye-line"></i>
                         </button>
                     </div>
@@ -82,7 +82,7 @@
                             placeholder="Re-enter your new password"
                             required
                         />
-                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('password_confirmation')">
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" onclick="togglePasswordVisibility('password_confirmation')">
                             <i class="ri-eye-line"></i>
                         </button>
                     </div>
@@ -102,7 +102,7 @@
             </div>
 
         </div>
-    </div>
+    </main>
 
 </body>
 </html>

@@ -11,7 +11,7 @@
         --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
         --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
         --paper:#F3EEE0; --paper-2:#EAE2C9;
-        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
         --line:#DED2AE;
         --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
         --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -48,7 +48,7 @@
                 <div class="flex items-center justify-between mb-2">
                     <p class="text-sm text-[#5B6678]">Total Logs</p>
                     <div class="w-9 h-9 bg-[#F3E7C4] rounded-lg flex items-center justify-center">
-                        <i class="ri-file-list-line text-[#A8841E]"></i>
+                        <i class="ri-file-list-line text-[#7E5E0E]"></i>
                     </div>
                 </div>
                 <p class="text-3xl font-bold text-[#0F2143]">{{ $totalLogs ?? 0 }}</p>
@@ -104,7 +104,7 @@
                         </a>
                     @endforeach
                 </div>
-                <p class="text-sm text-[#8991A0] pb-3">{{ $logs->total() ?? 0 }} records</p>
+                <p class="text-sm text-[#5C6474] pb-3">{{ $logs->total() ?? 0 }} records</p>
             </div>
 
             <!-- Table -->
@@ -137,7 +137,7 @@
                                     </div>
                                     <div>
                                         <p class="font-medium text-[#0F2143]">{{ $log->user_name ?? '—' }}</p>
-                                        <p class="text-xs text-[#8991A0]">{{ $log->user_role ?? ($log->user->role ?? '—') }}</p>
+                                        <p class="text-xs text-[#5C6474]">{{ $log->user_role ?? ($log->user->role ?? '—') }}</p>
                                     </div>
                                 </div>
                             </td>
@@ -152,12 +152,12 @@
                                         $bg = 'bg-[#EFE9D8]';
                                         if (str_contains($note, 'approved')) { $icon = 'ri-checkbox-circle-line text-[#2F7A4D]'; $bg = 'bg-[#EAF4EE]'; }
                                         elseif (str_contains($note, 'rejected')) { $icon = 'ri-close-circle-line text-[#A23B32]'; $bg = 'bg-[#F7E9E6]'; }
-                                        elseif (str_contains($note, 'created') || str_contains($note, 'registered')) { $icon = 'ri-add-circle-line text-[#A8841E]'; $bg = 'bg-[#F3E7C4]'; }
+                                        elseif (str_contains($note, 'created') || str_contains($note, 'registered')) { $icon = 'ri-add-circle-line text-[#7E5E0E]'; $bg = 'bg-[#F3E7C4]'; }
                                         elseif (str_contains($note, 'deleted') || str_contains($note, 'disposed')) { $icon = 'ri-delete-bin-line text-[#A23B32]'; $bg = 'bg-[#F7E9E6]'; }
                                         elseif (str_contains($note, 'updated') || str_contains($note, 'edited')) { $icon = 'ri-edit-line text-[#B4791E]'; $bg = 'bg-[#FBF1DE]'; }
                                         elseif (str_contains($note, 'logged out') || str_contains($note, 'logout')) { $icon = 'ri-logout-circle-line text-[#6B4C82]'; $bg = 'bg-[#EFE7F3]'; }
                                         elseif (str_contains($note, 'logged in') || str_contains($note, 'login')) { $icon = 'ri-login-circle-line text-[#6B4C82]'; $bg = 'bg-[#EFE7F3]'; }
-                                        elseif (str_contains($note, 'transfer')) { $icon = 'ri-swap-line text-[#A8841E]'; $bg = 'bg-[#F3E7C4]'; }
+                                        elseif (str_contains($note, 'transfer')) { $icon = 'ri-swap-line text-[#7E5E0E]'; $bg = 'bg-[#F3E7C4]'; }
                                     @endphp
                                     <div class="w-8 h-8 {{ $bg }} rounded-lg flex items-center justify-center flex-shrink-0">
                                         <i class="{{ $icon }} text-sm"></i>
@@ -171,10 +171,10 @@
                                 @if(!empty($log->asset_name) || !empty($log->asset_code))
                                 <div>
                                     <p class="font-medium text-[#0F2143]">{{ $log->asset_name ?? '—' }}</p>
-                                    <p class="text-xs text-[#8991A0] font-mono">{{ $log->asset_code ?? '—' }}</p>
+                                    <p class="text-xs text-[#5C6474] font-mono">{{ $log->asset_code ?? '—' }}</p>
                                 </div>
                                 @else
-                                <span class="text-[#8991A0]">—</span>
+                                <span class="text-[#5C6474]">—</span>
                                 @endif
                             </td>
 
@@ -183,10 +183,10 @@
                                 @if(!empty($log->request_type) || !empty($log->request_id))
                                 <div>
                                     <p class="font-medium text-[#0F2143]">{{ $log->request_type ?? '—' }}</p>
-                                    <p class="text-xs text-[#8991A0] font-mono">REQ-{{ str_pad($log->request_id ?? 0, 5, '0', STR_PAD_LEFT) }}</p>
+                                    <p class="text-xs text-[#5C6474] font-mono">REQ-{{ str_pad($log->request_id ?? 0, 5, '0', STR_PAD_LEFT) }}</p>
                                 </div>
                                 @else
-                                <span class="text-[#8991A0]">—</span>
+                                <span class="text-[#5C6474]">—</span>
                                 @endif
                             
                             </td>
@@ -194,14 +194,14 @@
                             {{-- Date & Time --}}
                             <td class="px-6 py-4">
                                 <p class="text-[#33425C]">{{ \Carbon\Carbon::parse($log->created_at)->format('M d, Y') }}</p>
-                                <p class="text-xs text-[#8991A0]">{{ \Carbon\Carbon::parse($log->created_at)->format('h:i A') }}</p>
-                                <p class="text-xs text-[#8991A0] mt-0.5">{{ \Carbon\Carbon::parse($log->created_at)->diffForHumans() }}</p>
+                                <p class="text-xs text-[#5C6474]">{{ \Carbon\Carbon::parse($log->created_at)->format('h:i A') }}</p>
+                                <p class="text-xs text-[#5C6474] mt-0.5">{{ \Carbon\Carbon::parse($log->created_at)->diffForHumans() }}</p>
                             </td>
 
                             {{-- Actions --}}
                             <td class="px-6 py-4">
                                 <button onclick="openViewModal({{ $log->id }})"
-                                    class="p-1.5 bg-[#F3E7C4] text-[#A8841E] rounded-lg hover:bg-[#C9A227] hover:text-[#0A1830] transition"
+                                    class="p-1.5 bg-[#F3E7C4] text-[#7E5E0E] rounded-lg hover:bg-[#C9A227] hover:text-[#0A1830] transition"
                                     title="View Details">
                                     <i class="ri-eye-line text-sm"></i>
                                 </button>
@@ -213,10 +213,10 @@
                             <td colspan="6" class="px-6 py-16 text-center">
                                 <div class="flex flex-col items-center">
                                     <div class="w-16 h-16 bg-[#EFE9D8] rounded-full flex items-center justify-center mb-3">
-                                        <i class="ri-shield-check-line text-2xl text-[#8991A0]"></i>
+                                        <i class="ri-shield-check-line text-2xl text-[#5C6474]"></i>
                                     </div>
                                     <p class="text-[#5B6678] font-medium">No audit logs found</p>
-                                    <p class="text-[#8991A0] text-xs mt-1">System activities will appear here</p>
+                                    <p class="text-[#5C6474] text-xs mt-1">System activities will appear here</p>
                                 </div>
                             </td>
                         </tr>
@@ -236,7 +236,7 @@
         </div>
 
         <!-- Footer -->
-        <div class="text-center text-sm text-[#8991A0] mt-8 pt-6 border-t border-[#DED2AE]">
+        <div class="text-center text-sm text-[#5C6474] mt-8 pt-6 border-t border-[#DED2AE]">
             © {{ date('Y') }} University Asset Management. All rights reserved.
         </div>
     </div>
@@ -246,7 +246,7 @@
         <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
             <div class="p-6 border-b border-[#DED2AE] flex justify-between items-center">
                 <h3 class="text-lg font-bold text-[#0F2143]">Log Details</h3>
-                <button onclick="closeViewModal()" class="text-[#8991A0] hover:text-[#46536B]">
+                <button onclick="closeViewModal()" class="text-[#5C6474] hover:text-[#46536B]" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -268,25 +268,25 @@
                     {{-- Details Grid --}}
                     <div class="grid grid-cols-2 gap-3">
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Action</p>
+                            <p class="text-xs text-[#5C6474] mb-1">Action</p>
                             <p class="text-sm font-medium text-[#0F2143]">{{ $log->notes ?? '—' }}</p>
                         </div>
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Date & Time</p>
+                            <p class="text-xs text-[#5C6474] mb-1">Date & Time</p>
                             <p class="text-sm font-medium text-[#0F2143]">{{ \Carbon\Carbon::parse($log->created_at)->format('M d, Y h:i A') }}</p>
                         </div>
                         @if(!empty($log->asset_name) || !empty($log->asset_code))
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Asset</p>
+                            <p class="text-xs text-[#5C6474] mb-1">Asset</p>
                             <p class="text-sm font-medium text-[#0F2143]">{{ $log->asset_name ?? '—' }}</p>
-                            <p class="text-xs text-[#8991A0] font-mono">{{ $log->asset_code ?? '' }}</p>
+                            <p class="text-xs text-[#5C6474] font-mono">{{ $log->asset_code ?? '' }}</p>
                         </div>
                         @endif
                         @if(!empty($log->request_type) || !empty($log->request_id))
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Request</p>
+                            <p class="text-xs text-[#5C6474] mb-1">Request</p>
                             <p class="text-sm font-medium text-[#0F2143]">{{ $log->request_type ?? '—' }}</p>
-                            <p class="text-xs text-[#8991A0] font-mono">REQ-{{ str_pad($log->request_id ?? 0, 5, '0', STR_PAD_LEFT) }}</p>
+                            <p class="text-xs text-[#5C6474] font-mono">REQ-{{ str_pad($log->request_id ?? 0, 5, '0', STR_PAD_LEFT) }}</p>
                         </div>
                         @endif
                     </div>

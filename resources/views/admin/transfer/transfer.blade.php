@@ -14,9 +14,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-300:#E9C766; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-300:#E9C766; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9; --paper-3:#F5F0E2;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#DED2AE;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
             --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -80,7 +80,7 @@
         .pick-row:hover{ background:var(--paper-3); }
         .pick-row.is-selected{ background:var(--gold-100); }
 
-        .flow-arrow{ display:flex; align-items:center; justify-content:center; color:var(--gold-600); }
+        .flow-arrow{ display:flex; align-items:center; justify-content:center; color:var(--gold-ink); }
         .scroll-area{ max-height:60vh; overflow-y:auto; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -92,7 +92,7 @@
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'transfer',
                 'adminHeaderTitle'    => 'Transfer',
@@ -160,7 +160,7 @@
                                 <p class="text-xs mt-2" style="color:var(--ink-400);">Ready to be transferred</p>
                             </div>
                             <div class="stat-icon" style="background:var(--gold-100);">
-                                <i class="ri-computer-line text-xl" style="color:var(--gold-600);"></i>
+                                <i class="ri-computer-line text-xl" style="color:var(--gold-ink);"></i>
                             </div>
                         </div>
                     </div>
@@ -262,7 +262,7 @@
                                         <td class="py-3 px-3 whitespace-nowrap">
                                             @if($employee['status'] === 'reassigned')
                                                 <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
-                                                      style="background:var(--gold-100); color:var(--gold-600);"
+                                                      style="background:var(--gold-100); color:var(--gold-ink);"
                                                       title="Has handed assets over in a completed transfer">
                                                     <i class="ri-swap-line mr-1 text-xs"></i>Reassigned
                                                 </span>
@@ -321,7 +321,7 @@
                                         <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--navy-900);">{{ $transfer['reference'] }}</td>
                                         <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
                                             <span style="color:var(--navy-900);">{{ $transfer['from']['name'] ?? 'Unknown' }}</span>
-                                            <i class="ri-arrow-right-line mx-1 text-xs" style="color:var(--gold-600);"></i>
+                                            <i class="ri-arrow-right-line mx-1 text-xs" style="color:var(--gold-ink);"></i>
                                             <span style="color:var(--navy-900);">{{ $transfer['to']['name'] ?? 'Unknown' }}</span>
                                         </td>
                                         <td class="py-3 px-3 whitespace-nowrap">
@@ -366,7 +366,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Step 1: the employee's assigned assets -->
@@ -378,7 +378,7 @@
                     <h3 class="font-display text-lg font-semibold truncate" id="assets-modal-name" style="color:var(--navy-900);">—</h3>
                     <p class="text-sm mt-0.5" id="assets-modal-meta" style="color:var(--ink-400);">—</p>
                 </div>
-                <button type="button" onclick="closeAssetsModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);">
+                <button type="button" onclick="closeAssetsModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -459,7 +459,7 @@
                 </div>
 
                 <div id="receiver-selected" class="hidden mt-3 rounded-xl px-4 py-3 flex items-center gap-3" style="background:var(--gold-100); border:1px solid #EADFC0;">
-                    <i class="ri-user-received-line text-lg" style="color:var(--gold-600);"></i>
+                    <i class="ri-user-received-line text-lg" style="color:var(--gold-ink);"></i>
                     <div class="min-w-0 flex-1">
                         <p class="text-sm font-semibold truncate" id="receiver-picked-name" style="color:var(--navy-900);">—</p>
                         <p class="text-xs truncate" id="receiver-picked-meta" style="color:var(--ink-600);">—</p>
@@ -518,7 +518,7 @@
                     <div class="flow-arrow flex-row sm:flex-col gap-2 py-1">
                         <i class="ri-arrow-down-line hidden sm:block text-xl"></i>
                         <i class="ri-arrow-right-line sm:hidden text-xl"></i>
-                        <span class="text-xs font-bold whitespace-nowrap" style="color:var(--gold-600);"><span id="confirm-asset-count">0</span> ASSETS</span>
+                        <span class="text-xs font-bold whitespace-nowrap" style="color:var(--gold-ink);"><span id="confirm-asset-count">0</span> ASSETS</span>
                     </div>
                     <div class="rounded-xl px-4 py-3" style="background:var(--gold-100); border:1px solid #EADFC0;">
                         <p class="eyebrow mb-1">To</p>
@@ -570,7 +570,7 @@
                     <p class="eyebrow mb-1">Transfer</p>
                     <h3 class="font-display text-lg font-semibold" id="history-modal-title" style="color:var(--navy-900);">—</h3>
                 </div>
-                <button type="button" onclick="closeHistoryModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);">
+                <button type="button" onclick="closeHistoryModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -682,7 +682,7 @@
             byId('assets-modal-meta').textContent = metaLine(employee);
             byId('assets-modal-count').textContent = employee.assigned_count;
             byId('assets-modal-status').innerHTML = employee.status === 'reassigned'
-                ? '<span style="color:var(--gold-600);">Reassigned</span>'
+                ? '<span style="color:var(--gold-ink);">Reassigned</span>'
                 : '<span style="color:var(--forest-dark);">Current</span>';
 
             let note = 'Every assigned asset is ticked. Untick any asset that stays behind.';
@@ -875,7 +875,7 @@
 
             byId('confirm-asset-list').innerHTML = assets.map((asset) => `
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background:var(--paper-3);">
-                    <i class="ri-arrow-right-s-line" style="color:var(--gold-600);"></i>
+                    <i class="ri-arrow-right-s-line" style="color:var(--gold-ink);"></i>
                     <span class="text-xs font-mono" style="color:var(--navy-900);">${escapeHtml(asset.code)}</span>
                     <span class="text-xs" style="color:var(--ink-600);">${escapeHtml(asset.name)}</span>
                 </div>`).join('');

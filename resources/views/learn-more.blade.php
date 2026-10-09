@@ -527,7 +527,8 @@
             text-align: center;
             padding: 1.5rem;
             font-size: 0.82rem;
-            color: #6b85a8;
+            /* #6b85a8 only reached 4.3:1 on this navy; this lighter blue clears AA. */
+            color: #7c96b9;
             border-top: 1px solid rgba(201,162,39,0.2);
         }
 
@@ -560,6 +561,8 @@
         </div>
     </nav>
 
+    <main id="main-content">
+
     <section class="page-hero">
         <div class="breadcrumb">
             <a href="/">Home</a>
@@ -579,17 +582,17 @@
         </div>
 
         <div class="lifecycle-flow">
-            <div class="lc-step"><span class="num">1</span><h4>Acquired</h4><p>The asset arrives and is registered with its own unique code.</p></div>
+            <div class="lc-step"><span class="num">1</span><h3>Acquired</h3><p>The asset arrives and is registered with its own unique code.</p></div>
             <div class="lc-arrow"><i class="ri-arrow-right-line"></i></div>
-            <div class="lc-step"><span class="num">2</span><h4>Active</h4><p>In use and accountable to an employee, department, and location.</p></div>
+            <div class="lc-step"><span class="num">2</span><h3>Active</h3><p>In use and accountable to an employee, department, and location.</p></div>
             <div class="lc-arrow"><i class="ri-arrow-right-line"></i></div>
-            <div class="lc-step"><span class="num">3</span><h4>Checking</h4><p>Scheduled maintenance or lifespan review puts the asset up for evaluation.</p></div>
+            <div class="lc-step"><span class="num">3</span><h3>Checking</h3><p>Scheduled maintenance or lifespan review puts the asset up for evaluation.</p></div>
             <div class="lc-arrow"><i class="ri-arrow-right-line"></i></div>
-            <div class="lc-step"><span class="num">4</span><h4>Repair</h4><p>Damaged assets are sent for repair and tracked until they return to service.</p></div>
+            <div class="lc-step"><span class="num">4</span><h3>Repair</h3><p>Damaged assets are sent for repair and tracked until they return to service.</p></div>
             <div class="lc-arrow"><i class="ri-arrow-right-line"></i></div>
-            <div class="lc-step"><span class="num">5</span><h4>Replace</h4><p>When repair no longer makes sense, a replacement request is raised.</p></div>
+            <div class="lc-step"><span class="num">5</span><h3>Replace</h3><p>When repair no longer makes sense, a replacement request is raised.</p></div>
             <div class="lc-arrow"><i class="ri-arrow-right-line"></i></div>
-            <div class="lc-step"><span class="num">6</span><h4>Disposal</h4><p>Retired assets are formally disposed — removed from service for good.</p></div>
+            <div class="lc-step"><span class="num">6</span><h3>Disposal</h3><p>Retired assets are formally disposed — removed from service for good.</p></div>
         </div>
 
         <div class="lc-note">
@@ -655,22 +658,22 @@
         <div class="acc-grid">
             <div class="acc-tile">
                 <i class="ri-user-line"></i>
-                <h4>Assigned Employee</h4>
+                <h3>Assigned Employee</h3>
                 <p>The person accountable for the asset day-to-day, tracked by name and employee record.</p>
             </div>
             <div class="acc-tile">
                 <i class="ri-building-2-line"></i>
-                <h4>Department</h4>
+                <h3>Department</h3>
                 <p>The department that owns the asset, from IT to Laboratories and every office in between.</p>
             </div>
             <div class="acc-tile">
                 <i class="ri-map-pin-line"></i>
-                <h4>Location</h4>
+                <h3>Location</h3>
                 <p>The current physical location — room, faculty office, storage, or lab — so assets are easy to find.</p>
             </div>
             <div class="acc-tile">
                 <i class="ri-pulse-line"></i>
-                <h4>Current Status</h4>
+                <h3>Current Status</h3>
                 <p>The live lifecycle stage: Active, For Repair, Pulled Out, Disposed, and more — always current.</p>
             </div>
         </div>
@@ -825,6 +828,8 @@
             <a href="/register" class="btn-outline-light"><i class="ri-user-follow-line"></i> Activate Your Account</a>
         </div>
     </section>
+
+    </main>
 
     <footer>
         &copy; {{ date('Y') }} <span>NU Lipa University Asset Management System</span>. All rights reserved.

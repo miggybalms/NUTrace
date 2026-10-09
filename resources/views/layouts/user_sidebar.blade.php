@@ -135,11 +135,11 @@
         </div>
 
         <!-- MAIN CONTENT -->
-        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Spacer so page content isn't hidden under the fixed mobile top bar -->
             <div class="lg:hidden h-14"></div>
             @yield('content')
-        </div>
+        </main>
 
     </div>
 

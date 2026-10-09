@@ -87,7 +87,7 @@
             @endforeach
         </div>
 
-        <p class="text-sm text-[#8991A0] whitespace-nowrap">
+        <p class="text-sm text-[#5C6474] whitespace-nowrap">
             {{ $requests->total() }} request{{ $requests->total() === 1 ? '' : 's' }}
         </p>
     </div>
@@ -99,7 +99,7 @@
         @endif
         <input type="hidden" name="page" value="1">
 
-        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#8991A0] text-sm pointer-events-none"></i>
+        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#5C6474] text-sm pointer-events-none"></i>
         <input type="text"
                name="q"
                value="{{ $currentSearch }}"
@@ -108,7 +108,7 @@
                autocomplete="off">
         @if($currentSearch !== '')
             <a href="{{ request()->fullUrlWithQuery(['q' => null, 'page' => 1]) }}"
-               class="absolute right-3 top-1/2 -translate-y-1/2 text-[#8991A0] hover:text-[#46536B]"
+               class="absolute right-3 top-1/2 -translate-y-1/2 text-[#5C6474] hover:text-[#46536B]"
                title="Clear search">
                 <i class="ri-close-line"></i>
             </a>
@@ -143,7 +143,7 @@
                                 <i class="text-lg
                                     @if($request->request_type == 'Repair') ri-tools-line text-[#A23B32]
                                     @elseif($request->request_type == 'Disposal') ri-delete-bin-line text-[#46536B]
-                                    @elseif($request->request_type == 'Transfer') ri-swap-line text-[#A8841E]
+                                    @elseif($request->request_type == 'Transfer') ri-swap-line text-[#7E5E0E]
                                     @elseif($request->request_type == 'Replacement') ri-refresh-line text-[#6B4C82]
                                     @elseif($request->request_type == 'Pullout') ri-archive-drawer-line text-[#B4791E]
                                     @else ri-file-list-line text-[#46536B]
@@ -157,7 +157,7 @@
                                 </div>
                                 {{-- Assets list (supports bulk) --}}
                                 <div class="bg-[#F5F0E2] rounded-lg p-3">
-                                    <p class="text-xs text-[#8991A0] mb-2">
+                                    <p class="text-xs text-[#5C6474] mb-2">
                                         Asset{{ ($request->asset_count ?? 1) > 1 ? 's' : '' }}
                                         @if(($request->asset_count ?? 0) > 1)
                                             <span class="text-[#5B6678]">({{ $request->asset_count }})</span>
@@ -208,10 +208,10 @@
                                 {{ $request->status }}
                             </span>
                             <div class="text-right sm:text-right">
-                                <p class="text-xs text-[#8991A0]">
+                                <p class="text-xs text-[#5C6474]">
                                     {{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y') : '—' }}
                                 </p>
-                                <p class="text-xs text-[#8991A0]">
+                                <p class="text-xs text-[#5C6474]">
                                     {{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->diffForHumans() : '—' }}
                                 </p>
                             </div>
@@ -239,7 +239,7 @@
                         <i class="ri-file-list-line text-2xl sm:text-3xl text-[#C9A227]"></i>
                     </div>
                     <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Requests Found</h3>
-                    <p class="text-[#8991A0] text-sm mb-4">You haven't submitted any requests yet.</p>
+                    <p class="text-[#5C6474] text-sm mb-4">You haven't submitted any requests yet.</p>
                     <a href="/user/requests/create"
                        class="inline-flex items-center px-4 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E9C766] transition text-sm font-semibold">
                         <i class="ri-add-line mr-2"></i>
@@ -260,7 +260,7 @@
         </div>
 
         <!-- Footer -->
-        <div class="text-center text-sm text-[#8991A0] mt-8 pt-6 border-t border-[#DED2AE]">
+        <div class="text-center text-sm text-[#5C6474] mt-8 pt-6 border-t border-[#DED2AE]">
             © {{ date('Y') }} University Asset Management. All rights reserved.
         </div>
     </div>
@@ -270,7 +270,7 @@
         <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div class="p-4 sm:p-6 border-b border-[#DED2AE] flex justify-between items-center sticky top-0 bg-white">
                 <h3 class="text-lg font-bold text-[#0A1830]">Request Details</h3>
-                <button onclick="closeViewModal()" class="text-[#8991A0] hover:text-[#0A1830]">
+                <button onclick="closeViewModal()" class="text-[#5C6474] hover:text-[#0A1830]" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -288,7 +288,7 @@
                             <i class="text-xl
                                 @if($request->request_type == 'Repair') ri-tools-line text-[#A23B32]
                                 @elseif($request->request_type == 'Disposal') ri-delete-bin-line text-[#46536B]
-                                @elseif($request->request_type == 'Transfer') ri-swap-line text-[#A8841E]
+                                @elseif($request->request_type == 'Transfer') ri-swap-line text-[#7E5E0E]
                                 @elseif($request->request_type == 'Replacement') ri-refresh-line text-[#6B4C82]
                                 @elseif($request->request_type == 'Pullout') ri-archive-drawer-line text-[#B4791E]
                                 @else ri-file-list-line text-[#46536B] @endif"></i>
@@ -307,25 +307,25 @@
                     <div class="space-y-3">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div class="bg-[#F5F0E2] rounded-lg p-3">
-                                <p class="text-xs text-[#8991A0] mb-1">Asset Name</p>
+                                <p class="text-xs text-[#5C6474] mb-1">Asset Name</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $request->asset->Asset_name ?? '—' }}</p>
                             </div>
                             <div class="bg-[#F5F0E2] rounded-lg p-3">
-                                <p class="text-xs text-[#8991A0] mb-1">Asset Code</p>
+                                <p class="text-xs text-[#5C6474] mb-1">Asset Code</p>
                                 <p class="text-sm font-medium text-[#0F2143] font-mono break-all">{{ $request->asset->Asset_code ?? '—' }}</p>
                             </div>
                             <div class="bg-[#F5F0E2] rounded-lg p-3">
-                                <p class="text-xs text-[#8991A0] mb-1">Submitted On</p>
+                                <p class="text-xs text-[#5C6474] mb-1">Submitted On</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y h:i A') : '—' }}</p>
                             </div>
                             <div class="bg-[#F5F0E2] rounded-lg p-3">
-                                <p class="text-xs text-[#8991A0] mb-1">Last Updated</p>
+                                <p class="text-xs text-[#5C6474] mb-1">Last Updated</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ data_get($request, 'updated_at') ? \Carbon\Carbon::parse(data_get($request, 'updated_at'))->format('M d, Y h:i A') : '—' }}</p>
                             </div>
                         </div>
                         @if($request->Note)
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Requester's Note</p>
+                            <p class="text-xs text-[#5C6474] mb-1">Requester's Note</p>
                             <p class="text-sm text-[#33425C] whitespace-pre-line [overflow-wrap:anywhere] break-words">{{ $request->Note }}</p>
                         </div>
                         @endif
@@ -336,7 +336,7 @@
                             </p>
                             <p class="text-sm text-[#33425C] whitespace-pre-line [overflow-wrap:anywhere] break-words">{{ $request->admin_remarks }}</p>
                             @if(!empty($request->admin_remarks_at))
-                            <p class="text-xs text-[#8991A0] mt-2">
+                            <p class="text-xs text-[#5C6474] mt-2">
                                 Asset Management Office · {{ \Carbon\Carbon::parse($request->admin_remarks_at)->format('M d, Y h:i A') }}
                             </p>
                             @endif
@@ -344,7 +344,7 @@
                         @endif
                         @if($request->file_path)
                         <div class="bg-[#F5F0E2] rounded-lg p-3">
-                            <p class="text-xs text-[#8991A0] mb-1">Attached File</p>
+                            <p class="text-xs text-[#5C6474] mb-1">Attached File</p>
                             <a href="{{ \App\Support\Media::url($request->file_path) }}" target="_blank"
                                class="text-sm text-[#0A1830] hover:text-[#C9A227] hover:underline flex items-center transition">
                                 <i class="ri-file-line mr-1.5"></i>

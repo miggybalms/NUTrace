@@ -18,9 +18,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#E6DFCD;
         }
 
@@ -141,7 +141,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
         <!-- Header (shared admin header) -->
         @include('admin.partials.header', [
             'adminHeaderPage'     => 'assets',
@@ -214,7 +214,7 @@
                                                 @else
                                                     <p class="text-sm italic" style="color:var(--ink-400);">No Department Head</p>
                                                 @endif
-                                                <button type="button" onclick="event.stopPropagation(); openAssignDeptHeadModal({{ $dept->id }}, '{{ $dept->name }}')" class="ml-2 transition-colors flex-shrink-0" style="color:var(--ink-400);" onmouseover="this.style.color='var(--gold-600)'" onmouseout="this.style.color='var(--ink-400)'">
+                                                <button type="button" aria-label="Assign a department head to {{ $dept->name }}" onclick="event.stopPropagation(); openAssignDeptHeadModal({{ $dept->id }}, '{{ $dept->name }}')" class="ml-2 transition-colors flex-shrink-0" style="color:var(--ink-400);" onmouseover="this.style.color='var(--gold-ink)'" onmouseout="this.style.color='var(--ink-400)'">
                                                     <i class="ri-edit-line text-base"></i>
                                                 </button>
                                             </div>
@@ -336,7 +336,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Create Department Modal -->
@@ -344,7 +344,7 @@
         <div class="modal-panel rounded-2xl shadow-xl max-w-md w-full mx-4" style="background:#fff; overflow:hidden;" onclick="event.stopPropagation()">
             <div class="modal-head px-6 py-5 flex justify-between items-center">
                 <h3 class="font-display text-lg font-semibold text-white">Create New Department</h3>
-                <button onclick="closeCreateDepartmentModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeCreateDepartmentModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -393,7 +393,7 @@
         <div class="modal-panel rounded-2xl shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;" onclick="event.stopPropagation()">
             <div class="modal-head px-6 py-5 flex justify-between items-center">
                 <h3 id="assignDeptHeadTitle" class="font-display text-lg font-semibold text-white">Assign Department Head</h3>
-                <button onclick="closeAssignDeptHeadModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeAssignDeptHeadModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>

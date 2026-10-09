@@ -131,7 +131,7 @@
         --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
         --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
         --paper:#F3EEE0; --paper-2:#EAE2C9;
-        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
         --line:#DED2AE;
     }
     body{ background:var(--paper) !important; font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif !important; color:var(--ink-900); }
@@ -148,7 +148,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             <!-- Header (shared admin header) -->
             @include('admin.partials.header', [
@@ -190,7 +190,7 @@
                         <div class="grid grid-cols-1 gap-6">
                             <!-- Asset Name -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="asset-name">
                                     Asset Name <span class="text-[#A23B32]">*</span>
                                 </label>
                                 <input type="text" name="name" id="asset-name" required
@@ -201,7 +201,7 @@
 
                             <!-- Asset Category -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="asset-category">
                                     Category <span class="text-[#A23B32]">*</span>
                                 </label>
                                 <select name="category" id="asset-category" required class="form-select w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" onchange="updateQRCode()">
@@ -219,12 +219,12 @@
 
                             <!-- Supplier -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="supplier">
                                     Supplier
                                 </label>
                                 <input type="text" name="supplier"
                                        placeholder="Enter supplier name"
-                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" id="supplier">
                             </div>
 
                             <!-- Condition -->
@@ -243,7 +243,7 @@
                                     <label class="condition-badge cursor-pointer">
                                         <input type="radio" name="condition" value="good" class="hidden peer" onchange="updateQRCode()">
                                         <div class="border-2 border-[#DED2AE] rounded-lg p-3 text-center peer-checked:border-[#2E5C8A] peer-checked:bg-[#E9F0F7] transition-all hover:shadow-md">
-                                            <i class="ri-checkbox-circle-line text-xl text-[#A8841E] mb-1 block"></i>
+                                            <i class="ri-checkbox-circle-line text-xl text-[#7E5E0E] mb-1 block"></i>
                                             <span class="text-sm font-medium">Good</span>
                                         </div>
                                     </label>
@@ -288,7 +288,7 @@
                                                 <p class="text-xs text-[#5B6678]" id="selected-user-dept"></p>
                                             </div>
                                         </div>
-                                        <button type="button" onclick="clearSelectedUser()" class="text-[#A23B32] hover:text-[#A23B32] transition-colors">
+                                        <button type="button" onclick="clearSelectedUser()" class="text-[#A23B32] hover:text-[#A23B32] transition-colors" aria-label="Clear selected employee">
                                             <i class="ri-close-line"></i>
                                         </button>
                                     </div>
@@ -297,7 +297,7 @@
 
                             <!-- Location -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="asset-location">
                                     Location
                                 </label>
                                 <input type="text" name="location" id="asset-location"
@@ -314,11 +314,11 @@
                         
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="acquisition-date">
                                     Date Acquired <span class="text-[#A23B32]">*</span>
                                 </label>
                                 <input type="date" name="acquisition_date" required
-                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" id="acquisition-date">
                             </div>
                             
                             <div>
@@ -334,11 +334,11 @@
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="warranty-months">
                                     Warranty (months)
                                 </label>
                                 <input type="number" name="warranty_months" value="12"
-                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" id="warranty-months">
                             </div>
                         </div>
                     </div>
@@ -350,12 +350,12 @@
                         <div class="grid grid-cols-1 gap-6">
                             <!-- Serial Number -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="serial-number">
                                     Serial Number
                                 </label>
                                 <input type="text" name="serial_number" 
                                        placeholder="Enter serial number"
-                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
+                                       class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" id="serial-number">
                             </div>
 
                             <!-- Asset Photo -->
@@ -365,7 +365,7 @@
                                 </label>
                                 <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-[#CFC4A4] border-dashed rounded-lg hover:border-[#C9A227] transition-all hover:bg-[#F5F0E2] photo-upload cursor-pointer">
                                     <div class="space-y-1 text-center">
-                                        <i class="ri-image-line text-3xl text-[#8991A0] mb-2 block"></i>
+                                        <i class="ri-image-line text-3xl text-[#5C6474] mb-2 block"></i>
                                         <div class="flex text-sm text-[#46536B]">
                                             <label for="asset-photo" class="relative cursor-pointer bg-white rounded-md font-medium text-[#0F2143] hover:text-[#C9A227] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#C9A227]">
                                                 <span>Upload a file</span>
@@ -386,12 +386,12 @@
 
                             <!-- Notes -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="notes">
                                     Notes
                                 </label>
                                 <textarea name="notes" rows="4"
                                           placeholder="Additional notes or remarks..."
-                                          class="form-textarea w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition"></textarea>
+                                          class="form-textarea w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition" id="notes"></textarea>
                             </div>
                         </div>
                     </div>
@@ -403,7 +403,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- Lifespan Months -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="lifespan-months">
                                     Lifespan (months)
                                 </label>
                                 <input type="number" name="lifespan_months" id="lifespan-months"
@@ -415,7 +415,7 @@
 
                             <!-- Expiration Date (Auto-Calculated) -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="expiration-date">
                                     Expiration Date (Auto-Calculated)
                                 </label>
                                 <input type="date" name="expiration_date" id="expiration-date"
@@ -426,7 +426,7 @@
 
                             <!-- Last Maintenance Date -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="last-maintenance-date">
                                     Last Maintenance Date (Optional)
                                 </label>
                                 <input type="date" name="last_maintenance_date" id="last-maintenance-date"
@@ -437,7 +437,7 @@
 
                             <!-- Maintenance Interval (months) -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="maintenance-interval">
                                     Maintenance Interval (months)
                                 </label>
                                 <input type="number" name="maintenance_interval" id="maintenance-interval"
@@ -449,7 +449,7 @@
 
                             <!-- Next Maintenance Date (Auto-Calculated) -->
                             <div>
-                                <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                <label class="block text-sm font-medium text-[#33425C] mb-2" for="next-maintenance-date">
                                     Next Maintenance Date (Auto-Calculated)
                                 </label>
                                 <input type="date" name="next_maintenance_date" id="next-maintenance-date"
@@ -517,7 +517,7 @@
                                                placeholder="e.g., NU-LIPA-ITSO-00457"
                                                class="form-input w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition font-mono uppercase">
                                         <span id="custom-code-spinner" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
-                                            <i class="ri-loader-4-line animate-spin" style="color:#A8841E;"></i>
+                                            <i class="ri-loader-4-line animate-spin" style="color:#7E5E0E;"></i>
                                         </span>
                                     </div>
                                     <p id="custom-code-status" class="text-xs mt-2 flex items-start gap-1.5" style="color:#5B6678;">
@@ -538,7 +538,7 @@
                                         </div>
                                         <button type="button" onclick="generateSequentialCodes()"
                                                 class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition"
-                                                style="background:#F3E7C4; color:#A8841E; border:1px solid #EADFC0;">
+                                                style="background:#F3E7C4; color:#7E5E0E; border:1px solid #EADFC0;">
                                             <i class="ri-magic-line mr-1"></i>Sequential codes
                                         </button>
                                     </div>
@@ -571,7 +571,7 @@
                                 <input type="hidden" name="asset_code" id="asset-code-input" value="">
                                 <input type="hidden" name="asset_code_mode" id="asset-code-mode" value="auto">
                                 <div class="mt-4 max-w-sm">
-                                    <label class="block text-sm font-medium text-[#33425C] mb-2">
+                                    <label class="block text-sm font-medium text-[#33425C] mb-2" for="asset-quantity">
                                         Quantity <span class="text-[#A23B32]">*</span>
                                     </label>
                                     <input type="number" name="quantity" id="asset-quantity" min="1" max="100" value="1" required
@@ -585,7 +585,7 @@
                                 <div class="flex items-center justify-between mb-3">
                                     <label class="text-sm font-medium text-[#33425C]">Asset QR Code</label>
                                     <button type="button" onclick="viewQRCode()" 
-                                            class="text-[#A8841E] hover:text-[#0F2143] text-sm flex items-center font-medium">
+                                            class="text-[#7E5E0E] hover:text-[#0F2143] text-sm flex items-center font-medium">
                                         <i class="ri-eye-line mr-1"></i>
                                         View Full Size
                                     </button>
@@ -619,7 +619,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- QR Code Modal -->
@@ -627,7 +627,7 @@
         <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md mx-4">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-bold text-[#0F2143]">Asset QR Code</h3>
-                <button onclick="closeQRModal()" class="text-[#8991A0] hover:text-[#46536B]">
+                <button onclick="closeQRModal()" class="text-[#5C6474] hover:text-[#46536B]" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -659,7 +659,7 @@
                     <h3 class="text-xl font-bold text-[#0F2143]">Bulk QR Code Preview</h3>
                     <p class="text-sm text-[#5B6678] mt-1" id="bulkQrSummary">Generated QR labels</p>
                 </div>
-                <button onclick="closeBulkQrModal()" class="text-[#8991A0] hover:text-[#46536B]">
+                <button onclick="closeBulkQrModal()" class="text-[#5C6474] hover:text-[#46536B]" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -1897,7 +1897,7 @@
                     <h3 class="font-display text-lg font-semibold text-white">How to Register an Asset</h3>
                     <p class="text-xs mt-0.5" style="color:#F3E7C4;">A guided walkthrough — every field explained, with a ready example</p>
                 </div>
-                <button onclick="closeRegistryHelp()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeRegistryHelp()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -1905,7 +1905,7 @@
             <div class="px-6 py-5 border-t flex flex-wrap items-center gap-3" style="border-color:#DED2AE;">
                 <button type="button" id="registry-help-prev" onclick="registryHelpNav(-1)" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#EAE2C9; color:#0F2143;">&larr; Back</button>
                 <div id="registry-help-dots" class="flex items-center gap-1.5 flex-1 justify-center"></div>
-                <button type="button" onclick="fillRegistryExample()" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#F3E7C4; color:#A8841E; border:1px solid #EADFC0;">
+                <button type="button" onclick="fillRegistryExample()" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style="background:#F3E7C4; color:#7E5E0E; border:1px solid #EADFC0;">
                     <i class="ri-magic-line mr-1"></i>Fill with Example
                 </button>
                 <button type="button" id="registry-help-next" onclick="registryHelpNav(1)" class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors" style="background:#C9A227;">Next &rarr;</button>
@@ -1931,7 +1931,7 @@
                     <ul class="space-y-3 text-sm" style="color:#33425C;">
                         <li><b>Assign to (Name/Department)</b> — optional. Type in the box to search registered users by name or department, then click a result to select the custodian. This is what creates asset accountability.</li>
                         <li><b>Location</b> — where the asset physically lives. Example: <span class="font-mono text-xs" style="background:#F3E7C4; padding:2px 6px; border-radius:6px;">Room 301, Engineering Building</span></li>
-                        <li class="text-xs" style="color:#8991A0;">Tip: an asset assigned to a user can be tracked, pulled out, and included in that department's asset page.</li>
+                        <li class="text-xs" style="color:#5C6474;">Tip: an asset assigned to a user can be tracked, pulled out, and included in that department's asset page.</li>
                     </ul>`
             },
             {
@@ -1978,7 +1978,7 @@
                         <li>On success a green toast appears and the assets are saved to the inventory — find them under <b>Assets</b> (and under the assigned user's department page).</li>
                         <li>Print the QR labels right after registration and stick them on the physical units.</li>
                     </ul>
-                    <div class="mt-4 p-3 rounded-lg text-xs" style="background:#F3E7C4; color:#A8841E;">
+                    <div class="mt-4 p-3 rounded-lg text-xs" style="background:#F3E7C4; color:#7E5E0E;">
                         Use <b>“Fill with Example”</b> (bottom bar) to see every field filled with a realistic laptop example, then replace the values with your own.
                     </div>`
             },
@@ -2005,10 +2005,10 @@
             body.innerHTML = `
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:#F3E7C4;">
-                        <i class="${step.icon} text-lg" style="color:#A8841E;"></i>
+                        <i class="${step.icon} text-lg" style="color:#7E5E0E;"></i>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold" style="color:#A8841E;">STEP ${registryHelpStep + 1} OF ${REGISTRY_HELP_STEPS.length}</p>
+                        <p class="text-xs font-semibold" style="color:#7E5E0E;">STEP ${registryHelpStep + 1} OF ${REGISTRY_HELP_STEPS.length}</p>
                         <h4 class="font-display text-base font-semibold" style="color:#0F2143;">${step.title}</h4>
                     </div>
                 </div>
@@ -2068,7 +2068,7 @@
                 <p id="toast-body" class="text-xs text-[#46536B] mt-1">Your asset was saved successfully.</p>
             </div>
             <div class="flex items-start">
-                <button id="toast-close" class="text-[#8991A0] hover:text-[#46536B] text-lg leading-none">&times;</button>
+                <button id="toast-close" class="text-[#5C6474] hover:text-[#46536B] text-lg leading-none">&times;</button>
             </div>
         </div>
     </div>

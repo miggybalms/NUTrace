@@ -15,9 +15,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#DED2AE;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
             --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -93,7 +93,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'disposal',
                 'adminHeaderTitle'    => 'Disposal',
@@ -139,7 +139,7 @@
                 <div class="mb-6 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                      style="background:#fff; border:1px solid var(--line); border-left:4px solid var(--gold-500);">
                     <div class="flex items-start">
-                        <i class="ri-archive-line text-2xl mr-3 mt-0.5" style="color:var(--gold-600);"></i>
+                        <i class="ri-archive-line text-2xl mr-3 mt-0.5" style="color:var(--gold-ink);"></i>
                         <div>
                             <p class="text-sm font-semibold" style="color:var(--navy-900);">Archived Disposal Assets</p>
                             <p class="text-xs mt-1" style="color:var(--ink-600);">
@@ -165,7 +165,7 @@
                                placeholder="Search disposals by asset name, asset code, date, reason, or disposed by..."
                                class="form-input w-full" style="padding-left:2.75rem;" />
                     </div>
-                    <p id="disposalSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-600);">
+                    <p id="disposalSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-ink);">
                         <i class="ri-focus-3-line mr-1"></i><span></span>
                     </p>
                 </div>
@@ -284,7 +284,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Archive Confirmation Modal.
@@ -299,7 +299,7 @@
             <div class="modal-head p-6">
                 <div class="flex justify-between items-center">
                     <h3 class="font-display text-xl font-semibold text-white">Archive Disposal Record?</h3>
-                    <button type="button" onclick="closeArchiveModal()" class="text-white/60 hover:text-white">
+                    <button type="button" onclick="closeArchiveModal()" class="text-white/60 hover:text-white" aria-label="Close">
                         <i class="ri-close-line text-2xl"></i>
                     </button>
                 </div>
@@ -333,7 +333,7 @@
         <div class="rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
             <div class="modal-head p-6 sticky top-0 z-10 flex justify-between items-center">
                 <h3 class="font-display text-xl font-semibold text-white">Disposal Details</h3>
-                <button type="button" onclick="closeViewDisposalModal()" class="text-white/60 hover:text-white">
+                <button type="button" onclick="closeViewDisposalModal()" class="text-white/60 hover:text-white" aria-label="Close">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>

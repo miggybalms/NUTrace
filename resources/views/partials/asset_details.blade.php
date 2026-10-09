@@ -142,7 +142,7 @@
                 <h1 class="ad-title text-2xl sm:text-[28px] font-semibold text-[#0F2143] mt-2 capitalize">
                     {{ $asset->Asset_name ?? 'Asset' }}
                 </h1>
-                <p class="ad-mono text-sm text-[#8991A0] mt-1">{{ $asset->Asset_code ?? '—' }}</p>
+                <p class="ad-mono text-sm text-[#5C6474] mt-1">{{ $asset->Asset_code ?? '—' }}</p>
 
                 <div class="flex flex-wrap gap-2 mt-4">
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-[#F5F0E2] text-[#46536B]">
@@ -188,7 +188,7 @@
                             The Asset Management Office has received your repair request and is evaluating it.
                         @endif
                     </p>
-                    <p class="text-xs text-[#8991A0] mt-2">
+                    <p class="text-xs text-[#5C6474] mt-2">
                         Reported problem: {{ $openRepair->Repair_Description ?: '—' }}
                     </p>
                 </div>
@@ -215,28 +215,28 @@
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-barcode-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Serial number</p>
+                                <p class="text-xs text-[#5C6474]">Serial number</p>
                                 <p class="ad-mono text-sm font-medium text-[#0F2143]">{{ $asset->serial_Number ?: '—' }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-cpu-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Model</p>
+                                <p class="text-xs text-[#5C6474]">Model</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $asset->model ?: '—' }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-building-4-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Manufacturer</p>
+                                <p class="text-xs text-[#5C6474]">Manufacturer</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $asset->manufacture ?: '—' }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-store-2-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Supplier</p>
+                                <p class="text-xs text-[#5C6474]">Supplier</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $asset->supplier ?: '—' }}</p>
                             </div>
                         </div>
@@ -246,7 +246,7 @@
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-calendar-event-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Acquisition date</p>
+                                <p class="text-xs text-[#5C6474]">Acquisition date</p>
                                 <p class="text-sm font-medium text-[#0F2143]">
                                     {{ $asset->accusion_date ? \Carbon\Carbon::parse($asset->accusion_date)->format('M d, Y') : '—' }}
                                 </p>
@@ -255,7 +255,7 @@
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-money-peso-circle-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Purchase price</p>
+                                <p class="text-xs text-[#5C6474]">Purchase price</p>
                                 <p class="text-sm font-medium text-[#0F2143]">
                                     {{ $asset->purchase_Price ? '₱' . number_format((float) $asset->purchase_Price, 2) : '—' }}
                                 </p>
@@ -264,18 +264,18 @@
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-map-pin-2-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Location</p>
+                                <p class="text-xs text-[#5C6474]">Location</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $asset->asset_location ?: '—' }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-user-follow-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Accountable to</p>
+                                <p class="text-xs text-[#5C6474]">Accountable to</p>
                                 <p class="text-sm font-medium text-[#0F2143]">
                                     {{ $asset->full_name ?: 'Unassigned' }}
                                     @if($asset->department_name)
-                                        <span class="text-[#8991A0] font-normal">· {{ $asset->department_name }}</span>
+                                        <span class="text-[#5C6474] font-normal">· {{ $asset->department_name }}</span>
                                     @endif
                                 </p>
                             </div>
@@ -303,21 +303,21 @@
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-loop-right-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Maintenance interval</p>
+                                <p class="text-xs text-[#5C6474]">Maintenance interval</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $maintenance['interval_label'] }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-history-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Last maintenance</p>
+                                <p class="text-xs text-[#5C6474]">Last maintenance</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $fmt($maintenance['last']) }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-calendar-check-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Next maintenance</p>
+                                <p class="text-xs text-[#5C6474]">Next maintenance</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $fmt($maintenance['next']) }}</p>
                             </div>
                         </div>
@@ -362,21 +362,21 @@
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-timer-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Lifespan duration</p>
+                                <p class="text-xs text-[#5C6474]">Lifespan duration</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $lifespan['label'] }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-calendar-event-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Acquisition date</p>
+                                <p class="text-xs text-[#5C6474]">Acquisition date</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $fmt($lifespan['acquired']) }}</p>
                             </div>
                         </div>
                         <div class="ad-fact">
                             <div class="ad-fact-icon"><i class="ri-calendar-close-line"></i></div>
                             <div>
-                                <p class="text-xs text-[#8991A0]">Expected expiration</p>
+                                <p class="text-xs text-[#5C6474]">Expected expiration</p>
                                 <p class="text-sm font-medium text-[#0F2143]">{{ $fmt($lifespan['expires']) }}</p>
                             </div>
                         </div>
@@ -411,14 +411,14 @@
                     <div class="ad-fact">
                         <div class="ad-fact-icon"><i class="ri-file-shield-2-line"></i></div>
                         <div>
-                            <p class="text-xs text-[#8991A0]">Warranty period</p>
+                            <p class="text-xs text-[#5C6474]">Warranty period</p>
                             <p class="text-sm font-medium text-[#0F2143]">{{ $warranty['label'] }}</p>
                         </div>
                     </div>
                     <div class="ad-fact">
                         <div class="ad-fact-icon"><i class="ri-calendar-check-line"></i></div>
                         <div>
-                            <p class="text-xs text-[#8991A0]">Warranty expiration</p>
+                            <p class="text-xs text-[#5C6474]">Warranty expiration</p>
                             <p class="text-sm font-medium text-[#0F2143]">{{ $fmt($warranty['expires']) }}</p>
                         </div>
                     </div>
@@ -463,19 +463,19 @@
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-[#EFE9D8]">
                                         @if($repair['result'])
                                             <div>
-                                                <p class="text-xs text-[#8991A0]">Repair result</p>
+                                                <p class="text-xs text-[#5C6474]">Repair result</p>
                                                 <p class="text-sm text-[#24334F]">{{ $repair['result'] }}</p>
                                             </div>
                                         @endif
                                         @if($repair['parts'])
                                             <div>
-                                                <p class="text-xs text-[#8991A0]">Parts replaced</p>
+                                                <p class="text-xs text-[#5C6474]">Parts replaced</p>
                                                 <p class="text-sm text-[#24334F]">{{ $repair['parts'] }}</p>
                                             </div>
                                         @endif
                                         @if($repair['cost'])
                                             <div>
-                                                <p class="text-xs text-[#8991A0]">Repair cost</p>
+                                                <p class="text-xs text-[#5C6474]">Repair cost</p>
                                                 <p class="text-sm text-[#24334F]">₱{{ number_format((float) $repair['cost'], 2) }}</p>
                                             </div>
                                         @endif
@@ -490,7 +490,7 @@
                             <i class="ri-tools-line text-xl text-[#C9A227]"></i>
                         </div>
                         <p class="text-sm font-medium text-[#33425C]">No repair records</p>
-                        <p class="text-xs text-[#8991A0] mt-1">This asset has never been sent for repair.</p>
+                        <p class="text-xs text-[#5C6474] mt-1">This asset has never been sent for repair.</p>
                     </div>
                 @endif
             </div>
@@ -526,7 +526,7 @@
                             <i class="ri-shield-check-line text-xl text-[#C9A227]"></i>
                         </div>
                         <p class="text-sm font-medium text-[#33425C]">No maintenance recorded yet</p>
-                        <p class="text-xs text-[#8991A0] mt-1">
+                        <p class="text-xs text-[#5C6474] mt-1">
                             Completed preventive maintenance for this asset will appear here.
                         </p>
                     </div>
@@ -551,7 +551,7 @@
                                     <span class="ad-timeline-line w-px flex-1 bg-[#E7DFC9] my-1"></span>
                                 </div>
                                 <div class="pb-5 min-w-0">
-                                    <p class="text-xs text-[#8991A0]">{{ $event['date']->format('M d, Y') }}</p>
+                                    <p class="text-xs text-[#5C6474]">{{ $event['date']->format('M d, Y') }}</p>
                                     <p class="text-sm font-semibold text-[#0F2143] mt-0.5">{{ $event['title'] }}</p>
                                     <p class="text-xs text-[#5B6678] mt-0.5">{{ $event['description'] }}</p>
                                 </div>
@@ -559,7 +559,7 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="px-6 py-10 text-center text-sm text-[#8991A0]">No history recorded for this asset yet.</div>
+                    <div class="px-6 py-10 text-center text-sm text-[#5C6474]">No history recorded for this asset yet.</div>
                 @endif
             </div>
         </div>
@@ -580,7 +580,7 @@
                         {{ $lifecycle['status'] }}
                     </span>
                     <p class="text-sm text-[#5B6678] mt-3">{{ $lifecycle['explain'] }}</p>
-                    <p class="text-xs text-[#8991A0] mt-3">
+                    <p class="text-xs text-[#5C6474] mt-3">
                         Lifecycle status is updated by the Asset Management Office.
                     </p>
                 </div>
@@ -596,19 +596,19 @@
                 </div>
                 <div class="p-5 sm:p-6 space-y-3 text-sm">
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-user-3-line text-[#8991A0]"></i>
+                        <i class="ri-user-3-line text-[#5C6474]"></i>
                         <span class="text-[#24334F]">{{ $asset->full_name ?: 'Unassigned' }}</span>
                     </div>
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-building-2-line text-[#8991A0]"></i>
+                        <i class="ri-building-2-line text-[#5C6474]"></i>
                         <span class="text-[#24334F]">{{ $asset->department_name ?: 'No department on record' }}</span>
                     </div>
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-map-pin-2-line text-[#8991A0]"></i>
+                        <i class="ri-map-pin-2-line text-[#5C6474]"></i>
                         <span class="text-[#24334F]">{{ $asset->asset_location ?: 'No location on record' }}</span>
                     </div>
                     <div class="flex items-center gap-2.5">
-                        <i class="ri-loop-left-line text-[#8991A0]"></i>
+                        <i class="ri-loop-left-line text-[#5C6474]"></i>
                         <span class="text-[#24334F]">{{ $lifecycle['status'] }}</span>
                     </div>
                 </div>
@@ -629,7 +629,7 @@
                         <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> File requests for this asset from the Requests page</li>
                         <li class="flex items-start gap-2"><i class="ri-check-line text-[#2F7A4D] mt-0.5"></i> Track repair status and history</li>
                     </ul>
-                    <p class="text-xs text-[#8991A0] mt-4 pt-4 border-t border-[#EFE9D8]">
+                    <p class="text-xs text-[#5C6474] mt-4 pt-4 border-t border-[#EFE9D8]">
                         Lifecycle actions — maintenance completion, repair approval, replacement, pullout, disposal and
                         accountability changes — are handled by the Asset Management Office.
                     </p>
@@ -638,7 +638,7 @@
         </div>
     </div>
 
-    <div class="text-center text-sm text-[#8991A0] mt-10 pt-7 border-t border-[#DED2AE]">
+    <div class="text-center text-sm text-[#5C6474] mt-10 pt-7 border-t border-[#DED2AE]">
         © {{ date('Y') }} University Asset Management. All rights reserved.
     </div>
 </div>
@@ -648,13 +648,13 @@
     <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onclick="event.stopPropagation();">
         <div class="flex items-center justify-between mb-4">
             <h3 class="ad-title text-lg font-semibold text-[#0A1830]">Asset QR Code</h3>
-            <button type="button" onclick="closeAssetQrModal()" class="text-[#8991A0] hover:text-[#0A1830]">
+            <button type="button" onclick="closeAssetQrModal()" class="text-[#5C6474] hover:text-[#0A1830]" aria-label="Close">
                 <i class="ri-close-line text-xl"></i>
             </button>
         </div>
         <div id="assetQrHolder" class="flex items-center justify-center bg-[#F5F0E2] rounded-xl p-4 min-h-[220px]"></div>
         <p class="ad-mono text-sm text-[#46536B] text-center mt-4 break-all">{{ $asset->Asset_code }}</p>
-        <p class="text-xs text-[#8991A0] text-center mt-1">
+        <p class="text-xs text-[#5C6474] text-center mt-1">
             Scan this code to identify the physical asset. It does not create a new asset record.
         </p>
     </div>

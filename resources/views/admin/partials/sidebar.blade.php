@@ -18,7 +18,7 @@
             <h1 class="text-[17px] font-medium text-[#F3EFE3]">NU Trace</h1>
         </div>
         <!-- Close button, mobile only -->
-        <button onclick="closeSidebar()" class="lg:hidden text-[#7C86A0] hover:text-white">
+        <button onclick="closeSidebar()" class="lg:hidden text-[#7C86A0] hover:text-white" aria-label="Close navigation menu">
             <i class="ri-close-line text-2xl"></i>
         </button>
     </div>

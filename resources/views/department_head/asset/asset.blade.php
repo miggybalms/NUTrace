@@ -93,7 +93,7 @@
 
             <!-- Search bar under the filters -->
             <div class="relative max-w-md">
-                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#8991A0] text-sm"></i>
+                <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#5C6474] text-sm"></i>
                 <input type="text"
                        id="asset-search-input"
                        placeholder="Search assets..."
@@ -128,12 +128,12 @@
                         <img src="{{ $asset->image_url }}" alt="{{ $asset->Asset_name }}"
                              class="w-full h-full object-cover"
                              onerror="this.classList.add('hidden'); this.parentElement.querySelector('.asset-image-fallback')?.classList.remove('hidden');"/>
-                        <div class="asset-image-fallback hidden flex-col items-center text-[#8991A0] absolute inset-0 flex justify-center">
+                        <div class="asset-image-fallback hidden flex-col items-center text-[#5C6474] absolute inset-0 flex justify-center">
                             <i class="ri-image-line text-4xl mb-1"></i>
                             <span class="text-xs">Image unavailable</span>
                         </div>
                     @else
-                        <div class="flex flex-col items-center text-[#8991A0]">
+                        <div class="flex flex-col items-center text-[#5C6474]">
                             <i class="ri-image-line text-4xl mb-1"></i>
                             <span class="text-xs">No image</span>
                         </div>
@@ -171,7 +171,7 @@
                 <div class="p-4 sm:p-5">
                     <div class="mb-3">
                         <h3 class="font-semibold text-[#0A1830] text-base leading-tight">{{ $asset->Asset_name ?? 'Untitled' }}</h3>
-                        <p class="text-xs text-[#8991A0] font-mono mt-0.5">{{ $asset->Asset_code ?? '' }}</p>
+                        <p class="text-xs text-[#5C6474] font-mono mt-0.5">{{ $asset->Asset_code ?? '' }}</p>
                     </div>
 
                     <div class="space-y-1.5 mb-4">
@@ -213,12 +213,12 @@
                 <i class="ri-inbox-line text-2xl sm:text-3xl text-[#C9A227]"></i>
             </div>
             <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Assets Found</h3>
-            <p class="text-[#8991A0] text-sm">You have no assigned assets at the moment.</p>
+            <p class="text-[#5C6474] text-sm">You have no assigned assets at the moment.</p>
         </div>
         @endif
 
         <!-- Footer -->
-        <div class="text-center text-sm text-[#8991A0] mt-10 pt-6 border-t border-[#DED2AE]">
+        <div class="text-center text-sm text-[#5C6474] mt-10 pt-6 border-t border-[#DED2AE]">
             © {{ date('Y') }} University Asset Management. All rights reserved.
         </div>
     </div>
@@ -240,7 +240,7 @@
         <div class="bg-white rounded-lg p-6 max-w-sm w-full" onclick="event.stopPropagation();">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-[#0A1830]">Asset QR Code</h3>
-                <button onclick="closeQrModal()" class="text-[#8991A0] hover:text-[#0A1830]">
+                <button onclick="closeQrModal()" class="text-[#5C6474] hover:text-[#0A1830]" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>

@@ -19,9 +19,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#DED2AE;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
             --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -178,7 +178,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
                 <!-- Header (shared admin header) -->
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'pullout',
@@ -211,7 +211,7 @@
                                placeholder="Search pullouts by asset name, asset code, date, reason, or destination..."
                                class="form-input w-full" style="padding-left:2.75rem;" />
                     </div>
-                    <p id="pulloutSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-600);">
+                    <p id="pulloutSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-ink);">
                         <i class="ri-focus-3-line mr-1"></i><span></span>
                     </p>
                 </div>
@@ -255,7 +255,7 @@
                                             <span class="pullout-asset-pill inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
                                                   style="background:var(--paper-2); color:var(--ink-600);"
                                                   data-search="{{ strtolower(($name ?? '') . ' ' . ($record->asset_codes[$i] ?? '')) }}">
-                                                {{ $name }}@if(isset($record->asset_codes[$i]))<span class="font-mono ml-1.5" style="color:var(--gold-600);">{{ $record->asset_codes[$i] }}</span>@endif
+                                                {{ $name }}@if(isset($record->asset_codes[$i]))<span class="font-mono ml-1.5" style="color:var(--gold-ink);">{{ $record->asset_codes[$i] }}</span>@endif
                                             </span>
                                             @endforeach
                                         </div>
@@ -331,7 +331,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- View Pullout Details Modal -->
@@ -343,7 +343,7 @@
                 <h3 class="font-display text-xl font-semibold text-white">Pullout Details</h3>
                 <p class="text-sm mt-1" style="color:var(--gold-100);">Pullout #<span id="viewPulloutIdLabel">—</span></p>
             </div>
-            <button type="button" onclick="closeViewPullout()" class="text-white/60 hover:text-white">
+            <button type="button" onclick="closeViewPullout()" class="text-white/60 hover:text-white" aria-label="Close">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>
@@ -403,7 +403,7 @@
             <div class="modal-head p-6">
                 <div class="flex justify-between items-center">
                     <h3 class="font-display text-xl font-semibold text-white">Record Asset Pullout</h3>
-                    <button onclick="closePulloutModal()" class="text-white/60 hover:text-white">
+                    <button onclick="closePulloutModal()" class="text-white/60 hover:text-white" aria-label="Close">
                         <i class="ri-close-line text-2xl"></i>
                     </button>
                 </div>
@@ -420,7 +420,7 @@
                         </label>
                         <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input type="text" id="pulloutAssetSearch" oninput="filterPulloutAssets(this.value)" placeholder="Search assets by code or name..." class="form-input sm:flex-1">
-                            <button type="button" onclick="selectAllVisiblePulloutAssets()" class="px-4 py-2 rounded-lg text-sm transition-colors" style="border:1px solid var(--gold-500); color:var(--gold-600); background:var(--gold-100);">
+                            <button type="button" onclick="selectAllVisiblePulloutAssets()" class="px-4 py-2 rounded-lg text-sm transition-colors" style="border:1px solid var(--gold-500); color:var(--gold-ink); background:var(--gold-100);">
                                 Select All Visible
                             </button>
                         </div>
@@ -432,12 +432,12 @@
                         <p class="mt-2 text-xs" style="color:var(--ink-400);">Hold Ctrl on Windows or Command on Mac to select multiple assets.</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Pullout Date *</label>
-                        <input type="date" name="pullout_date" required value="{{ date('Y-m-d') }}" class="form-input">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="pullout-date">Pullout Date *</label>
+                        <input type="date" name="pullout_date" required value="{{ date('Y-m-d') }}" class="form-input" id="pullout-date">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Reason for Pullout *</label>
-                        <select name="reason" required class="form-input">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="reason">Reason for Pullout *</label>
+                        <select name="reason" required class="form-input" id="reason">
                             <option value="">Select reason...</option>
                             <option value="Transfer">Transfer to another department</option>
                             <option value="Repair">Needs repair/maintenance</option>
@@ -448,20 +448,20 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Pulled By *</label>
-                        <input type="text" name="pulled_by" required placeholder="Name of person authorizing pullout" class="form-input">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="pulled-by">Pulled By *</label>
+                        <input type="text" name="pulled_by" required placeholder="Name of person authorizing pullout" class="form-input" id="pulled-by">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Destination / New Location</label>
-                        <input type="text" name="destination" placeholder="e.g., IT Department, Room 302, Storage Room" class="form-input">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="destination">Destination / New Location</label>
+                        <input type="text" name="destination" placeholder="e.g., IT Department, Room 302, Storage Room" class="form-input" id="destination">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Expected Return Date (if applicable)</label>
-                        <input type="date" name="expected_return_date" class="form-input">
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="expected-return-date">Expected Return Date (if applicable)</label>
+                        <input type="date" name="expected_return_date" class="form-input" id="expected-return-date">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Additional Notes</label>
-                        <textarea name="notes" rows="3" placeholder="Any additional information about the pullout..." class="form-input"></textarea>
+                        <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="notes">Additional Notes</label>
+                        <textarea name="notes" rows="3" placeholder="Any additional information about the pullout..." class="form-input" id="notes"></textarea>
                     </div>
                 </div>
                 <div class="flex justify-end space-x-3 mt-6 pt-5" style="border-top:1px solid var(--line);">
@@ -480,7 +480,7 @@
                 <h3 class="font-display text-xl font-semibold text-white">Dispose Assets</h3>
                 <p class="text-sm mt-1" style="color:var(--gold-100);">Pullout #<span id="disposePulloutIdLabel">—</span></p>
             </div>
-            <button type="button" onclick="closeDisposeFromPullout()" class="text-white/60 hover:text-white">
+            <button type="button" onclick="closeDisposeFromPullout()" class="text-white/60 hover:text-white" aria-label="Close">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>
@@ -502,12 +502,12 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Disposal Date</label>
-                <input type="date" name="disposal_date" value="{{ date('Y-m-d') }}" class="form-input">
+                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="disposal-date">Disposal Date</label>
+                <input type="date" name="disposal_date" value="{{ date('Y-m-d') }}" class="form-input" id="disposal-date">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Reason</label>
+                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="reason-2" id="reason-2">Reason</label>
                 <select name="reason" required class="form-input">
                     <option value="Obsolete">Obsolete</option>
                     <option value="Damage">Damaged</option>
@@ -519,8 +519,8 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Notes (optional)</label>
-                <textarea name="notes" rows="2" class="form-input" placeholder="Any additional notes..."></textarea>
+                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="notes-2">Notes (optional)</label>
+                <textarea name="notes" rows="2" class="form-input" placeholder="Any additional notes..." id="notes-2"></textarea>
             </div>
 
             <div class="flex justify-end gap-3 pt-5" style="border-top:1px solid var(--line);">
@@ -543,7 +543,7 @@
                 <h3 class="font-display text-xl font-semibold text-white">Resolve Pullout</h3>
                 <p class="text-sm mt-1" style="color:var(--gold-100);">Pullout #<span id="editPulloutIdLabel">—</span></p>
             </div>
-            <button type="button" onclick="closeEditPullout()" class="text-white/60 hover:text-white">
+            <button type="button" onclick="closeEditPullout()" class="text-white/60 hover:text-white" aria-label="Close">
                 <i class="ri-close-line text-2xl"></i>
             </button>
         </div>
@@ -556,7 +556,7 @@
             <div>
                 <div class="flex justify-between items-center mb-2">
                     <label class="block text-sm font-medium" style="color:var(--ink-600);">Assets in this pullout *</label>
-                    <button type="button" onclick="toggleAllEditAssets(true)" class="text-xs hover:underline" style="color:var(--gold-600);">Select All</button>
+                    <button type="button" onclick="toggleAllEditAssets(true)" class="text-xs hover:underline" style="color:var(--gold-ink);">Select All</button>
                 </div>
                 <input type="text" id="editAssetFilter" oninput="filterEditAssetRows(this.value)" placeholder="Filter assets by name or code..." class="form-input mb-2">
                 <div id="editAssetList" class="rounded-lg max-h-40 overflow-y-auto p-2 space-y-1" style="border:1px solid var(--line);">
@@ -566,7 +566,7 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Action *</label>
+                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="editAction">Action *</label>
                 <select id="editAction" onchange="toggleEditActionFields()" class="form-input">
                     <option value="">Select action...</option>
                     <option value="assign">Assign to new user (release from storage)</option>
@@ -606,19 +606,19 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">New Location *</label>
+                    <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="editNewLocation">New Location *</label>
                     <input type="text" id="editNewLocation" placeholder="e.g., Room 301, Faculty Office, Lab 2" class="form-input">
                 </div>
             </div>
 
             <!-- Repair block -->
             <div id="editRepairBlock" class="hidden">
-                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Issue description</label>
+                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="editRepairNotes">Issue description</label>
                 <textarea id="editRepairNotes" rows="3" placeholder="What needs repair?" class="form-input"></textarea>
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);">Notes (optional)</label>
+                <label class="block text-sm font-medium mb-2" style="color:var(--ink-600);" for="editNotes">Notes (optional)</label>
                 <textarea id="editNotes" rows="2" placeholder="Optional notes..." class="form-input"></textarea>
             </div>
         </div>
@@ -636,7 +636,7 @@
         <div class="rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6" style="background:#fff;">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="font-display text-xl font-semibold" style="color:var(--navy-900);">Scan Asset QR</h3>
-                <button onclick="manualCloseScanner()" class="transition" style="color:var(--ink-400);">
+                <button onclick="manualCloseScanner()" class="transition" style="color:var(--ink-400);" aria-label="Close scanner">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -1121,7 +1121,7 @@ function toggleEditActionFields() {
                     if ((pill.dataset.search || '').includes(term)) {
                         const hl = document.createElement('span');
                         hl.className = 'pullout-match-hl inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold';
-                        hl.style.cssText = 'background:rgba(201,162,39,.14); color:var(--gold-600); margin: 0 .4rem .75rem 0;';
+                        hl.style.cssText = 'background:rgba(201,162,39,.14); color:var(--gold-ink); margin: 0 .4rem .75rem 0;';
                         hl.innerHTML = '<i class="ri-focus-3-line mr-1"></i>Match: ' + pill.textContent.replace(/\s+/g, ' ').trim();
                         const header = card.querySelector('.flex.items-center.mb-3');
                         if (header && header.parentNode) header.parentNode.insertBefore(hl, header.nextSibling);

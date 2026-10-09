@@ -114,7 +114,7 @@
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
             --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#DED2AE;
         }
         body{ background:var(--paper) !important; font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif !important; color:var(--ink-900); }
@@ -137,7 +137,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             <!-- Header (shared admin header) -->
             @include('admin.partials.header', [
@@ -158,7 +158,7 @@
 <form method="GET" action="{{ request()->url() }}" class="md:col-span-2" id="searchForm">
     <label class="block text-sm font-medium text-[#33425C] mb-1.5">Search</label>
     <div class="relative">
-        <i class="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8991A0]"></i>
+        <i class="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5C6474]"></i>
         <input type="text"
                id="searchAssets"
                name="search"
@@ -275,15 +275,15 @@
                                         <div class="flex items-center">
                                             <div class="w-8 h-8 bg-[#F3E7C4] rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
                                                 @if(str_contains(strtolower($asset->name), 'laptop') || str_contains(strtolower($asset->name), 'computer'))
-                                                    <i class="ri-computer-line text-[#A8841E]"></i>
+                                                    <i class="ri-computer-line text-[#7E5E0E]"></i>
                                                 @elseif(str_contains(strtolower($asset->name), 'chair'))
-                                                    <i class="ri-chair-line text-[#A8841E]"></i>
+                                                    <i class="ri-chair-line text-[#7E5E0E]"></i>
                                                 @elseif(str_contains(strtolower($asset->name), 'printer'))
-                                                    <i class="ri-printer-line text-[#A8841E]"></i>
+                                                    <i class="ri-printer-line text-[#7E5E0E]"></i>
                                                 @elseif(str_contains(strtolower($asset->name), 'monitor'))
-                                                    <i class="ri-tv-line text-[#A8841E]"></i>
+                                                    <i class="ri-tv-line text-[#7E5E0E]"></i>
                                                 @else
-                                                    <i class="ri-device-line text-[#A8841E]"></i>
+                                                    <i class="ri-device-line text-[#7E5E0E]"></i>
                                                 @endif
                                             </div>
                                             <span class="text-sm font-medium text-[#0F2143]">{{ $asset->name }}</span>
@@ -308,7 +308,7 @@
                                     <td class="py-3 px-4">
                                         <div class="flex items-center space-x-1">
                                             <!-- View Details Button -->
-                                            <button class="action-btn view-details-btn w-8 h-8 flex items-center justify-center text-[#A8841E] hover:bg-[#F3E7C4] rounded-lg" title="View Details">
+                                            <button class="action-btn view-details-btn w-8 h-8 flex items-center justify-center text-[#7E5E0E] hover:bg-[#F3E7C4] rounded-lg" title="View Details">
                                                 <i class="ri-eye-line text-lg"></i>
                                             </button>
                                             <!-- QR Code Button -->
@@ -322,7 +322,7 @@
                                 <tr>
                                     <td colspan="9" class="py-16 text-center text-[#5B6678]">
                                         <div class="w-16 h-16 bg-[#EFE9D8] rounded-full flex items-center justify-center mx-auto mb-3">
-                                            <i class="ri-inbox-line text-2xl text-[#8991A0]"></i>
+                                            <i class="ri-inbox-line text-2xl text-[#5C6474]"></i>
                                         </div>
                                         <p class="text-sm">No assets found for this department.</p>
                                     </td>
@@ -351,11 +351,11 @@
                 </div>
 
                 <!-- Footer -->
-                <div class="text-center text-xs text-[#8991A0] mt-10 pt-6 border-t border-[#DED2AE]">
+                <div class="text-center text-xs text-[#5C6474] mt-10 pt-6 border-t border-[#DED2AE]">
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Bulk Pullout Modal -->
@@ -367,7 +367,7 @@
                         <h3 class="text-lg font-bold text-[#0F2143]">Bulk Pullout</h3>
                         <p class="text-sm text-[#5B6678] mt-0.5"><span id="bulkPulloutCount">0</span> selected asset(s)</p>
                     </div>
-                    <button onclick="closeBulkPulloutModal()" class="text-[#8991A0] hover:text-[#33425C] hover:bg-[#EFE9D8] w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                    <button onclick="closeBulkPulloutModal()" class="text-[#5C6474] hover:text-[#33425C] hover:bg-[#EFE9D8] w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                         <i class="ri-close-line text-xl"></i>
                     </button>
                 </div>
@@ -375,22 +375,22 @@
 <form id="bulkPulloutForm" class="p-6 space-y-4">
     @csrf
     <div>
-    <label class="block text-sm font-medium text-[#33425C] mb-1.5">Reason</label>
+    <label class="block text-sm font-medium text-[#33425C] mb-1.5" for="reason">Reason</label>
     <input type="text" name="reason" value="Pullout" readonly
-        class="w-full px-3.5 py-2.5 border border-[#DED2AE] rounded-lg bg-[#F5F0E2] text-[#33425C] text-sm cursor-not-allowed">
+        class="w-full px-3.5 py-2.5 border border-[#DED2AE] rounded-lg bg-[#F5F0E2] text-[#33425C] text-sm cursor-not-allowed" id="reason">
 </div>
 
     <div>
-        <label class="block text-sm font-medium text-[#33425C] mb-1.5">Destination</label>
+        <label class="block text-sm font-medium text-[#33425C] mb-1.5" for="destination">Destination</label>
         <input type="text" name="destination" value="Storage Room" readonly
-            class="w-full px-3.5 py-2.5 border border-[#DED2AE] rounded-lg bg-[#F5F0E2] text-[#33425C] text-sm cursor-not-allowed">
-        <p class="text-xs text-[#8991A0] mt-1.5">Pulled-out assets are moved to Storage Room.</p>
+            class="w-full px-3.5 py-2.5 border border-[#DED2AE] rounded-lg bg-[#F5F0E2] text-[#33425C] text-sm cursor-not-allowed" id="destination">
+        <p class="text-xs text-[#5C6474] mt-1.5">Pulled-out assets are moved to Storage Room.</p>
     </div>
 
     <div>
-        <label class="block text-sm font-medium text-[#33425C] mb-1.5">Additional Notes</label>
+        <label class="block text-sm font-medium text-[#33425C] mb-1.5" for="notes">Additional Notes</label>
         <textarea name="notes" rows="3" placeholder="Any additional information about the pullout..."
-            class="w-full px-3.5 py-2.5 border border-[#CFC4A4] rounded-lg text-sm focus:outline-none focus:border-[#C9A227] focus:ring-2 focus:ring-[#F3E7C4] transition-shadow resize-none"></textarea>
+            class="w-full px-3.5 py-2.5 border border-[#CFC4A4] rounded-lg text-sm focus:outline-none focus:border-[#C9A227] focus:ring-2 focus:ring-[#F3E7C4] transition-shadow resize-none" id="notes"></textarea>
     </div>
 
     <div id="bulkPulloutAssetSummary" class="p-3.5 bg-[#F5F0E2] border border-[#DED2AE] rounded-lg text-sm text-[#33425C]"></div>
@@ -409,18 +409,18 @@
     <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div class="px-6 py-5 border-b border-[#EFE9D8] flex justify-between items-center">
             <h3 class="text-lg font-bold text-[#0F2143]">Asset Details</h3>
-            <button type="button" onclick="closeAssetModal()" class="text-[#8991A0] hover:text-[#33425C] hover:bg-[#EFE9D8] w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+            <button type="button" onclick="closeAssetModal()" class="text-[#5C6474] hover:text-[#33425C] hover:bg-[#EFE9D8] w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                 <i class="ri-close-line text-xl"></i>
             </button>
         </div>
         <div class="p-6">
             <div class="flex mb-6 pb-6 border-b border-[#EFE9D8]">
                 <div class="w-16 h-16 bg-[#F3E7C4] rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="ri-computer-line text-2xl text-[#A8841E]"></i>
+                    <i class="ri-computer-line text-2xl text-[#7E5E0E]"></i>
                 </div>
                 <div class="ml-4">
                     <h4 class="text-lg font-bold text-[#0F2143]" id="modalAssetName">—</h4>
-                    <p class="text-xs text-[#8991A0] font-mono mt-0.5" id="modalAssetId">—</p>
+                    <p class="text-xs text-[#5C6474] font-mono mt-0.5" id="modalAssetId">—</p>
                     <span id="modalStatus" class="inline-flex items-center px-2.5 py-1 mt-2 rounded-full text-xs font-medium bg-[#EAF4EE] text-[#245C3B] ring-1 ring-inset ring-[#CFE3D4]">
                         Active
                     </span>
@@ -469,7 +469,7 @@
     <div class="modal-panel bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4">
         <div class="px-6 py-5 border-b border-[#EFE9D8] flex justify-between items-center">
             <h3 class="text-lg font-bold text-[#0F2143]">Asset QR Code</h3>
-            <button type="button" onclick="closeQRModal()" class="text-[#8991A0] hover:text-[#33425C] hover:bg-[#EFE9D8] w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+            <button type="button" onclick="closeQRModal()" class="text-[#5C6474] hover:text-[#33425C] hover:bg-[#EFE9D8] w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                 <i class="ri-close-line text-xl"></i>
             </button>
         </div>

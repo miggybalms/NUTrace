@@ -56,9 +56,9 @@
             @include('admin.partials.sidebar')
         @endif
 
-        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             @yield('content')
-        </div>
+        </main>
     </div>
 </body>
 </html>

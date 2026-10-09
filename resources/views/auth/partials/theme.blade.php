@@ -25,6 +25,12 @@
         --gold-400: #E0BC44;
         --gold-600: #A8841E;
         --gold-100: #F3E7C4;
+        /* Gold used as text on the white card. --gold-600 (#A8841E) is the
+           decorative gold and only reaches 3.5:1 on white, and --gold-text
+           (#E9C766) is the sidebar gold at 1.6:1, so anything that has to be
+           read on a light surface uses this darker step instead (6.0:1 on
+           white, 5.2:1 on the warm paper). */
+        --gold-ink: #7E5E0E;
         --gold-text: #E9C766;
         --ink-900: #24334F;
         --ink-600: #5B6678;
@@ -110,7 +116,7 @@
     }
     .step-desc { color: var(--ink-600); font-size: .9rem; line-height: 1.55; margin-bottom: 1.5rem; }
     /* The email address shown back to the user (verify / forgot screens) */
-    .step-desc strong { color: var(--gold-text); font-weight: 600; word-break: break-all; }
+    .step-desc strong { color: var(--gold-ink); font-weight: 600; word-break: break-all; }
 
     /* ---------- Form ---------- */
     .form-group { margin-bottom: 1.15rem; }
@@ -177,11 +183,11 @@
         transform: translateY(-50%);
         display: flex; align-items: center; justify-content: center;
         background: none; border: none; border-radius: 8px;
-        color: var(--ink-400); font-size: 1.15rem;
+        color: var(--ink-600); font-size: 1.15rem;
         padding: .4rem; cursor: pointer;
         transition: color .15s ease, background .15s ease;
     }
-    .password-toggle:hover { color: var(--gold-600); background: var(--paper-2); }
+    .password-toggle:hover { color: var(--gold-ink); background: var(--paper-2); }
 
     /* ---------- Buttons ---------- */
     .btn-row { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.5rem; }
@@ -227,7 +233,7 @@
     .forgot,
     .login-link,
     .register-link {
-        color: var(--gold-600);
+        color: var(--gold-ink);
         font-size: .875rem;
         font-weight: 600;
         text-decoration: none;
@@ -258,7 +264,7 @@
         background: none;
         border: none;
         padding: 0;
-        color: var(--gold-text);
+        color: var(--gold-ink);
         font-family: inherit;
         font-size: .85rem;
         font-weight: 600;

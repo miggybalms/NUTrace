@@ -18,9 +18,9 @@
 
         :root{
             --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-            --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+            --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
             --paper:#F3EEE0; --paper-2:#EAE2C9;
-            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+            --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
             --line:#DED2AE;
             --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
             --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -158,7 +158,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <!-- Header (shared admin header) -->
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'repair',
@@ -261,7 +261,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- New Repair Request Modal -->
@@ -272,7 +272,7 @@
                     <h3 class="font-display text-lg font-semibold text-white">New Repair Request</h3>
                     <p class="text-xs mt-0.5" style="color:var(--gold-100);">Log an issue for an asset that needs attention</p>
                 </div>
-                <button onclick="closeNewRepairModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeNewRepairModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -280,7 +280,7 @@
                 @csrf
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);">Select Asset <span style="color:var(--brick);">*</span></label>
+                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);" for="asset-id">Select Asset <span style="color:var(--brick);">*</span id="asset-id"></label>
                         <select name="asset_id" required class="form-input">
                         <option value="">Select asset...</option>
                         @foreach($availableAssets ?? [] as $asset)
@@ -291,12 +291,12 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);">Issue Description <span style="color:var(--brick);">*</span></label>
+                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);" for="issue-description">Issue Description <span style="color:var(--brick);" id="issue-description">*</span></label>
                         <textarea name="issue_description" rows="4" required placeholder="Describe the issue in detail..." class="form-input resize-none"></textarea>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);">Priority <span style="color:var(--brick);">*</span></label>
+                            <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);" for="priority">Priority <span style="color:var(--brick);">*</span id="priority"></label>
                             <select name="priority" required class="form-input">
                                 <option value="low">Low - Can wait</option>
                                 <option value="medium">Medium - Needs attention soon</option>
@@ -305,8 +305,8 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);">Requested By</label>
-                            <input type="text" name="requested_by" placeholder="Name of person requesting repair" class="form-input">
+                            <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);" for="requested-by">Requested By</label>
+                            <input type="text" name="requested_by" placeholder="Name of person requesting repair" class="form-input" id="requested-by">
                         </div>
                     </div>
                     <div>
@@ -332,7 +332,7 @@
         <div class="modal-panel rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
             <div class="modal-head px-6 py-5 flex justify-between items-center sticky top-0 z-10">
                 <h3 class="font-display text-lg font-semibold text-white">Repair Request Details</h3>
-                <button onclick="closeViewRepairModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeViewRepairModal()" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -353,7 +353,7 @@
             switch (priority) {
                 case 'critical': return 'background:var(--brick-tint); color:var(--brick-dark);';
                 case 'high': return 'background:var(--bronze-tint); color:var(--bronze-dark);';
-                case 'medium': return 'background:var(--gold-100); color:var(--gold-600);';
+                case 'medium': return 'background:var(--gold-100); color:var(--gold-ink);';
                 case 'low': return 'background:var(--forest-tint); color:var(--forest-dark);';
                 default: return 'background:var(--paper-2); color:var(--ink-600);';
             }
@@ -626,25 +626,25 @@
                             <div class="space-y-3">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Technician / Provider <span style="color:var(--brick);">*</span></label>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="svc-technician-${repair.id}">Technician / Provider <span style="color:var(--brick);">*</span></label>
                                         <input type="text" id="svc-technician-${repair.id}" class="form-input text-sm" placeholder="e.g., ABC Repair Services" value="${repair.technician ?? ''}">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Expected Completion Date</label>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="svc-expected-${repair.id}">Expected Completion Date</label>
                                         <input type="date" id="svc-expected-${repair.id}" class="form-input text-sm" value="${repair.expected_completion ?? ''}">
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Repair Description</label>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="svc-description-${repair.id}">Repair Description</label>
                                     <textarea id="svc-description-${repair.id}" rows="2" class="form-input text-sm resize-none" placeholder="What is expected to be performed...">${repair.issue ?? ''}</textarea>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Estimated / Initial Repair Cost</label>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="svc-estimated-${repair.id}">Estimated / Initial Repair Cost</label>
                                         <input type="number" step="0.01" min="0" id="svc-estimated-${repair.id}" class="form-input text-sm" placeholder="0.00" value="${repair.estimated_cost ?? ''}">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Initial Admin Remarks</label>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="svc-remarks-${repair.id}">Initial Admin Remarks</label>
                                         <input type="text" id="svc-remarks-${repair.id}" class="form-input text-sm" placeholder="Initial assessment notes..." value="${repair.admin_remarks ?? ''}">
                                     </div>
                                 </div>
@@ -667,20 +667,20 @@
                             <div class="space-y-3">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Parts Replaced</label>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="done-parts-${repair.id}">Parts Replaced</label>
                                         <input type="text" id="done-parts-${repair.id}" class="form-input text-sm" placeholder="e.g., Office Chair Wheel" value="${repair.parts_replaced ?? ''}">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Actual Repair Cost</label>
+                                        <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="done-cost-${repair.id}">Actual Repair Cost</label>
                                         <input type="number" step="0.01" min="0" id="done-cost-${repair.id}" class="form-input text-sm" placeholder="0.00" value="${repair.actual_cost ?? repair.estimated_cost ?? ''}">
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Inspection Findings</label>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="done-findings-${repair.id}">Inspection Findings</label>
                                     <textarea id="done-findings-${repair.id}" rows="2" class="form-input text-sm resize-none" placeholder="e.g., Damaged wheel assembly">${repair.inspection_findings ?? ''}</textarea>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);">Admin Remarks</label>
+                                    <label class="block text-xs font-medium mb-1" style="color:var(--ink-600);" for="done-remarks-${repair.id}">Admin Remarks</label>
                                     <textarea id="done-remarks-${repair.id}" rows="2" class="form-input text-sm resize-none" placeholder="e.g., Replacement wheel installed and tested.">${repair.admin_remarks ?? ''}</textarea>
                                 </div>
                                 <div>
@@ -699,7 +699,7 @@
                                             <span><b>Beyond Repair</b><br/><span class="text-xs" style="color:var(--ink-400);">Proceed to disposal / replacement</span></span>
                                         </label>
                                     </div>
-                                    <div id="lifecycle-hint-${repair.id}" class="hidden mt-2 rounded-lg p-3 text-xs" style="background:var(--gold-100); color:var(--gold-600);"></div>
+                                    <div id="lifecycle-hint-${repair.id}" class="hidden mt-2 rounded-lg p-3 text-xs" style="background:var(--gold-100); color:var(--gold-ink);"></div>
                                 </div>
                                 <div class="flex flex-col sm:flex-row gap-2 pt-1">
                                     <button onclick="completeRepair(${repair.id})" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors" style="background:var(--forest); color:#fff;">

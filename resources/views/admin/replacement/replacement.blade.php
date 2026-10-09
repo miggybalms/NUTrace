@@ -7,9 +7,9 @@
 <style>
     :root{
         --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
-        --gold-500:#C9A227; --gold-600:#A8841E; --gold-100:#F3E7C4;
+        --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
         --paper:#F3EEE0; --paper-2:#EAE2C9;
-        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#8991A0;
+        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474;
         --line:#DED2AE;
         --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
         --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
@@ -71,7 +71,7 @@
                 <div class="flex items-center justify-between mb-1">
                     <p class="eyebrow">Approved</p>
                     <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--gold-100);">
-                        <i class="ri-checkbox-circle-line" style="color:var(--gold-600);"></i>
+                        <i class="ri-checkbox-circle-line" style="color:var(--gold-ink);"></i>
                     </div>
                 </div>
                 <p class="text-3xl font-bold mt-1" style="color:var(--navy-900);">{{ $approvedReplacements ?? 0 }}</p>
@@ -164,7 +164,7 @@
                                         onclick='openLinkModal({{ $linkId }}, @json($oldName), @json($oldCat), @json($oldLoc))'
                                         class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                                         style="border:1px dashed var(--line); color:var(--ink-400);"
-                                        onmouseover="this.style.borderColor='var(--gold-500)'; this.style.color='var(--gold-600)'; this.style.background='var(--gold-100)'"
+                                        onmouseover="this.style.borderColor='var(--gold-500)'; this.style.color='var(--gold-ink)'; this.style.background='var(--gold-100)'"
                                         onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink-400)'; this.style.background='transparent'">
                                         <i class="ri-link mr-1"></i>
                                         Link new asset
@@ -220,7 +220,7 @@
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
                                     style="
                                     @if($replacement->status == 'Pending') background:var(--bronze-tint); color:var(--bronze-dark);
-                                    @elseif($replacement->status == 'Approved') background:var(--gold-100); color:var(--gold-600);
+                                    @elseif($replacement->status == 'Approved') background:var(--gold-100); color:var(--gold-ink);
                                     @elseif($replacement->status == 'Received') background:var(--forest-tint); color:var(--forest-dark);
                                     @else background:var(--paper-2); color:var(--ink-600);
                                     @endif">
@@ -358,7 +358,7 @@
         <div class="modal-panel rounded-2xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" style="background:#fff;">
             <div class="modal-head px-6 py-5 flex justify-between items-center sticky top-0 z-10">
                 <h3 class="font-display text-lg font-semibold text-white">Replacement Details</h3>
-                <button onclick="closeModal('viewModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeModal('viewModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -472,7 +472,7 @@
         <div class="modal-panel rounded-2xl shadow-xl max-w-sm w-full mx-4" style="background:#fff;">
             <div class="modal-head px-6 py-5 flex justify-between items-center">
                 <h3 class="font-display text-lg font-semibold text-white">Approve Replacement</h3>
-                <button onclick="closeModal('approveModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                <button onclick="closeModal('approveModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors" aria-label="Close">
                     <i class="ri-close-line text-xl"></i>
                 </button>
             </div>
@@ -485,9 +485,9 @@
                         <p class="text-sm" style="color:var(--forest-dark);">Approving this request will allow you to create and link a new asset for this replacement.</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);">Notes (optional)</label>
+                        <label class="block text-sm font-medium mb-1.5" style="color:var(--ink-600);" for="notes">Notes (optional)</label>
                         <textarea name="notes" rows="3" placeholder="Add any notes about this approval..."
-                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm resize-none"></textarea>
+                            class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm resize-none" id="notes"></textarea>
                     </div>
                     <input type="hidden" name="status" value="Approved"/>
                     <input type="hidden" name="Approve_by" value="{{ Auth::user()->display_name }}"/>
@@ -514,7 +514,7 @@
                             <h3 class="font-display text-lg font-semibold text-white">Create &amp; Link New Asset</h3>
                             <p class="text-xs mt-0.5" style="color:var(--gold-100);">Pre-filled from old asset — edit as needed, then create</p>
                         </div>
-                        <button type="button" onclick="closeModal('linkModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center">
+                        <button type="button" onclick="closeModal('linkModal')" class="text-white/60 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center" aria-label="Close">
                             <i class="ri-close-line text-xl"></i>
                         </button>
                     </div>
@@ -534,7 +534,7 @@
                                 <button type="button" onclick="regenerateCode()"
                                     class="px-3 py-1.5 text-xs font-medium rounded-lg transition"
                                     style="border:1px solid var(--line); background:#fff; color:var(--ink-600);"
-                                    onmouseover="this.style.borderColor='var(--gold-500)'; this.style.color='var(--gold-600)'"
+                                    onmouseover="this.style.borderColor='var(--gold-500)'; this.style.color='var(--gold-ink)'"
                                     onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink-600)'">
                                     <i class="ri-refresh-line mr-1"></i> Regenerate code
                                 </button>
@@ -575,12 +575,12 @@
                                 {{-- Prefilled fields --}}
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div class="sm:col-span-2">
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Asset Name <span style="color:var(--brick);">*</span></label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_asset_name">Asset Name <span style="color:var(--brick);">*</span></label>
                                         <input type="text" name="Asset_name" id="link_asset_name" required
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                             <div>
-                                                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Category</label>
+                                                <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_category_display">Category</label>
                                                     <input type="text" id="link_category_display" value="" readonly
                                                         class="w-full px-3.5 py-2.5 rounded-lg text-sm cursor-not-allowed" style="border:1px solid var(--line); background:var(--paper-2); color:var(--ink-600);">
                                                     <input type="hidden" name="Category" id="link_category" value="">
@@ -592,42 +592,42 @@
                                             <input type="hidden" name="Condition" id="link_condition" value="New">
                                         </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Location</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_location">Location</label>
                                         <input type="text" name="asset_location" id="link_location"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Serial Number</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_serial">Serial Number</label>
                                         <input type="text" name="serial_Number" id="link_serial"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Purchase Price</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_price">Purchase Price</label>
                                         <input type="number" step="0.01" name="purchase_Price" id="link_price"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Acquisition Date</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_acquired">Acquisition Date</label>
                                         <input type="date" name="accusion_date" id="link_acquired"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Supplier</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_supplier">Supplier</label>
                                         <input type="text" name="supplier" id="link_supplier"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Warranty (months)</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_warranty">Warranty (months)</label>
                                         <input type="number" name="warranty_months" id="link_warranty" value="12"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Lifespan (months)</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_lifespan">Lifespan (months)</label>
                                         <input type="number" name="lifespan_months" id="link_lifespan"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);">Maintenance Interval (months)</label>
+                                        <label class="block text-sm font-medium mb-1" style="color:var(--ink-600);" for="link_interval">Maintenance Interval (months)</label>
                                         <input type="number" name="maintenance_interval" id="link_interval"
                                             class="form-input w-full px-3.5 py-2.5 rounded-lg text-sm">
                                     </div>
@@ -643,7 +643,7 @@
                                             <div class="space-y-1 text-center">
                                                 <i class="ri-image-line text-3xl mb-1 block" style="color:var(--ink-400);"></i>
                                                 <div class="flex text-sm justify-center" style="color:var(--ink-600);">
-                                                    <span class="font-medium" style="color:var(--gold-600);">Upload a file</span>
+                                                    <span class="font-medium" style="color:var(--gold-ink);">Upload a file</span>
                                                     <p class="pl-1">or drag and drop</p>
                                                 </div>
                                                 <p class="text-xs" style="color:var(--ink-400);">PNG, JPG, GIF, WEBP up to 10MB</p>

@@ -70,7 +70,7 @@
         @include('users.partials.sidebar', ['currentUser' => $user])
 
         <!-- Main Content -->
-        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             @include('layouts.user_header', [
                 'title' => 'Dashboard',
@@ -192,7 +192,7 @@
                                             @else bg-[#FBF1DE]
                                             @endif flex items-center justify-center">
                                             <i class="
-                                                @if($request->type == 'new_asset') ri-add-line text-[#A8841E]
+                                                @if($request->type == 'new_asset') ri-add-line text-[#7E5E0E]
                                                 @elseif($request->type == 'repair') ri-tools-line text-[#A23B32]
                                                  @else ri-archive-drawer-line text-[#B4791E]
                                                 @endif"></i>
@@ -203,7 +203,7 @@
                                         </div>
                                     </div>
                                     <div class="text-right flex-shrink-0">
-                                        <span class="text-xs text-[#8991A0]">{{ $request->created_at->diffForHumans() }}</span>
+                                        <span class="text-xs text-[#5C6474]">{{ $request->created_at->diffForHumans() }}</span>
                                         <div class="mt-1">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                                                 @if($request->status == 'pending') bg-[#FBF1DE] text-[#8F5F16]
@@ -223,7 +223,7 @@
                                     <i class="ri-inbox-line text-2xl text-[#C9A227]"></i>
                                 </div>
                                 <p class="text-[#5B6678]">No recent requests</p>
-                                <p class="text-xs text-[#8991A0] mt-1">Submit a request to get started</p>
+                                <p class="text-xs text-[#5C6474] mt-1">Submit a request to get started</p>
                             </div>
                         @endif
                     </div>
@@ -234,7 +234,7 @@
                     © 2026 University Asset Management. All rights reserved.
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Notifications Polling + Toast -->
