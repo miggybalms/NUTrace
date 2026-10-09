@@ -38,13 +38,13 @@
     <div class="flex h-screen overflow-hidden">
         @include('users.partials.sidebar')
 
-        <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             <div class="topbar sticky top-0 z-10">
                 <div class="px-8 py-5">
                     <div class="flex items-center">
-                        <a href="{{ route('user.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] mr-4">
-                            <i class="ri-arrow-left-line text-xl"></i>
+                        <a href="{{ route('user.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] mr-4" aria-label="Back to my requests">
+                            <i class="ri-arrow-left-line text-xl" aria-hidden="true"></i>
                         </a>
                         <div>
                             <h2 class="brand-title text-2xl font-semibold text-[#0F2143]">Submit Request</h2>
@@ -80,7 +80,7 @@
                     <!-- Request Type -->
                     <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-[#33425C] mb-2">
+                            <label class="block text-sm font-medium text-[#33425C] mb-2" for="request_type">
                                 Request Type <span class="text-[#A23B32]">*</span>
                             </label>
                             <select name="request_type" id="request_type" required
@@ -95,7 +95,7 @@
                         </div>
 
                         <div id="transferAssignBlock" class="mb-4 hidden">
-                            <label class="block text-sm font-medium text-[#33425C] mb-2">Assign To (new owner)</label>
+                            <label class="block text-sm font-medium text-[#33425C] mb-2" for="assign_to_user_id">Assign To (new owner)</label>
                             <select name="assign_to_user_id" id="assign_to_user_id"
                                     class="form-select w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                                 <option value="">Select user to assign</option>
@@ -103,7 +103,7 @@
                                     <option value="{{ $u->id }}">{{ $u->Full_Name }} @if(!empty($u->department)) — {{ $u->department }} @endif</option>
                                 @endforeach
                             </select>
-                            <p class="text-xs text-[#8991A0] mt-1">Choose who should become the new owner if this is a transfer.</p>
+                            <p class="text-xs text-[#5C6474] mt-1">Choose who should become the new owner if this is a transfer.</p>
                         </div>
                     </div>
 
@@ -145,7 +145,7 @@
                             <div id="draft-list" class="divide-y divide-[#EFE9D8] max-h-72 overflow-y-auto">
                                 <!-- filled by JS -->
                             </div>
-                            <div id="empty-draft" class="px-4 py-8 text-center text-[#8991A0] text-sm">
+                            <div id="empty-draft" class="px-4 py-8 text-center text-[#5C6474] text-sm">
                                 <i class="ri-inbox-line text-3xl mb-2 block"></i>
                                 No assets added yet. Scan a QR code or enter an Asset Code above.
                             </div>
@@ -157,17 +157,17 @@
 
                     <!-- Reason / Notes -->
                     <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-6">
-                        <label class="block text-sm font-medium text-[#33425C] mb-2">
+                        <label class="block text-sm font-medium text-[#33425C] mb-2" for="notes-input">
                             Reason / Notes / Specific Instructions <span class="text-[#A23B32]">*</span>
                         </label>
                         <textarea name="notes" id="notes-input" rows="5" required maxlength="500"
                                   placeholder="Please describe your concerns, reason for the request, or any specific instructions..."
                                   class="form-textarea w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">{{ old('notes') }}</textarea>
                         <div class="flex items-center justify-between gap-3 mt-2">
-                            <p class="text-xs text-[#8991A0]">
+                            <p class="text-xs text-[#5C6474]">
                                 Explain the problem, reason or any specific instructions. Maximum 500 characters.
                             </p>
-                            <span id="notes-counter" class="text-xs font-medium text-[#8991A0] whitespace-nowrap">0 / 500 characters</span>
+                            <span id="notes-counter" class="text-xs font-medium text-[#5C6474] whitespace-nowrap">0 / 500 characters</span>
                         </div>
                     </div>
 
@@ -178,9 +178,9 @@
                         </label>
                         <div class="upload-area border-2 border-dashed border-[#CFC4A4] rounded-lg p-6 text-center cursor-pointer"
                              onclick="document.getElementById('photo-upload').click()">
-                            <i class="ri-image-line text-3xl text-[#8991A0] mb-2 block"></i>
+                            <i class="ri-image-line text-3xl text-[#5C6474] mb-2 block"></i>
                             <p class="text-sm text-[#46536B]">Click to upload or drag and drop</p>
-                            <p class="text-xs text-[#8991A0] mt-1">PNG, JPG up to 10MB</p>
+                            <p class="text-xs text-[#5C6474] mt-1">PNG, JPG up to 10MB</p>
                             <input type="file" id="photo-upload" name="attachment" class="hidden" accept="image/*" onchange="previewPhoto(this)">
                         </div>
                         <div id="photo-preview" class="mt-3 hidden">
@@ -207,7 +207,7 @@
                     © 2026 University Asset Management
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -440,7 +440,7 @@
             const length = notesInput.value.length;
             notesCounter.textContent = `${length} / ${NOTES_MAX} characters`;
             notesCounter.classList.toggle('text-[#A23B32]', length >= NOTES_MAX);
-            notesCounter.classList.toggle('text-[#8991A0]', length < NOTES_MAX);
+            notesCounter.classList.toggle('text-[#5C6474]', length < NOTES_MAX);
         }
 
         if (notesInput) {
