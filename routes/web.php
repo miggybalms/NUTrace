@@ -2891,10 +2891,15 @@ Route::get('/admin/requests', function () {
     }
 
     // Pending requests stay on top — they are the only rows that carry the
-    // Approve / Reject actions — then newest first, 15 rows per page.
+    // Approve / Reject actions — oldest waiting first, so the request that has
+    // been sitting in the queue longest is the first row. Decided requests
+    // follow, newest first. 15 rows per page.
     $requests = $requests
         ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.created_at END ASC', ['pending'])
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
         ->orderByDesc('requests.created_at')
+        ->orderByDesc('requests.id')
         ->paginate(15)
         ->withQueryString();
 
@@ -6070,12 +6075,16 @@ Route::get('/user/requests', function (Request $request) {
             });
         }
 
-        // Pending requests stay pinned to the top of every page, newest first
-        // inside each group, so a request waiting on the office is never buried
-        // under already-decided ones.
+        // Pending requests stay pinned to the top of every page — oldest
+        // waiting first, so the one that has been pending longest is the first
+        // row — and already-decided requests follow, newest first, so a request
+        // waiting on the office is never buried under decided ones.
         $requests = $query
             ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+            ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.created_at END ASC', ['pending'])
+            ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
             ->orderByDesc('requests.created_at')
+            ->orderByDesc('requests.id')
             ->paginate(15)
             ->withQueryString();
 
@@ -6223,10 +6232,14 @@ if ($search !== '') {
 }
 
     // Pending requests first (they are the ones the head still has to act on),
-    // newest first inside each group.
+    // oldest waiting first inside that group; decided requests follow, newest
+    // first.
     $requests = $query
         ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.created_at END ASC', ['pending'])
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
         ->orderByDesc('requests.created_at')
+        ->orderByDesc('requests.id')
         ->paginate(15)
         ->withQueryString();   // ← keeps ?status= & ?q= on pagination links
 

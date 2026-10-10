@@ -14,7 +14,8 @@ use Tests\TestCase;
  *
  *   1. a request list is paged — 15 rows per page, never "page 1 shows nothing"
  *   2. a Pending request is always on top (it is the only one still waiting on
- *      the Asset Management Office, and the only one with Approve / Reject)
+ *      the Asset Management Office, and the only one with Approve / Reject),
+ *      and the one that has been waiting longest is the first row
  *   3. each role keeps its own pages: the employee never lands on the
  *      department-head form (or the other way round), and an empty list links to
  *      that role's own "submit a request" page instead of a URL that 404s.
@@ -119,6 +120,8 @@ class RequestPagesTest extends TestCase
     {
         // The pending ones are deliberately the OLDEST, so "pending first" can
         // only come from the status ordering, not from the date ordering.
+        // They are built oldest-first, which is also the order they must be
+        // listed in: the longest-waiting request is the first row.
         $pending = [];
         for ($i = 0; $i < 8; $i++) {
             $pending[] = $this->makeRequest($this->employee, 'Pending', now()->subDays(30 - $i));
@@ -134,12 +137,12 @@ class RequestPagesTest extends TestCase
         $ids = $this->adminRowIds($page1->getContent());
         $this->assertCount(15, $ids, 'the admin request table must be 15 rows per page');
 
-        // 8 pending (newest first), then the 7 newest approved.
+        // 8 pending (oldest waiting first), then the 7 newest approved.
         $expected = array_merge(
-            array_reverse($pending),
+            $pending,
             array_slice(array_reverse($approved), 0, 7)
         );
-        $this->assertSame($expected, $ids, 'pending requests must sit above decided ones');
+        $this->assertSame($expected, $ids, 'pending requests must sit above decided ones, longest wait first');
 
         $page1->assertSee('Showing 1–15')
             ->assertSee('of 28 requests')
@@ -169,6 +172,46 @@ class RequestPagesTest extends TestCase
         $this->assertCount(13, $rest);
         $this->assertSame(array_slice(array_reverse($approved), 7), $rest);
         $this->assertSame([], array_intersect($ids, $rest), 'no request may appear on two pages');
+    }
+
+    /**
+     * The order the office asked for: the request that has been pending longest
+     * is the top row, and everything already decided follows it, newest first.
+     *
+     * The dates are interleaved, so neither half of that order can be produced
+     * by a single date ordering on its own.
+     */
+    public function test_the_longest_waiting_pending_request_is_the_first_row(): void
+    {
+        $oldestPending = $this->makeRequest($this->employee, 'Pending', now()->subDays(9));
+        $olderApproved = $this->makeRequest($this->employee, 'Approved', now()->subDays(7));
+        $middlePending = $this->makeRequest($this->employee, 'Pending', now()->subDays(5));
+        $newerApproved = $this->makeRequest($this->employee, 'Approved', now()->subDays(3));
+        $newestPending = $this->makeRequest($this->employee, 'Pending', now()->subDay());
+
+        // Three pending rows oldest-first, then the two decided ones newest-first.
+        $expected = [$oldestPending, $middlePending, $newestPending, $newerApproved, $olderApproved];
+
+        $ids = $this->adminRowIds(
+            $this->actingAs($this->admin)->get('/admin/requests')->assertOk()->getContent()
+        );
+
+        $this->assertSame(
+            $expected,
+            $ids,
+            'pending rows read oldest-waiting-first; decided rows read newest-first'
+        );
+
+        // The same rule on the two user-side lists.
+        $headIds = $this->cardIds(
+            $this->actingAs($this->head)->get('/department-head/requests')->assertOk()->getContent()
+        );
+        $this->assertSame($expected, $headIds);
+
+        $employeeIds = $this->cardIds(
+            $this->actingAs($this->employee)->get('/user/requests')->assertOk()->getContent()
+        );
+        $this->assertSame($expected, $employeeIds);
     }
 
     public function test_the_admin_status_tabs_filter_before_the_page_is_cut(): void
@@ -217,7 +260,7 @@ class RequestPagesTest extends TestCase
 
         $this->assertCount(15, $ids, 'the department head list must be 15 per page');
         $this->assertSame(
-            array_merge(array_reverse($own), array_slice(array_reverse($approved), 0, 9)),
+            array_merge($own, array_slice(array_reverse($approved), 0, 9)),
             $ids
         );
         $this->assertNotContains($foreign, $ids);
@@ -248,7 +291,7 @@ class RequestPagesTest extends TestCase
 
         $this->assertCount(15, $ids);
         $this->assertSame(
-            array_merge(array_reverse($pending), array_slice(array_reverse($approved), 0, 10)),
+            array_merge($pending, array_slice(array_reverse($approved), 0, 10)),
             $ids
         );
         $this->assertNotContains($foreign, $ids);
