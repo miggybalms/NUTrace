@@ -169,18 +169,25 @@
                 <!-- Tabs -->
                 <div class="panel rounded-t-xl mb-0">
                     <div class="flex space-x-6 sm:space-x-8 px-4 sm:px-6 pt-4 overflow-x-auto scrollbar-hide">
-                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="all">
-                            All Requests
-                        </button>
-                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="pending">
-                            Pending
-                        </button>
-                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="approved">
-                            Approved
-                        </button>
-                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="rejected">
-                            Rejected
-                        </button>
+                        @php
+                            $activeTab = strtolower(trim((string) request('tab', 'all')));
+                            if (! in_array($activeTab, ['all', 'pending', 'approved', 'rejected'], true)) {
+                                $activeTab = 'all';
+                            }
+                            $requestTabs = [
+                                'all'      => 'All Requests',
+                                'pending'  => 'Pending',
+                                'approved' => 'Approved',
+                                'rejected' => 'Rejected',
+                            ];
+                        @endphp
+                        @foreach($requestTabs as $tabKey => $tabLabel)
+                            <a href="{{ request()->fullUrlWithQuery(['tab' => $tabKey, 'page' => 1]) }}"
+                               class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap {{ $activeTab === $tabKey ? 'tab-active' : 'text-[#5C6474]' }}"
+                               style="{{ $activeTab === $tabKey ? '' : 'color:var(--ink-400);' }}">
+                                {{ $tabLabel }}
+                            </a>
+                        @endforeach
                     </div>
                 </div>
 
@@ -263,6 +270,18 @@
                                     @endforelse
                                 </tbody>
                             </table>
+                        </div>
+
+                        {{-- 15 requests per page, pending ones first --}}
+                        <div class="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                             style="border-top:1px solid var(--line);">
+                            <p class="text-xs" style="color:var(--ink-400);">
+                                Showing {{ $requests->firstItem() ?? 0 }}–{{ $requests->lastItem() ?? 0 }}
+                                of {{ $requests->total() }} requests
+                            </p>
+                            @if($requests->hasPages())
+                                <div class="overflow-x-auto scrollbar-hide">{{ $requests->links() }}</div>
+                            @endif
                         </div>
                     </div>
 
@@ -541,7 +560,7 @@
         URL.revokeObjectURL(url);
     }
         // Sample requests data (replace with your actual data from Laravel)
-        const requestsData = @json($requests ?? []);
+        const requestsData = @json($requests?->items() ?? []);
         let currentSelectedRequestId = null;
 
         function selectRequest(requestId) {
@@ -937,58 +956,9 @@
             }
         }
         
-        // Tab functionality
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const tab = this.dataset.tab;
-                
-                // Update active tab styling
-                document.querySelectorAll('.tab-btn').forEach(b => {
-                    b.classList.remove('tab-active');
-                    b.style.color = 'var(--ink-400)';
-                });
-                this.classList.add('tab-active');
-                this.style.color = '';
-                
-                // Filter table rows
-                filterRequests(tab);
-            });
-        });
-        
- function filterRequests(status) {
-    const rows = document.querySelectorAll('#requests-table-body tr');
-    
-    rows.forEach(row => {
-        // Skip the empty-state row
-        if (!row.querySelector('td')) return;
-
-        // Status is in the 6th column
-        const statusCell = row.querySelector('td:nth-child(6) .status-badge');
-        
-        if (statusCell) {
-            const rowStatus = statusCell.textContent.trim().toLowerCase();
-            
-            if (status === 'all' || rowStatus === status) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        }
-    });
-}
-        
-        // Read `tab` from query parameters and set initial active tab (defaults to 'all')
-        (function() {
-            const params = new URLSearchParams(window.location.search);
-            const initialTab = params.get('tab') || 'all';
-            const btn = document.querySelector(`.tab-btn[data-tab="${initialTab}"]`) || document.querySelector('.tab-btn[data-tab="all"]') || document.querySelector('.tab-btn');
-            if (btn) {
-                document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('tab-active'); b.style.color = 'var(--ink-400)'; });
-                btn.classList.add('tab-active');
-                btn.style.color = '';
-            }
-            filterRequests(initialTab);
-        })();
+        // The status tabs are ordinary links (?tab=pending&page=1): the server
+        // filters and paginates, so a tab always shows real rows instead of
+        // hiding the few rows that happen to be on the current page.
 
         // Escape closes whichever modal is open
         document.addEventListener('keydown', function (e) {

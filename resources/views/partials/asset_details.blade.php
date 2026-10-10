@@ -177,9 +177,6 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                         <h3 class="font-semibold text-[#0F2143]">Repair Status: {{ $openRepair->status }}</h3>
-                        <span class="text-xs font-medium px-2.5 py-1 rounded-full {{ $repairClass($openRepair->status) }}">
-                            Repair #{{ $openRepair->Repair_id }}
-                        </span>
                     </div>
                     <p class="text-sm text-[#5B6678] mt-1">
                         @if($openRepair->status === 'In Progress')
@@ -447,7 +444,10 @@
                             <div class="p-5 sm:p-6">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div>
-                                        <p class="text-sm font-semibold text-[#0F2143]">Repair #{{ $repair['id'] }}</p>
+                                        {{-- No internal Repair_id here: it means nothing to the
+                                             owner of the asset. The date and the reported problem
+                                             below identify the entry. --}}
+                                        <p class="text-sm font-semibold text-[#0F2143]">Repair record</p>
                                         <p class="text-xs text-[#5B6678] mt-0.5">
                                             {{ $repair['date'] ? $repair['date']->format('M d, Y · h:i A') : '—' }}
                                         </p>
@@ -663,7 +663,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     (function () {
-        // ── QR code: prefer the stored image, fall back to drawing it live ──
+        // ── QR code ──
+        // The code is drawn in the browser from the asset code this page shows,
+        // so the picture always encodes the *current* code — exactly the string
+        // the "Scan QR" lookup (assets.Asset_code) matches on. The high error
+        // correction level keeps it readable straight off a screen. The stored
+        // PNG is only used when the asset has no code to draw at all.
         var storedQrUrl = @json($details['qrUrl']);
         var assetCode   = @json($asset->Asset_code);
         var qrInstance  = null;
@@ -675,18 +680,12 @@
             if (!holder || !modal) return;
 
             if (!qrRendered) {
-                holder.innerHTML = '';
-
-                if (storedQrUrl) {
-                    var img = document.createElement('img');
-                    img.src = storedQrUrl;
-                    img.alt = 'QR Code';
-                    img.className = 'w-[220px] h-[220px] object-contain';
-                    img.onerror = function () { drawQr(holder); };
-                    holder.appendChild(img);
-                    qrRendered = true;
-                } else {
+                if (assetCode) {
                     drawQr(holder);
+                    qrRendered = true;
+                } else if (storedQrUrl) {
+                    showStoredQr(holder);
+                    qrRendered = true;
                 }
             }
 
@@ -707,6 +706,15 @@
                     correctLevel: QRCode.CorrectLevel.H
                 });
             } catch (e) {}
+        }
+
+        function showStoredQr(holder) {
+            holder.innerHTML = '';
+            var img = document.createElement('img');
+            img.src = storedQrUrl;
+            img.alt = 'QR Code';
+            img.className = 'w-[220px] h-[220px] object-contain';
+            holder.appendChild(img);
         }
 
         window.closeAssetQrModal = function () {

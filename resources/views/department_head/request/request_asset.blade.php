@@ -95,7 +95,9 @@
                             <select name="assign_to_user_id" id="assign_to_user_id"
                                     class="form-select w-full px-4 py-2 border border-[#CFC4A4] rounded-lg focus:border-[#C9A227] transition">
                                 <option value="">Select user to assign</option>
-                                {{-- You can load users of the department here if needed --}}
+                                @foreach($users ?? [] as $u)
+                                    <option value="{{ $u->id }}">{{ $u->Full_Name }} @if(!empty($u->department)) — {{ $u->department }} @endif</option>
+                                @endforeach
                             </select>
                             <p class="text-xs text-[#5C6474] mt-1">Choose who should become the new owner if this is a transfer.</p>
                         </div>

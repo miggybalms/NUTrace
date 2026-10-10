@@ -2877,9 +2877,26 @@ Route::get('/admin/requests', function () {
             'assignee_emp.Full_Name as assigned_to',
             'remarks_admin_emp.Full_Name as admin_remarks_by_name',
             'remarks_admin.email as admin_remarks_by_email',
-        ])
+        ]);
+
+    // The status tab is applied in SQL, so a page of 15 rows always shows the
+    // status that was asked for (filtering only the rendered rows would hide
+    // everything as soon as the wanted rows live on another page).
+    $tab = strtolower(trim((string) request()->query('tab', 'all')));
+    if (! in_array($tab, ['all', 'pending', 'approved', 'rejected'], true)) {
+        $tab = 'all';
+    }
+    if ($tab !== 'all') {
+        $requests->whereRaw('LOWER(requests.status) = ?', [$tab]);
+    }
+
+    // Pending requests stay on top — they are the only rows that carry the
+    // Approve / Reject actions — then newest first, 15 rows per page.
+    $requests = $requests
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
         ->orderByDesc('requests.created_at')
-        ->get();
+        ->paginate(15)
+        ->withQueryString();
 
     // Load all related assets from request_items in one query
     $requestIds = $requests->pluck('id')->all();
@@ -2909,7 +2926,9 @@ Route::get('/admin/requests', function () {
         ->map(fn ($id) => (int) $id)
         ->all();
 
-    $requests = $requests->map(function ($request) use ($itemsByRequest, $recordedDisposalRequests) {
+    // `through()` keeps the paginator (the transformed page still knows its
+    // page count and links); `map()` would collapse it into a plain collection.
+    $requests = $requests->through(function ($request) use ($itemsByRequest, $recordedDisposalRequests) {
         $related = $itemsByRequest->get($request->id, collect());
 
         // Build clean list of assets
@@ -2981,10 +3000,11 @@ Route::get('/admin/requests', function () {
         ];
     });
 
-    $totalRequests    = $requests->count();
-    $pendingRequests  = $requests->where('status', 'pending')->count();
-    $approvedRequests = $requests->where('status', 'approved')->count();
-    $rejectedRequests = $requests->where('status', 'rejected')->count();
+    // Stat cards describe the whole table, not just the visible page.
+    $totalRequests    = DB::table('requests')->count();
+    $pendingRequests  = DB::table('requests')->whereRaw('LOWER(requests.status) = ?', ['pending'])->count();
+    $approvedRequests = DB::table('requests')->whereRaw('LOWER(requests.status) = ?', ['approved'])->count();
+    $rejectedRequests = DB::table('requests')->whereRaw('LOWER(requests.status) = ?', ['rejected'])->count();
 
     return view('admin.request.request', array_merge(
         compact('requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'),
@@ -5947,8 +5967,10 @@ Route::middleware(['auth'])->group(function () {
         return response()->json(['exists' => false]);
     }
 
+    // Codes are matched the same way the admin scanner matches them: trimmed
+    // and case-insensitively, so a QR that carries "ast-..." still resolves.
     $asset = DB::table('assets')
-        ->where('Asset_code', $code)
+        ->whereRaw('LOWER("Asset_code") = ?', [mb_strtolower($code)])
         ->where('user_id', $user->id)
         ->select('id', 'Asset_code', 'Asset_name', 'Category', 'Lifecycle_Status', 'Condition')
         ->first();
@@ -5981,7 +6003,7 @@ Route::get('/department-head/assets/check-code', function (Request $request) {
 
     $asset = DB::table('assets')
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
-        ->where('assets.Asset_code', $code)
+        ->whereRaw('LOWER("assets"."Asset_code") = ?', [mb_strtolower($code)])
         ->where('users.department_id', $user->department_id)
         ->select(
             'assets.id',
@@ -6048,8 +6070,13 @@ Route::get('/user/requests', function (Request $request) {
             });
         }
 
-        $requests = $query->orderByDesc('requests.created_at')
-            ->paginate(10)
+        // Pending requests stay pinned to the top of every page, newest first
+        // inside each group, so a request waiting on the office is never buried
+        // under already-decided ones.
+        $requests = $query
+            ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+            ->orderByDesc('requests.created_at')
+            ->paginate(15)
             ->withQueryString();
 
         // Load assets from request_items
@@ -6138,7 +6165,16 @@ Route::get('/user/requests', function (Request $request) {
         return redirect('/users')->withErrors(['error' => 'Unable to load requests.']);
     }
 })->name('user.requests.index');
-    Route::get('/user/request-asset', [UserRequestController::class, 'create'])->name('user.request-asset');
+    // Employee: request form. A Department Head reaching this URL is sent to
+    // the department-head form instead, so each role only ever uses its own page.
+    Route::get('/user/request-asset', function () {
+        $user = Auth::user();
+        if (!$user) return redirect('/login');
+        if (($user->role ?? '') === 'Department Head') {
+            return redirect()->route('department_head.request-asset');
+        }
+        return app(UserRequestController::class)->create();
+    })->name('user.request-asset');
     Route::post('/user/requests/store', [UserRequestController::class, 'store'])->name('user.requests.store');
 
     // Department Head: view requests submitted by users in the head's department
@@ -6186,8 +6222,12 @@ if ($search !== '') {
     });
 }
 
-    $requests = $query->orderByDesc('requests.created_at')
-        ->paginate(10)
+    // Pending requests first (they are the ones the head still has to act on),
+    // newest first inside each group.
+    $requests = $query
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+        ->orderByDesc('requests.created_at')
+        ->paginate(15)
         ->withQueryString();   // ← keeps ?status= & ?q= on pagination links
 
     // Load assets from request_items (same as before)
@@ -6295,12 +6335,14 @@ if ($search !== '') {
     ]);
 })->name('department_head.requests.index');
 
-    // Department Head: request form (uses department_head view)
+    // Department Head: request form on its own page. The controller builds the
+    // Transfer target list from the head's own department, so the two roles
+    // never share one form (or one "assign to" list).
     Route::get('/department-head/request-asset', function () {
         $user = Auth::user();
         if (!$user) return redirect('/login');
         if (($user->role ?? '') !== 'Department Head') return abort(403);
-        return view('department_head.request.request_asset');
+        return app(UserRequestController::class)->createDepartmentHead();
     })->name('department_head.request-asset');
 
     // Department Head: submit request (reuse controller)

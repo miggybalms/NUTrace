@@ -240,7 +240,7 @@
                     </div>
                     <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Requests Found</h3>
                     <p class="text-[#5C6474] text-sm mb-4">You haven't submitted any requests yet.</p>
-                    <a href="/user/requests/create"
+                    <a href="{{ route('department_head.request-asset') }}"
                        class="inline-flex items-center px-4 py-2 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E9C766] transition text-sm font-semibold">
                         <i class="ri-add-line mr-2"></i>
                         Submit Your First Request

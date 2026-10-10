@@ -230,12 +230,9 @@
                                 </div>
                             </div>
 
-                            <div class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1" style="transition:background .15s;" onmouseover="this.style.background='var(--paper-2)'" onmouseout="this.style.background='transparent'">
-                                <div class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center">
-                                    <span class="text-xs font-semibold">AD</span>
-                                </div>
-                                <i class="ri-arrow-down-s-line" style="color:var(--ink-400);"></i>
-                            </div>
+                            {{-- The profile chip + its dropdown now live in the shared
+                                 admin header (admin.partials.header), so every admin
+                                 page has the same working menu. --}}
             @stop
 
             <!-- Header (shared admin header) -->

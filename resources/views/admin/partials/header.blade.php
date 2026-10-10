@@ -22,6 +22,16 @@
     $adminUser = Auth::user();
     $adminName = $adminUser?->display_name ?? 'User';
     $adminInitials = $adminUser?->initials ?? 'U';
+    $adminPhoto = $adminUser?->profile_photo_url;
+
+    // Department label for the profile menu; the Admin account is not tied to a
+    // teaching department, so an unknown value simply hides the row.
+    $adminDepartment = null;
+    if ($adminUser && $adminUser->department_id) {
+        $adminDepartment = \Illuminate\Support\Facades\DB::table('departments')
+            ->where('id', $adminUser->department_id)
+            ->value('Name');
+    }
 @endphp
 
 <style>
@@ -177,8 +187,123 @@
 
                 {{-- Optional page-specific actions (e.g. dashboard alert icons) --}}
                 @yield('admin_header_actions')
+
+
+                {{-- Profile chip + dropdown --}}
+                {{-- Same behaviour as the employee and department-head headers: the
+                     chip opens a menu with the signed-in account and logout. --}}
+                <div class="relative" id="admin-profile-wrapper">
+                    <button type="button"
+                            id="admin-profile-btn"
+                            class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1 focus:outline-none"
+                            style="transition:background .15s;"
+                            onmouseover="this.style.background='var(--paper-2,#EFE9D8)'"
+                            onmouseout="this.style.background='transparent'"
+                            aria-haspopup="true"
+                            aria-expanded="false">
+                        <span class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+                            @if($adminPhoto)
+                                <img src="{{ $adminPhoto }}" class="w-8 h-8 object-cover" alt="Profile">
+                            @else
+                                <span class="text-xs font-semibold">{{ $adminInitials }}</span>
+                            @endif
+                        </span>
+                        <i class="ri-arrow-down-s-line" style="color:var(--ink-400,#5C6474);"></i>
+                    </button>
+
+                    <div id="admin-profile-dropdown"
+                         class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl z-50 overflow-hidden"
+                         style="border:1px solid var(--line,#E4DCC6);">
+                        <div class="px-4 py-4" style="background:linear-gradient(to right,#F8F1DE,#EFE5C9); border-bottom:1px solid #E3D6B0;">
+                            <div class="flex items-center gap-3">
+                                <span class="avatar-badge w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                    @if($adminPhoto)
+                                        <img src="{{ $adminPhoto }}" class="w-12 h-12 object-cover" alt="Profile">
+                                    @else
+                                        <span class="text-lg font-semibold">{{ $adminInitials }}</span>
+                                    @endif
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="font-semibold truncate" style="color:var(--navy-900,#0F2143);">{{ $adminName }}</p>
+                                    <p class="text-xs truncate" style="color:var(--ink-600,#5B6678);">{{ $adminUser?->email ?? 'No email' }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="px-4 py-3 space-y-2.5 text-sm">
+                            <div class="flex items-center gap-2.5">
+                                <i class="ri-user-3-line text-base" style="color:var(--ink-400,#5C6474);"></i>
+                                <div>
+                                    <p class="text-xs" style="color:var(--ink-400,#5C6474);">Role</p>
+                                    <p class="font-medium" style="color:var(--navy-800,#15305B);">{{ $adminUser?->role ?? ($adminHeaderBadge ?? 'Admin') }}</p>
+                                </div>
+                            </div>
+                            @if($adminDepartment)
+                            <div class="flex items-center gap-2.5">
+                                <i class="ri-building-2-line text-base" style="color:var(--ink-400,#5C6474);"></i>
+                                <div>
+                                    <p class="text-xs" style="color:var(--ink-400,#5C6474);">Department</p>
+                                    <p class="font-medium" style="color:var(--navy-800,#15305B);">{{ $adminDepartment }}</p>
+                                </div>
+                            </div>
+                            @endif
+                        </div>
+
+                        <div class="px-2 py-2" style="border-top:1px solid #EFE9D8;">
+                            <a href="{{ route('logout') }}"
+                               onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();"
+                               class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium"
+                               style="color:#A23B32;">
+                                <i class="ri-logout-box-r-line text-base"></i>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="admin-logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
+                    @csrf
+                </form>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    if (window.__adminProfileInit) return;
+    window.__adminProfileInit = true;
+
+    const btn  = document.getElementById('admin-profile-btn');
+    const menu = document.getElementById('admin-profile-dropdown');
+    const wrap = document.getElementById('admin-profile-wrapper');
+    if (!btn || !menu || !wrap) return;
+
+    function closeMenu() {
+        menu.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
+    }
+
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const willOpen = menu.classList.contains('hidden');
+        menu.classList.toggle('hidden', !willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+        // The dashboard's alert dropdowns (requests / maintenance / lifespan)
+        // share this corner of the topbar, so only one of them stays open.
+        if (willOpen && typeof window.closeAllAlertDropdowns === 'function') {
+            window.closeAllAlertDropdowns();
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!wrap.contains(e.target)) closeMenu();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeMenu();
+    });
+})();
+</script>
 
