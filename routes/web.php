@@ -303,7 +303,11 @@ Route::post('/forgot-password', function (Request $request) {
         return back()->withErrors(['error' => 'We could not start a password reset right now. If this keeps happening, make sure the database is reachable and the "password_resets" table exists (run: php artisan migrate).']);
     }
 
-    // Send the code to the user's registered email address
+    // Send the code to the user's registered email address. A password reset
+    // must never report "code sent" over an empty inbox — the report is the
+    // only thing the person on the other side can see — so a refused send is
+    // reported as a failure and the page stops promising that email.
+    $delivered = true;
     try {
         \Illuminate\Support\Facades\Mail::raw(
             "Hello,\n\n" .
@@ -318,15 +322,25 @@ Route::post('/forgot-password', function (Request $request) {
             }
         );
     } catch (\Throwable $e) {
+        $delivered = false;
         \Illuminate\Support\Facades\Log::warning('Could not send password reset email to ' . $user->email . ': ' . $e->getMessage());
 
-        // Tell the user honestly that delivery failed instead of pretending it worked.
+        // Name the setting that is actually missing for the mailer in use. The
+        // live site (Railway) blocks outbound SMTP on its Free/Trial/Hobby
+        // plans, so production sends through an HTTPS mail API (Resend),
+        // configured with RESEND_API_KEY — not MAIL_HOST / MAIL_PASSWORD.
+        $mailer      = (string) config('mail.default');
         $appPassword = (string) config('mail.mailers.smtp.password');
-        if (str_contains($appPassword, 'PASTE-YOUR') || $appPassword === '') {
-            $request->session()->flash('mail_error', 'Your Gmail App Password is not set yet. Open the .env file, find MAIL_PASSWORD (line 55), and paste the 16-character App Password from your Google Account (Security → 2-Step Verification → App passwords). Then restart the app and click "Resend code".');
+
+        if ($mailer === 'resend' && (string) config('services.resend.key') === '') {
+            $hint = 'The mail provider is not configured on this server yet: RESEND_API_KEY is missing. Add it to the hosting environment variables, then click "Resend code".';
+        } elseif ($mailer === 'smtp' && ($appPassword === '' || str_contains($appPassword, 'PASTE-YOUR'))) {
+            $hint = 'Your Gmail App Password is not set yet. Set MAIL_USERNAME and the 16-character MAIL_PASSWORD (Google Account → Security → 2-Step Verification → App passwords), then click "Resend code".';
         } else {
-            $request->session()->flash('mail_error', 'The email could not be delivered (' . class_basename($e) . '). Please verify the MAIL_USERNAME / MAIL_PASSWORD settings in your .env file, then click "Resend code".');
+            $hint = 'The email could not be delivered (' . class_basename($e) . '). Please check the ' . strtoupper($mailer) . ' mail settings on the server, then click "Resend code".';
         }
+
+        $request->session()->flash('mail_error', $hint);
 
         // Local dev fallback: if no mail server is reachable, still show the code
         // so the flow can be tested. Never displayed outside the local environment.
@@ -336,6 +350,12 @@ Route::post('/forgot-password', function (Request $request) {
     }
 
     $request->session()->put('password_reset_email', $user->email);
+
+    if (! $delivered) {
+        // The verify page reads the mail_error notice and asks for the mail
+        // settings to be fixed; it must not also claim the mail is on its way.
+        return redirect('/forgot-password/verify');
+    }
 
     return redirect('/forgot-password/verify')
         ->with('success', 'A 6-digit verification code has been sent to ' . $user->email . '. It expires in 15 minutes.');

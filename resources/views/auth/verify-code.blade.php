@@ -41,10 +41,18 @@
                 </div>
             @endif
 
-            <h2 class="step-title">Check Your Email</h2>
+            @php($mailFailed = (bool) session('mail_error'))
+
+            <h2 class="step-title">{{ $mailFailed ? 'The Code Could Not Be Emailed' : 'Check Your Email' }}</h2>
             <p class="step-desc">
-                We sent a <strong>6-digit verification code</strong> to
-                <strong>{{ $email ?? '' }}</strong>. Enter it below to continue.
+                @if ($mailFailed)
+                    Nothing reached <strong>{{ $email ?? '' }}</strong> yet — the server's mail
+                    settings refused the message. Fix the notice above, then press
+                    <strong>Resend code</strong>.
+                @else
+                    We sent a <strong>6-digit verification code</strong> to
+                    <strong>{{ $email ?? '' }}</strong>. Enter it below to continue.
+                @endif
             </p>
 
             <form method="POST" action="/forgot-password/verify">
