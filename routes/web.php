@@ -3017,6 +3017,101 @@ Route::get('/admin/requests', function () {
     ));
 });
 
+// Export Requests – every request in the report, not only the page on screen.
+// The page's Export button used to build the CSV inside the browser from the
+// rows the paginator had loaded, so a 33-request history downloaded as its
+// first 15 rows. The report is built here instead, from the whole table, with
+// the same tabs and the same order the admin table uses (pending first,
+// longest wait first, then the decided ones newest-first).
+Route::get('/admin/requests/export', function () {
+    $requests = DB::table('requests')
+        ->leftJoin('assets', 'requests.asset_id', '=', 'assets.id')
+        ->leftJoin('users', 'requests.user_id', '=', 'users.id')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->select([
+            'requests.id',
+            'requests.request_type',
+            'requests.status',
+            'requests.created_at',
+            'requests.asset_id',
+            'employee_numbers.Full_Name as submitted_by',
+            'assets.Asset_name as asset_name',
+        ]);
+
+    // The tab that is open on screen is the one the report covers.
+    $tab = strtolower(trim((string) request()->query('tab', 'all')));
+    if (! in_array($tab, ['all', 'pending', 'approved', 'rejected'], true)) {
+        $tab = 'all';
+    }
+    if ($tab !== 'all') {
+        $requests->whereRaw('LOWER(requests.status) = ?', [$tab]);
+    }
+
+    $requests = $requests
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.created_at END ASC', ['pending'])
+        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
+        ->orderByDesc('requests.created_at')
+        ->orderByDesc('requests.id')
+        ->get();
+
+    // A bulk request names every asset it carries — the table's
+    // "Demo asset +1 more" is shorthand for this full list.
+    $itemsByRequest = DB::table('request_items')
+        ->join('assets', 'request_items.asset_id', '=', 'assets.id')
+        ->whereIn('request_items.request_id', $requests->pluck('id')->all())
+        ->select('request_items.request_id', 'assets.Asset_name')
+        ->get()
+        ->groupBy('request_id');
+
+    $filename = 'requests-report-' . now()->format('Y-m-d') . '.csv';
+
+    $headers = [
+        'Content-Type'        => 'text/csv; charset=UTF-8',
+        'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+    ];
+
+    $callback = function () use ($requests, $itemsByRequest) {
+        $file = fopen('php://output', 'w');
+
+        // UTF-8 BOM so Excel shows special characters correctly
+        fwrite($file, "\xEF\xBB\xBF");
+
+        fputcsv($file, ['Request ID', 'Asset Name', 'Type', 'Submitted By', 'Date', 'Status']);
+
+        foreach ($requests as $request) {
+            $assetNames = $itemsByRequest
+                ->get($request->id, collect())
+                ->pluck('Asset_name')
+                ->filter()
+                ->values();
+
+            // Old single-asset requests still carry their asset on the row.
+            if ($assetNames->isEmpty() && ! empty($request->asset_id)) {
+                $assetNames = collect([$request->asset_name ?: 'Unknown Asset']);
+            }
+            if ($assetNames->isEmpty()) {
+                $assetNames = collect(['Unknown Asset']);
+            }
+
+            fputcsv($file, [
+                '#REQ-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT),
+                $assetNames->implode(', '),
+                ucwords(str_replace('_', ' ', strtolower((string) $request->request_type))),
+                $request->submitted_by ?? '',
+                $request->created_at
+                    ? \Illuminate\Support\Carbon::parse($request->created_at)->format('M d, Y')
+                    : '',
+                ucwords(strtolower((string) $request->status)),
+            ]);
+        }
+
+        fclose($file);
+    };
+
+    return response()->stream($callback, 200, $headers);
+})->middleware('auth');
+
 
 Route::post('/admin/repairs/create', function (Request $request) {
     $assetId = $request->input('asset_id');

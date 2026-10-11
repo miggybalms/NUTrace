@@ -16,7 +16,7 @@
      Download buttons:
        - assets              -> /admin/inventory-download   (server CSV)
        - audit logs          -> /admin/audit-logs/export    (server CSV)
-       - requests            -> exportRequests()            (page's own exporter)
+       - requests            -> /admin/requests/export      (server CSV, all pages)
      ============================================================ --}}
 @php
     $adminUser = Auth::user();
@@ -84,12 +84,12 @@
                     @case('dashboard')
                         @break
 
-                    {{-- Requests: export the visible request rows --}}
+                    {{-- Requests: export every request in the open tab, not just this page --}}
                     @case('requests')
-                        <button type="button" onclick="exportRequests()" class="btn-gold">
-                            <i class="ri-file-copy-line mr-2"></i>
+                        <a href="{{ url('/admin/requests/export') }}?tab={{ request()->query('tab', 'all') }}" class="btn-gold" download>
+                            <i class="ri-download-line mr-2"></i>
                             Export Report
-                        </button>
+                        </a>
                         @break
 
                     {{-- Assets: download inventory + register new asset --}}

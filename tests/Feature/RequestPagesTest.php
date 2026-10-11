@@ -114,6 +114,17 @@ class RequestPagesTest extends TestCase
         return array_map('intval', $matches[1]);
     }
 
+    /** The exported report, as rows of cells. */
+    private function exportRows(string $csv): array
+    {
+        // The report opens with a UTF-8 BOM so Excel reads it correctly. It sits
+        // before the first quote, and would otherwise stop the CSV reader from
+        // recognising cell 1 as a quoted field.
+        $csv = preg_replace('/^\xEF\xBB\xBF/', '', $csv);
+
+        return array_map('str_getcsv', preg_split('/\r\n|\n/', trim($csv)));
+    }
+
     /* ── the admin Requests page ────────────────────────────────────────── */
 
     public function test_the_admin_request_page_shows_fifteen_rows_with_pending_first(): void
@@ -237,6 +248,107 @@ class RequestPagesTest extends TestCase
             $this->actingAs($this->admin)->get('/admin/requests')->assertOk()->getContent()
         );
         $this->assertSame($pendingId, $all[0], 'a pending request is never buried under older rows');
+    }
+
+    /**
+     * The Export Report button used to build the CSV in the browser from the
+     * rows the paginator had loaded, so a 33-request history downloaded as its
+     * first 15 rows. The report is now built from the whole table: page 2 (and
+     * every other page) is in it.
+     */
+    public function test_the_export_report_covers_every_request_not_only_the_page_on_screen(): void
+    {
+        $approved = [];
+        for ($i = 0; $i < 20; $i++) {
+            $approved[] = $this->makeRequest($this->employee, 'Approved', now()->subMinutes(20 - $i), 'Replacement');
+        }
+        $pendingId = $this->makeRequest($this->employee, 'Pending', now()->subDay(), 'Disposal');
+
+        $page = $this->actingAs($this->admin)->get('/admin/requests')->assertOk();
+        $visible = $this->adminRowIds($page->getContent());
+
+        $this->assertCount(15, $visible, 'the table is still paged at 15 rows');
+        $this->assertNotContains($approved[0], $visible, 'the oldest request only shows on page 2');
+
+        // The Export Report button hands the browser this URL, so the report
+        // comes from the whole table rather than the 15 rows on screen.
+        $page->assertSee('/admin/requests/export?tab=all', false);
+
+        $response = $this->actingAs($this->admin)->get('/admin/requests/export')->assertOk();
+        $response->assertHeader(
+            'content-disposition',
+            'attachment; filename="requests-report-' . now()->format('Y-m-d') . '.csv"'
+        );
+
+        $rows = $this->exportRows($response->streamedContent());
+
+        $this->assertSame(
+            ['Request ID', 'Asset Name', 'Type', 'Submitted By', 'Date', 'Status'],
+            $rows[0]
+        );
+        $this->assertCount(22, $rows, 'the report holds every request plus its header row');
+
+        $exported = array_column(array_slice($rows, 1), 0);
+        $this->assertContains(
+            '#REQ-' . str_pad((string) $approved[0], 4, '0', STR_PAD_LEFT),
+            $exported,
+            'a request that lives on page 2 must still be in the report'
+        );
+        $this->assertSame(
+            '#REQ-' . str_pad((string) $pendingId, 4, '0', STR_PAD_LEFT),
+            $exported[0],
+            'the report keeps the table order: the pending request stays on top'
+        );
+
+        // The row itself is complete, not a placeholder: the bulk-asset list is
+        // spelled out, the type is readable, and the requester is named.
+        $this->assertSame(['Laptop', 'Disposal', 'Aling Nena'], array_slice($rows[1], 1, 3));
+        $this->assertSame(['Pending'], array_slice($rows[1], 5, 1));
+    }
+
+    /** The open tab is the one the report covers — and only that one. */
+    public function test_the_export_report_follows_the_open_tab(): void
+    {
+        $pendingId  = $this->makeRequest($this->employee, 'Pending', now()->subDay());
+        $approvedId = $this->makeRequest($this->employee, 'Approved', now()->subDays(2));
+        $rejectedId = $this->makeRequest($this->employee, 'Rejected', now()->subDays(3));
+
+        // The button on the Approved tab asks for the Approved report.
+        $this->actingAs($this->admin)->get('/admin/requests?tab=approved')->assertOk()
+            ->assertSee('/admin/requests/export?tab=approved', false);
+
+        $approvedRows = $this->exportRows(
+            $this->actingAs($this->admin)->get('/admin/requests/export?tab=approved')->assertOk()->streamedContent()
+        );
+
+        $this->assertCount(2, $approvedRows, 'the Approved tab reports its own rows plus the header');
+        $this->assertSame(
+            ['#REQ-' . str_pad((string) $approvedId, 4, '0', STR_PAD_LEFT), 'Laptop', 'Repair', 'Aling Nena'],
+            array_slice($approvedRows[1], 0, 4)
+        );
+
+        // An unknown tab falls back to the whole table instead of erroring.
+        $allRows = $this->exportRows(
+            $this->actingAs($this->admin)->get('/admin/requests/export?tab=nonsense')->assertOk()->streamedContent()
+        );
+
+        $ids = array_column(array_slice($allRows, 1), 0);
+        $this->assertCount(4, $allRows, 'an unknown tab exports every request');
+        $this->assertSame(
+            ['#REQ-' . str_pad((string) $pendingId, 4, '0', STR_PAD_LEFT)],
+            array_slice($ids, 0, 1),
+            'the whole-table export keeps the table order: pending first'
+        );
+        $this->assertNotContains(
+            '#REQ-' . str_pad((string) $rejectedId, 4, '0', STR_PAD_LEFT),
+            array_column(array_slice($approvedRows, 1), 0),
+            'another tab\'s rows must not leak into this report'
+        );
+    }
+
+    public function test_the_export_report_is_not_served_to_a_session_less_visit(): void
+    {
+        $this->get('/admin/requests/export')->assertRedirect('/');
     }
 
     /* ── the department head's own list ─────────────────────────────────── */
