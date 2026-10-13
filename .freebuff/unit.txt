@@ -1,0 +1,267 @@
+============================== NU_TRACE_Web_Unit_Test_Document.docx ==============================
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | LOGIN / LOGOUT
+Test Cycle No. | TC-01 | Component Name | Authentication Controller
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Registered account exists• Database connection is available
+Action Description | Validate that a user can sign in with valid credentials, that invalid credentials are rejected, and that logout ends the authenticated session.
+Verification Steps | 1. Open the Login page2. Enter email and password3. Click Login4. Observe the dashboard5. Click Logout
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Valid registered email and correct password | User is authenticated and redirected to the correct dashboard |  | 
+2 | Registered email with incorrect password | Login is rejected and a clear error message is shown |  | 
+3 | Empty email or password | Validation is shown and the form is not submitted |  | 
+4 | Click Logout while signed in | Session is ended and the user is returned to the Login page |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | ACCOUNT REGISTRATION AND EMPLOYEE ID VERIFICATION
+Test Cycle No. | TC-02 | Component Name | Registration Controller
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Employee number record exists• Registration page is available
+Action Description | Validate that account registration accepts a valid employee record and prevents unknown, duplicate, or malformed employee information.
+Verification Steps | 1. Open Register2. Enter employee number, email, password, and required details3. Submit4. Observe validation and account creation
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Valid employee number and required registration data | Account is created and linked to the correct employee record |  | 
+2 | Employee number not found in employee_numbers | Registration is rejected with a clear validation message |  | 
+3 | Employee number already linked to an existing user | Duplicate registration is prevented |  | 
+4 | Required field left blank | Validation message is displayed and submission is blocked |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | FORGOT PASSWORD
+Test Cycle No. | TC-03 | Component Name | Password Reset Handler
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • An active user account exists• User has access to the registered email
+Action Description | Validate requesting a password reset code, handling invalid or expired codes, and successfully setting a new password.
+Verification Steps | 1. Click Forgot Password2. Enter registered email3. Check email for code4. Enter code and new password5. Sign in using the new password
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Registered account email | Reset code is sent to the registered email |  | 
+2 | Unknown or unregistered email | System does not disclose unnecessary account information and does not complete a reset |  | 
+3 | Incorrect or expired code | Reset is rejected and user is prompted to request a valid code |  | 
+4 | Valid code and compliant new password | Password is updated and the new password can be used to log in |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | USER, EMPLOYEE, AND DEPARTMENT PROFILE
+Test Cycle No. | TC-04 | Component Name | User Profile Controller
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • User and employee records exist• Department record exists
+Action Description | Validate retrieval and display of employee identity, department, role, and account status.
+Verification Steps | 1. Log in2. Open profile/account information3. Review employee number, name, department, role, and status
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Active employee with assigned department | Correct employee and department information is displayed |  | 
+2 | User with an inactive account | Account access is restricted according to status |  | 
+3 | User profile opened after login | Role and account information match the authenticated user |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | ASSET REGISTRATION
+Test Cycle No. | TC-05 | Component Name | Asset Registration Service
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Admin/Asset Management Officer is logged in• Required asset reference data is available
+Action Description | Validate creation of a single asset record, including asset code validation, lifespan calculation, and QR data generation.
+Verification Steps | 1. Open Asset Registry2. Enter required asset information3. Enter lifespan and acquisition data4. Save5. Review the created asset
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Complete asset record with unique asset code | Asset is saved and appears in the asset inventory |  | 
+2 | Duplicate asset code | System prevents duplicate asset registration |  | 
+3 | Lifespan months and acquisition date entered | Expiration date is calculated and stored correctly |  | 
+4 | Save a new asset | A QR code path/QR reference is created for the individual asset |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | BULK ASSET REGISTRATION
+Test Cycle No. | TC-06 | Component Name | Bulk Registration Processor
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Admin/Asset Management Officer is logged in• Quantity is greater than zero
+Action Description | Validate bulk asset creation while keeping each physical asset individually identifiable.
+Verification Steps | 1. Open Bulk Asset Registration2. Enter common asset details and quantity3. Choose auto-generated or existing asset codes4. Submit5. Review created records and QR codes
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Quantity = 5 with auto-generated codes | Five individual asset records are created with unique codes and QR identities |  | 
+2 | Quantity = 5 with valid existing asset codes | All five institutional asset codes are preserved and stored as individual assets |  | 
+3 | One supplied asset code already exists | Bulk registration is blocked or flagged to prevent duplicate coding |  | 
+4 | Quantity is zero or invalid | Submission is rejected by validation |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | ASSET ACCOUNTABILITY AND ASSIGNMENT HISTORY
+Test Cycle No. | TC-07 | Component Name | Asset Accountability Controller
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Asset and user records exist• Admin/Asset Management Officer is logged in
+Action Description | Validate assigning an asset to a user and preserving historical accountability records.
+Verification Steps | 1. Select an unassigned or transferable asset2. Select the accountable user3. Confirm assignment4. Review asset and accountability history
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Asset assigned to a user | assets.user_id reflects the current accountable user |  | 
+2 | New assignment is created | asset_accountability record is created with Is_Current = 1 |  | 
+3 | Previously assigned asset is reassigned | Previous accountability is retained as history and marked non-current |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | ASSET REQUESTS
+Test Cycle No. | TC-08 | Component Name | Request Controller
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Authenticated user has access to My Requests• At least one requestable asset exists
+Action Description | Validate submission, validation, and status handling of repair, replacement, pullout, and transfer-related requests.
+Verification Steps | 1. Open My Requests2. Select request type3. Select one or more assets where applicable4. Enter note/reason5. Submit6. Review request record
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Valid single-asset request with note | Request is created with Pending status and correct asset reference |  | 
+2 | Valid multiple-asset request | Request is created and request_items stores each selected asset |  | 
+3 | Note exceeds the configured character limit | Submission is blocked with a clear validation message |  | 
+4 | Request submitted without required data | Required-field validation prevents submission |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | MAINTENANCE AND LIFESPAN MONITORING
+Test Cycle No. | TC-09 | Component Name | Asset Lifecycle Service
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Asset has maintenance interval and/or lifespan data
+Action Description | Validate maintenance reminders, maintenance completion updates, and lifespan expiry behavior.
+Verification Steps | 1. Open an asset with a due maintenance date2. Observe dashboard/asset status3. Mark maintenance completed4. Check next date5. Review an expired asset
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Current date reaches next_maintenance_date | Asset is flagged for maintenance while remaining in its applicable lifecycle state |  | 
+2 | Admin marks maintenance completed | last_maintenance_date and next_maintenance_date are updated |  | 
+3 | Current date reaches expiration_date | Asset is placed in For Checking/evaluation state rather than being automatically disposed |  | 
+4 | Pullout asset reaches its expiration date | Asset remains Pullout until an authorized lifecycle action changes it |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | REPAIR, SERVICING, AND EVALUATION
+Test Cycle No. | TC-10 | Component Name | Repair Controller and Evaluation Service
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Repair request is approved• Repair record can be opened by Admin/Asset Management Officer
+Action Description | Validate repair status changes and documentation of technician/provider, parts, cost, findings, and repair result.
+Verification Steps | 1. Open an approved repair2. Start repair3. Record servicing information4. Enter repair result5. Complete or route the asset
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Repair started with technician/provider information | Repair status changes to In Progress and servicing data is retained |  | 
+2 | Parts, findings, and actual cost recorded | Repair evaluation details are saved against the repair record |  | 
+3 | Repair result = Repairable | Repair can be completed and asset can return to Active |  | 
+4 | Repair result = Beyond Repair / For Replacement | Asset can proceed to Replacement or Disposal workflow |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | REPLACEMENT AND DISPOSAL
+Test Cycle No. | TC-11 | Component Name | Replacement and Disposal Controllers
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • An asset is identified as requiring replacement or disposal
+Action Description | Validate linking old and new assets for replacement and recording final disposal information.
+Verification Steps | 1. Open the replacement/disposal action2. Select the affected asset3. Enter reason and required details4. Save/approve5. Review resulting asset records
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Approved replacement for an old asset | Old and new asset IDs are linked in the replacement record |  | 
+2 | Replacement asset is received | New asset becomes Active and accountable to the intended user |  | 
+3 | Old asset is finalized for disposal | A disposal record is created and historical asset information remains accessible |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | PULLOUT AND BULK PULLOUT
+Test Cycle No. | TC-12 | Component Name | Pullout and Pullout Items Processor
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Pullout request is available• One or more assets are eligible
+Action Description | Validate single and bulk pullout processing while keeping each asset individually traceable.
+Verification Steps | 1. Open Pullout management2. Review eligible assets3. Process a pullout for one or several assets4. Save destination/return details5. Review asset history
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Single asset pullout | Selected asset is recorded in the pullout transaction |  | 
+2 | Multiple assets selected for one pullout | pullout_items stores every selected asset under the same pullout transaction |  | 
+3 | Pullout is completed | Asset retains its institutional record and pullout status/history |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | TRANSFER / EMPLOYEE RELOCATION
+Test Cycle No. | TC-13 | Component Name | Transfer Workflow Controller
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Outgoing employee has current assigned assets• Receiving employee is active• Admin/Asset Management Officer is logged in
+Action Description | Validate transferring all currently assigned assets from an outgoing employee to the employee taking over the position, while preserving accountability history.
+Verification Steps | 1. Open Transfer page2. Select outgoing employee3. Review all current assets4. Select receiving employee5. Enter reason/notes6. Confirm transfer7. Review current assignments and history
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Outgoing employee with 8 current assets; receiving employee selected | All 8 assets are included in the Transfer request/request_items |  | 
+2 | Transfer confirmed | assets.user_id changes to the receiving employee for all transferred assets |  | 
+3 | Existing accountability records | Old assignments are marked Is_Current = 0 and new assignments are marked Is_Current = 1 |  | 
+4 | Completed transfer | Transfer action is recorded in audit_logs and affected users can receive notifications |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | AUDIT LOGGING AND NOTIFICATIONS
+Test Cycle No. | TC-14 | Component Name | Audit Log and Notification Services
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • A supported asset/request action can be executed• Notification records are enabled
+Action Description | Validate automatic audit logging of major actions and creation/update of in-app notifications.
+Verification Steps | 1. Perform a supported action2. Open Audit Logs3. Open the notification bell4. Open a notification5. Review read state
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Asset/request action completed successfully | Audit log records user, action, related asset/request, and timestamp |  | 
+2 | Transfer or request status changes | Relevant notification is created for the affected user |  | 
+3 | Unread notification is opened | Notification is marked as read and related information opens |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+UNIT TEST DOCUMENT | Module Name | ADMIN DASHBOARD, REPORTS, AND QR PRINTING
+Test Cycle No. | TC-15 | Component Name | Dashboard and Reporting Service
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Admin/Asset Management Officer is logged in• Inventory contains test records
+Action Description | Validate dashboard statistics, recent asset information, reporting, and printing of asset QR codes.
+Verification Steps | 1. Open Admin Dashboard2. Review counts and status summaries3. Open inventory/report page4. Export/download inventory5. Print/view an asset QR
+--- END TABLE ---
+--- TABLE ---
+Test Scenario | Data (Input Values) | Expected Results | Actual Results | Remarks
+1 | Dashboard opened with existing inventory | Counts and status summaries reflect current asset data |  | 
+2 | Recently added filter is applied | Assets registered within the configured recent period are shown |  | 
+3 | Inventory report exported | Export contains the current asset inventory data |  | 
+4 | QR print is requested for a bulk-registered group | Each individual asset produces its own unique QR code |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+

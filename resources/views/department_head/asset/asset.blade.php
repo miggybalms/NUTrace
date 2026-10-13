@@ -125,8 +125,12 @@
                 {{-- Asset Image --}}
                 <div class="relative h-40 sm:h-44 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                     @if($asset->image_url)
+                        {{-- loading="lazy": the browser only fetches the photos that
+                             scroll into view, instead of one request per asset up front. --}}
                         <img src="{{ $asset->image_url }}" alt="{{ $asset->Asset_name }}"
                              class="w-full h-full object-cover"
+                             loading="lazy"
+                             decoding="async"
                              onerror="this.classList.add('hidden'); this.parentElement.querySelector('.asset-image-fallback')?.classList.remove('hidden');"/>
                         <div class="asset-image-fallback hidden flex-col items-center text-[#5C6474] absolute inset-0 flex justify-center">
                             <i class="ri-image-line text-4xl mb-1"></i>

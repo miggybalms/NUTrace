@@ -1154,64 +1154,24 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
             }
         }
 
-        function buildStickerHtml({ qrSrc, code, name, location, category, acquired }) {
-            const safe = (v) => String(v ?? '—')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;');
-
-            return '<!DOCTYPE html><html><head><title>QR Sticker</title><style>'
-                + '@page{size:90mm 40mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}'
-                + 'body{font-family:Arial,Helvetica,sans-serif}'
-                + '.tag{width:90mm;height:40mm;border:0.45mm solid #111;display:flex;flex-direction:column;overflow:hidden}'
-                + '.header{text-align:center;padding:1.2mm 2mm 0.8mm;border-bottom:0.35mm solid #111}'
-                + '.header .office{font-size:6pt;font-weight:700;letter-spacing:0.5px}'
-                + '.header .name{font-size:8.5pt;font-weight:700;text-transform:uppercase;margin-top:0.3mm}'
-                + '.header .campus{font-size:5.5pt;color:#444}'
-                + '.body{flex:1;display:grid;grid-template-columns:1fr 25mm;min-height:0}'
-                + '.info{padding:1.2mm 2mm;display:flex;flex-direction:column;justify-content:center;gap:1.2mm;border-right:0.35mm solid #111}'
-                + '.code{font-family:Courier New,monospace;font-size:7.5pt;font-weight:700}'
-                + '.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.8mm}'
-                + '.cell{border:0.25mm solid #888;padding:0.6mm 0.5mm;text-align:center;font-size:5.5pt;line-height:1.15}'
-                + '.cell span{display:block;font-size:4.5pt;color:#555;font-weight:600}'
-                + '.qr{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1mm}'
-                + '.qr img{width:20mm;height:20mm}.qr span{font-size:4.5pt;margin-top:0.3mm}'
-                + '.footer{text-align:center;font-size:5.5pt;font-weight:700;color:#c00;padding:0.7mm;border-top:0.35mm solid #111;letter-spacing:0.4px}'
-                + '@media print{body{margin:0}}'
-                + '</style></head><body><div class="tag">'
-                + '<div class="header"><div class="office">ASSET MANAGEMENT OFFICE</div>'
-                + '<div class="name">' + safe(name || 'ASSET') + '</div>'
-                + '<div class="campus">NU LIPA</div></div>'
-                + '<div class="body"><div class="info"><div class="code">' + safe(code) + '</div>'
-                + '<div class="row">'
-                + '<div class="cell"><span>Location</span>' + safe(location) + '</div>'
-                + '<div class="cell"><span>Category</span>' + safe(category) + '</div>'
-                + '<div class="cell"><span>Acquired</span>' + safe(acquired) + '</div>'
-                + '</div></div>'
-                + '<div class="qr"><img src="' + qrSrc + '" alt="QR"><span>Scan me</span></div>'
-                + '</div><div class="footer">DO NOT REMOVE THIS TAG</div></div>'
-                + '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)};<\/script>'
-                + '</body></html>';
-        }
                     function printGeneratedQr() {
                         const img = document.getElementById('generatedQrImg');
                         if (!img || !img.src) return alert('No QR available to print');
 
-                        const code = document.getElementById('assetCodeHidden')?.value
+                        const code = (document.getElementById('assetCodeHidden')?.value
                                 || document.getElementById('generatedCode')?.textContent
-                                || 'ASSET';
+                                || '').trim();
                         const name = document.getElementById('link_asset_name')?.value || 'REPLACEMENT ASSET';
                         const location = document.getElementById('link_location')?.value || '—';
                         const category = document.getElementById('link_category')?.value || '—';
                         const acquired = document.getElementById('link_acquired')?.value
-                            ? new Date(document.getElementById('link_acquired').value).toLocaleDateString('en-US')
-                            : new Date().toLocaleDateString('en-US');
+                            || new Date().toISOString().slice(0, 10);
 
-                        const html = buildStickerHtml({ qrSrc: img.src, code, name, location, category, acquired });
-                        const w = window.open('', '_blank', 'width=500,height=300');
-                        w.document.write(html);
-                        w.document.close();
+                        // The shared label sheet draws the sticker (official seal,
+                        // centred code, QR) and encodes the code itself, so this
+                        // printout matches every other label in the system.
+                        const query = new URLSearchParams({ code, name, location, category, acquired }).toString();
+                        window.open(@json(url('/admin/assets/label-preview')) + '?' + query, '_blank', 'width=760,height=520');
                     }
 
                     function previewLinkImage(input) {
@@ -1262,21 +1222,25 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
 
             // Print from table action button (after link)
             // Call as: printUrl(qrUrl, { code, name, location, category, acquired })
+            // The stored QR URL is no longer needed: the shared label sheet draws
+            // the code itself, so every printout is the same sticker.
             function printUrl(url, meta = {}) {
-                if (!url) return alert('No URL provided');
+                const code = (meta.code || '').trim();
 
-                const html = buildStickerHtml({
-                    qrSrc: url,
-                    code:     meta.code     || 'ASSET',
-                    name:     meta.name     || 'ASSET',
+                if (code === '' && !url) {
+                    alert('No asset code available to print.');
+                    return;
+                }
+
+                const query = new URLSearchParams({
+                    code: code || 'ASSET',
+                    name: meta.name || 'ASSET',
                     location: meta.location || '—',
                     category: meta.category || '—',
-                    acquired: meta.acquired || '—'
-                });
+                    acquired: meta.acquired || ''
+                }).toString();
 
-                const w = window.open('', '_blank', 'width=500,height=300');
-                w.document.write(html);
-                w.document.close();
+                window.open(@json(url('/admin/assets/label-preview')) + '?' + query, '_blank', 'width=760,height=520');
             }
 
                 // Mark Received Modal

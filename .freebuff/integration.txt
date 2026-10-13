@@ -1,0 +1,147 @@
+============================== NU_TRACE_Web_Integration_Test_Document.docx ==============================
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-01 | User / Access Type | Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Active Admin account exists• Inventory contains test assets• Database is connected
+Verification Steps | • Log in• Open dashboard• Register an asset• Open inventory• View the created asset• Open/print its QR identity• Log out
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Authentication / Dashboard | Login and open the dashboard | Admin session is established and dashboard loads current inventory summaries |  | 
+Asset Registry | Register one new asset | Asset record is created with required data and unique identity |  | 
+Inventory | Locate the new asset | Created asset appears with the correct Asset Code and status |  | 
+QR / Barcode | Open or scan the created asset code | Correct individual asset record is resolved |  | 
+Logout | Log out from the system | Session ends without error |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-02 | User / Access Type | Department Head / Employee + Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Employee has an assigned asset• Admin account exists• Request processing is available
+Verification Steps | • Employee logs in• Opens My Assets• Opens Asset Details• Submits a repair request with a note• Admin opens the request• Admin approves/starts processing• Employee checks the updated status/notification• Both users log out
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Authentication / My Assets | Employee logs in and views current assets | Correct accountable assets are shown |  | 
+Asset Details | Open the selected asset | Asset details, maintenance/lifespan information, and history are shown |  | 
+Request Submission | Submit a repair request with note | Pending request is created and asset/request information is linked |  | 
+Admin Request Processing | Admin reviews and updates the request | Request status changes correctly and processing information is retained |  | 
+Notifications | Employee views status notification | Notification references the correct request/asset and read state updates |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-03 | User / Access Type | Department Head / Employee + Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Repairable test asset exists• Repair request can be processed• Repair evaluation is available
+Verification Steps | • Submit/approve repair request• Open repair record• Start servicing• Record technician/provider, parts, findings, and cost• Set repair result• Complete repair• Review asset status and history
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Requests | Repair request is approved | Repair record is linked to the request |  | 
+Repairs | Start repair and record servicing details | Repair moves to the appropriate status and servicing data is stored |  | 
+Repair Evaluations | Record parts, findings, cost, and remarks | Evaluation is attached to the correct repair |  | 
+Asset Lifecycle | Complete a Repairable repair | Asset returns to Active and repair history remains accessible |  | 
+Audit / Notifications | Review resulting records | Action is auditable and supported notifications are created |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-04 | User / Access Type | Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Asset has been evaluated as Beyond Repair / For Replacement• Replacement processing is available
+Verification Steps | • Open repair evaluation• Route to replacement• Register/identify new asset• Receive replacement• Review old/new asset status• Finalize old asset disposal when appropriate
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Repair Evaluation | Set result to Beyond Repair / For Replacement | Asset is routed into the replacement process |  | 
+Replacement | Link old asset and new asset | Replacement record references the correct old/new assets |  | 
+Asset Registration | Register/identify the replacement asset | New asset receives its own individual identity and QR |  | 
+Accountability | Complete replacement for the intended user | New asset becomes the current accountable asset |  | 
+Disposal | Finalize old asset after replacement | Disposal record is created and old asset history remains traceable |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-05 | User / Access Type | Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Eligible assets exist in a department• Bulk pullout is available
+Verification Steps | • Open pullout management• Select multiple assets• Create/approve bulk pullout• Review pullout items• Review asset status and admin inventory• Send notification where applicable
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Pullout Request | Create/approve a multi-asset pullout | A single pullout transaction is linked to multiple request items/assets |  | 
+Pullout Items | Review selected assets | Each selected asset is listed individually under the pullout |  | 
+Asset Lifecycle | Complete the pullout action | Assets retain their institutional records and pullout status/history |  | 
+Admin Inventory | Search for a pulled-out asset | Asset remains visible to Admin for accountability/reporting/history |  | 
+Notifications / Audit | Review resulting records | Supported notifications/audit entries reference the correct pullout |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-06 | User / Access Type | Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Outgoing employee has multiple current assets• Receiving employee is active
+Verification Steps | • Open Transfer page• Select outgoing employee• Review all assigned assets• Select receiving employee• Enter relocation reason• Confirm transfer• Review asset assignments• Review accountability history, audit log, and notifications
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Users / Employees | Select outgoing and receiving employees | Correct employee names, employee numbers, and departments are displayed |  | 
+Assets | Load outgoing employee's current assets | All currently accountable assets are listed |  | 
+Requests / Request Items | Confirm bulk transfer | A Transfer request is created and request_items contains all transferred assets |  | 
+Assets / Accountability | Complete transfer | assets.user_id points to the receiving employee and old accountability becomes non-current |  | 
+Audit Logs | Review transfer event | Audit record identifies the transfer action and related request/assets |  | 
+Notifications | Review affected-user notifications | Relevant notification records are created for the supported transfer event |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-07 | User / Access Type | Asset Management Officer / Admin
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Inventory contains assets in different lifecycle states• Maintenance and lifespan fields are populated
+Verification Steps | • Open dashboard• Review recent assets• Review maintenance-due assets• Open an expired asset• Mark a maintenance task completed• Generate inventory/report
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Dashboard / Inventory | Review recent and status indicators | Dashboard and inventory reflect current lifecycle data |  | 
+Maintenance | Mark a due maintenance task completed | Maintenance dates update and due indicator is cleared/updated |  | 
+Lifespan | Open an expired asset | Asset is presented for checking/evaluation instead of automatic disposal |  | 
+Lifecycle History | Review asset history | Maintenance and lifecycle events remain traceable |  | 
+Reports | Generate inventory/status report | Report reflects the same current records shown in the system |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+INTEGRATION TEST DOCUMENT | Application / System Name | NU TRACE (University Asset Management & Accountability System)
+Test Cycle No. | TC-08 | User / Access Type | All Roles according to permission
+Date Tested | ________________ | Type of System | Web Application
+Pre-conditions | • Test accounts exist for Admin, Department Head/Employee, and Facilities role where applicable
+Verification Steps | • Log in using each role• Open permitted pages• Attempt a restricted action• Perform a permitted action• Log out
+--- END TABLE ---
+--- TABLE ---
+Modules | Action Descriptions | Expected Results | Actual Results | Remarks
+Authentication | Log in using each test role | Each valid user reaches the correct role-based interface |  | 
+Role-Based Access | Open permitted module | Authorized module is accessible |  | 
+Restricted Access | Attempt an action outside the role's permission | Unauthorized action is blocked or unavailable |  | 
+Requests / Assets | Perform an allowed role action | Allowed action completes and updates the related records |  | 
+Audit / Notifications | Review resulting records | Authorized actions generate the expected history/notifications |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+

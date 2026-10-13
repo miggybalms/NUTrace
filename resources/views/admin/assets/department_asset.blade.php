@@ -152,7 +152,7 @@
             <div class="p-4 sm:p-8">
                 <!-- Search and Filter Section -->
                 <div class="bg-white rounded-xl border border-[#DED2AE] p-5 sm:p-6 mb-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
 
 <!-- Search Box -->
 <form method="GET" action="{{ request()->url() }}" class="md:col-span-2" id="searchForm">
@@ -169,6 +169,7 @@
         
         <input type="hidden" name="status" value="{{ $currentStatus ?? 'all' }}">
         <input type="hidden" name="category" value="{{ $currentCategory ?? 'all' }}">
+        <input type="hidden" name="location" value="{{ $currentLocation ?? 'all' }}">
     </div>
 </form>
 
@@ -176,6 +177,7 @@
 <form method="GET">
     <input type="hidden" name="status" value="{{ $currentStatus ?? 'all' }}">
     <input type="hidden" name="search" value="{{ $currentSearch ?? '' }}">
+    <input type="hidden" name="location" value="{{ $currentLocation ?? 'all' }}">
     <label class="block text-sm font-medium text-[#33425C] mb-1.5">Categories</label>
     
     <!-- ✅ Only ONE select. Added id="categoryFilter" -->
@@ -190,11 +192,34 @@
         @endforeach
     </select>
 </form>
+
+<!-- Location / room filter -->
+<form method="GET">
+    <input type="hidden" name="status" value="{{ $currentStatus ?? 'all' }}">
+    <input type="hidden" name="search" value="{{ $currentSearch ?? '' }}">
+    <input type="hidden" name="category" value="{{ $currentCategory ?? 'all' }}">
+    <label class="block text-sm font-medium text-[#33425C] mb-1.5">Location</label>
+    <select id="locationFilter" name="location" onchange="this.form.submit()"
+            class="w-full px-3.5 py-2.5 border border-[#CFC4A4] rounded-lg text-sm focus:outline-none focus:border-[#C9A227] focus:ring-2 focus:ring-[#F3E7C4] transition-shadow">
+        <option value="all">All Locations</option>
+        @foreach(($locationOptions ?? []) as $opt)
+            <option value="{{ $opt['value'] }}"
+                {{ ($currentLocation ?? 'all') === $opt['value'] ? 'selected' : '' }}>
+                {{ $opt['label'] }}
+            </option>
+        @endforeach
+    </select>
+</form>
                     </div>
 
                     <div class="mt-6 pt-6 border-t border-[#EFE9D8] flex items-center justify-between gap-3 flex-wrap">
-                        <p class="text-sm text-[#5B6678]">Only assets with <span class="font-semibold text-[#245C3B]">Active</span> lifecycle stage can be selected for pullout.</p>
+                        <p class="text-sm text-[#5B6678]">Only assets with <span class="font-semibold text-[#245C3B]">Active</span> lifecycle stage can be selected for pullout. <span class="font-medium text-[#33425C]">Print Labels</span> prints one sticker per asset matching the filters above.</p>
                         <div class="flex items-center gap-2">
+                            <button type="button" class="px-4 py-2 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition-colors text-sm font-medium"
+                                    onclick="openLabelSheet()"
+                                    title="Prints one label per asset matching the filters above">
+                                <i class="ri-printer-line mr-1.5"></i> Print Labels
+                            </button>
                             <button type="button" class="px-4 py-2 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition-colors text-sm font-medium" onclick="selectAllVisibleActiveAssets()">
                                 Select All Active
                             </button>
@@ -229,7 +254,7 @@
         </a>
     @endforeach
 
-    <a href="{{ request()->url() }}?{{ http_build_query(request()->except(['status', 'category', 'search', 'page'])) }}"
+    <a href="{{ request()->url() }}?{{ http_build_query(request()->except(['status', 'category', 'search', 'location', 'page'])) }}"
        class="filter-chip px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#EFE9D8] text-[#4B5468]">
         <i class="ri-refresh-line mr-0.5"></i> Reset
     </a>
@@ -240,7 +265,9 @@
                 <div class="bg-white rounded-xl border border-[#DED2AE] overflow-hidden">
                     <div class="px-5 sm:px-6 py-5 border-b border-[#EFE9D8]">
                         <h3 class="font-display text-lg font-semibold text-[#0F2143]">Assets in {{ $departmentName ?? 'Department' }}</h3>
-                        <p class="text-sm text-[#5B6678] mt-0.5">Showing all assets from {{ $departmentName ?? 'selected' }} Department</p>
+                        <p class="text-sm text-[#5B6678] mt-0.5">
+                            {{ ($hasFilters ?? false) ? 'Filtered assets' : 'Showing all assets' }} from {{ $departmentName ?? 'selected' }} Department
+                        </p>
                     </div>
                     
                     <div class="table-container overflow-x-auto">
@@ -324,7 +351,17 @@
                                         <div class="w-16 h-16 bg-[#EFE9D8] rounded-full flex items-center justify-center mx-auto mb-3">
                                             <i class="ri-inbox-line text-2xl text-[#5C6474]"></i>
                                         </div>
-                                        <p class="text-sm">No assets found for this department.</p>
+                                        <p class="text-sm">
+                                            {{ ($hasFilters ?? false)
+                                                ? 'No assets match the selected filters. Try another location, category or status.'
+                                                : 'No assets found for this department.' }}
+                                        </p>
+                                        @if($hasFilters ?? false)
+                                            <a href="{{ request()->url() }}"
+                                               class="inline-flex items-center mt-3 px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#EFE9D8] text-[#4B5468]">
+                                                <i class="ri-refresh-line mr-0.5"></i> Reset filters
+                                            </a>
+                                        @endif
                                     </td>
                                 </tr>
                                 @endforelse
@@ -482,7 +519,7 @@
                     class="flex-1 px-4 py-2.5 bg-[#C9A227] text-[#0A1830] rounded-lg hover:bg-[#E0BC44] transition-colors text-sm font-medium shadow-sm">
                     <i class="ri-download-line mr-1.5"></i> Download
                 </button>
-                <button type="button" onclick="printQRFromModal()"
+                <button type="button" onclick="printLabelFromModal()"
                     class="flex-1 px-4 py-2.5 border border-[#CFC4A4] rounded-lg text-[#33425C] hover:bg-[#F5F0E2] transition-colors text-sm font-medium">
                     <i class="ri-printer-line mr-1.5"></i> Print
                 </button>
@@ -809,154 +846,26 @@ function downloadQRFromModal() {
     }
 }
 
-        function printQRFromModal() {
-            const img = document.getElementById('qrModalImg');
-            const canvasWrap = document.getElementById('qrModalCanvas');
-            const assetId = document.getElementById('qrModalAssetId')?.textContent || 'asset-qr';
-
-            // Get QR image
-            let qrSrc = '';
-            if (img && img.src && !img.classList.contains('hidden')) {
-                qrSrc = img.src;
-            } else {
-                const canvas = canvasWrap?.querySelector('canvas');
-                if (canvas) qrSrc = canvas.toDataURL('image/png');
-            }
-            if (!qrSrc) {
-                alert('No QR code available to print.');
+        // Print one sticker through the shared label sheet, so a label printed
+        // from a row is byte-for-byte the same layout as a bulk printout.
+        function printLabelFromModal() {
+            const assetCode = document.getElementById('qrModalAssetId')?.textContent?.trim() || '';
+            if (!assetCode) {
+                alert('No asset code available to print.');
                 return;
             }
+            openLabelSheet({ asset: assetCode });
+        }
 
-            // Find the table row for this asset to get extra fields
-            const row = document.querySelector(`tr[data-asset-code="${assetId}"]`)
-                    || document.querySelector(`tr[data-id="${assetId}"]`);
-
-            const assetName = row?.querySelector('td:nth-child(3) span')?.textContent?.trim()
-                        || row?.getAttribute('data-name')
-                        || 'ASSET';
-            const category  = row?.querySelector('td:nth-child(4)')?.textContent?.trim() || '—';
-            const location  = row?.querySelector('td:nth-child(7)')?.textContent?.trim() || '—';
-            const acquired  = row?.querySelector('td:nth-child(6)')?.textContent?.trim() || '—';
-
-            const win = window.open('', '_blank', 'width=500,height=300');
-            win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <title>QR Sticker – ${assetId}</title>
-        <style>
-        @page { size: 90mm 40mm; margin: 0; }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; }
-        .tag {
-            width: 90mm;
-            height: 40mm;
-            border: 0.45mm solid #111;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .header {
-            text-align: center;
-            padding: 1.2mm 2mm 0.8mm;
-            border-bottom: 0.35mm solid #111;
-        }
-        .header .office { font-size: 6pt; font-weight: 700; letter-spacing: 0.5px; }
-        .header .name   { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; margin-top: 0.3mm; }
-        .header .campus { font-size: 5.5pt; color: #444; }
-        .body {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 25mm;
-            min-height: 0;
-        }
-        .info {
-            padding: 1.2mm 2mm;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 1.2mm;
-            border-right: 0.35mm solid #111;
-        }
-        .code {
-            font-family: 'Courier New', monospace;
-            font-size: 7.5pt;
-            font-weight: 700;
-        }
-        .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 0.8mm;
-        }
-        .cell {
-            border: 0.25mm solid #888;
-            padding: 0.6mm 0.5mm;
-            text-align: center;
-            font-size: 5.5pt;
-            line-height: 1.15;
-        }
-        .cell span {
-            display: block;
-            font-size: 4.5pt;
-            color: #555;
-            font-weight: 600;
-        }
-        .qr {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 1mm;
-        }
-        .qr img { width: 20mm; height: 20mm; }
-        .qr span { font-size: 4.5pt; margin-top: 0.3mm; }
-        .footer {
-            text-align: center;
-            font-size: 5.5pt;
-            font-weight: 700;
-            color: #c00;
-            padding: 0.7mm;
-            border-top: 0.35mm solid #111;
-            letter-spacing: 0.4px;
-        }
-        @media print {
-            body { margin: 0; }
-        }
-        </style>
-        </head>
-        <body>
-        <div class="tag">
-            <div class="header">
-            <div class="office">ASSET MANAGEMENT OFFICE</div>
-            <div class="name">${assetName}</div>
-            <div class="campus">NU LIPA</div>
-            </div>
-            <div class="body">
-            <div class="info">
-                <div class="code">${assetId}</div>
-                <div class="row">
-                <div class="cell"><span>Location</span>${location}</div>
-                <div class="cell"><span>Category</span>${category}</div>
-                <div class="cell"><span>Acquired</span>${acquired}</div>
-                </div>
-            </div>
-            <div class="qr">
-                <img src="${qrSrc}" alt="QR">
-                <span>Scan me</span>
-            </div>
-            </div>
-            <div class="footer">DO NOT REMOVE THIS TAG</div>
-        </div>
-        <script>
-            window.onload = function() {
-            window.print();
-            setTimeout(() => window.close(), 500);
-            };
-        <\/script>
-        </body>
-        </html>
-            `);
-            win.document.close();
+        // Opens the server-rendered label sheet: one sticker per asset the
+        // filters above currently match. Nothing is printed that the page is not
+        // already showing.
+        function openLabelSheet(extra) {
+            const params = new URLSearchParams(window.location.search);
+            params.delete('page');
+            params.delete('asset');
+            Object.entries(extra || {}).forEach(([key, value]) => params.set(key, value));
+            window.open(@json(url('/admin/assets/department/'.($departmentId ?? '').'/labels')) + '?' + params.toString(), '_blank');
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>

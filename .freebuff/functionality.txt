@@ -1,0 +1,286 @@
+============================== NU_TRACE_Web_Functionality_Test_Document.docx ==============================
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Login / Logout
+Test Cycle No. | TC-01 | Function Name | Login / Logout
+Date Tested | ________________ | User/Access Type | All authenticated roles
+Pre-conditions | User has an active account and valid credentials.
+Action Description | Validate user authentication and session logout.
+Verification Steps | 1. Navigate to Login; 2. Enter credentials; 3. Click Login; 4. Confirm dashboard; 5. Click Logout
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | User logs in successfully and is routed to the appropriate dashboard. |  | 
+2 | Logout ends the session and returns the user to the Login page. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Account Registration
+Test Cycle No. | TC-02 | Function Name | Register Account with Employee ID
+Date Tested | ________________ | User/Access Type | New User
+Pre-conditions | Employee record exists in the employee_numbers table and registration is enabled.
+Action Description | Validate account registration against the employee master record.
+Verification Steps | 1. Open Register; 2. Enter employee number and required data; 3. Submit; 4. Review validation
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Valid employee information creates an account linked to the correct employee record. |  | 
+2 | Unknown or duplicate employee information is blocked with clear validation. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Password Reset
+Test Cycle No. | TC-03 | Function Name | Forgot Password
+Date Tested | ________________ | User/Access Type | All Roles
+Pre-conditions | An active account with a registered email exists.
+Action Description | Validate password reset using a verification code.
+Verification Steps | 1. Click Forgot Password; 2. Enter email; 3. Retrieve code; 4. Enter code/new password; 5. Log in
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Reset code is sent to the registered email. |  | 
+2 | Valid code allows password update and the new password can be used to sign in. |  | 
+3 | Invalid or expired codes do not complete the reset. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Admin Dashboard
+Test Cycle No. | TC-04 | Function Name | Dashboard Overview
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Admin is logged in and inventory contains records.
+Action Description | Validate dashboard information and status summaries.
+Verification Steps | 1. Open Dashboard; 2. Review statistics; 3. Review asset-status panels; 4. Open a summary item
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Dashboard reflects current asset counts and lifecycle/status categories. |  | 
+2 | Summary links open the corresponding records without data mismatch. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Asset Registry
+Test Cycle No. | TC-05 | Function Name | Register Single Asset
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Admin is logged in and required reference values are available.
+Action Description | Validate creation and viewing of a single asset.
+Verification Steps | 1. Open Asset Registry; 2. Enter asset data; 3. Save; 4. Search for the asset
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Asset is saved with a unique Asset Code and appears in the inventory. |  | 
+2 | Acquisition, lifespan, maintenance, and other entered values are retained correctly. |  | 
+3 | QR information is associated with the individual asset. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Bulk Asset Registry
+Test Cycle No. | TC-06 | Function Name | Bulk Register Assets
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Admin is logged in and quantity-based registration is enabled.
+Action Description | Validate bulk creation of individually traceable assets.
+Verification Steps | 1. Open Bulk Registration; 2. Enter quantity/common data; 3. Choose code method; 4. Submit; 5. Review created assets
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | The requested quantity of individual asset records is created. |  | 
+2 | Each asset has its own Asset ID/Code and QR identity. |  | 
+3 | Existing institutional asset codes can be preserved when valid and unique. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | QR / Barcode Asset Identification
+Test Cycle No. | TC-07 | Function Name | View Asset Through QR / Barcode
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | An asset with a valid QR/barcode identity exists.
+Action Description | Validate asset identification through its printed code.
+Verification Steps | 1. Scan/open the asset QR/barcode; 2. Observe resolved asset; 3. Review asset details
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | The scan resolves to the correct individual asset. |  | 
+2 | Displayed asset information matches the registered asset record. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Asset Details
+Test Cycle No. | TC-08 | Function Name | View Maintenance, Lifespan, and History
+Date Tested | ________________ | User/Access Type | Department Head / Employee
+Pre-conditions | User has at least one current accountable asset.
+Action Description | Validate that an assigned user can view relevant asset information without changing admin lifecycle records.
+Verification Steps | 1. Open My Assets; 2. Open an asset; 3. Review details, maintenance, lifespan, warranty, and history
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | User sees the correct assets currently assigned to them. |  | 
+2 | Maintenance and lifespan information is understandable and current. |  | 
+3 | Repair and asset history can be reviewed without unauthorized lifecycle actions. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Asset Requests
+Test Cycle No. | TC-09 | Function Name | Submit Single and Bulk Request
+Date Tested | ________________ | User/Access Type | Department Head / Employee
+Pre-conditions | User is logged in and at least one eligible asset exists.
+Action Description | Validate request submission with notes and multiple asset support.
+Verification Steps | 1. Open My Requests; 2. Select request type; 3. Select asset(s); 4. Enter note; 5. Submit; 6. View request
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Single-asset and multi-asset requests are submitted successfully. |  | 
+2 | Request status starts at Pending. |  | 
+3 | Full user note is retained and request details show the selected assets. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Repair Servicing
+Test Cycle No. | TC-10 | Function Name | Manage Repair and Evaluation
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | A repair request is approved or an asset is ready for servicing.
+Action Description | Validate repair status, servicing documentation, and repair result.
+Verification Steps | 1. Open Repair; 2. Start servicing; 3. Record provider/parts/findings/cost; 4. Set result; 5. Complete or route
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Repair status changes correctly through the servicing process. |  | 
+2 | Technician/provider, parts, findings, cost, and remarks are retained. |  | 
+3 | Repairable returns the asset to Active; beyond-repair outcomes can proceed to replacement/disposal. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Replacement / Disposal
+Test Cycle No. | TC-11 | Function Name | Process Replacement and Disposal
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Asset is approved for replacement or disposal.
+Action Description | Validate replacement linking and disposal recording.
+Verification Steps | 1. Open Replacement/Disposal action; 2. Review old asset; 3. Enter required details; 4. Complete transaction
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Replacement links the old and new asset records correctly. |  | 
+2 | The new asset can become Active after receipt. |  | 
+3 | The old asset can be finalized through Disposal while retaining history. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Pullout Management
+Test Cycle No. | TC-12 | Function Name | Process Single / Bulk Pullout
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Eligible assets and an approved/processable pullout request exist.
+Action Description | Validate processing of single and multiple asset pullouts.
+Verification Steps | 1. Open Pullout; 2. Select asset(s); 3. Enter destination/return details; 4. Confirm; 5. Review status/history
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | A single asset pullout is recorded correctly. |  | 
+2 | Bulk pullout groups multiple individual assets under one transaction. |  | 
+3 | Pulled-out assets remain traceable in the Admin inventory/history. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Transfer / Employee Relocation
+Test Cycle No. | TC-13 | Function Name | Transfer All Assets to New Employee
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Outgoing employee has current assigned assets and receiving employee is active.
+Action Description | Validate full employee relocation transfer.
+Verification Steps | 1. Open Transfer page; 2. Select outgoing employee; 3. Review all assigned assets; 4. Select receiving employee; 5. Confirm
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | All current assets of the outgoing employee are transferred in one transaction. |  | 
+2 | Current accountability changes to the receiving employee. |  | 
+3 | Previous accountability remains visible as history. |  | 
+4 | Transfer status/history clearly indicates that the outgoing employee was reassigned. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Notifications
+Test Cycle No. | TC-14 | Function Name | View and Read Notifications
+Date Tested | ________________ | User/Access Type | All Roles
+Pre-conditions | A supported action has generated a notification.
+Action Description | Validate notification display and read-state handling.
+Verification Steps | 1. Open notification bell; 2. Select a notification; 3. View related record; 4. Return to bell
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Correct notification title and message are displayed. |  | 
+2 | The related asset/request record opens correctly. |  | 
+3 | Read/unread state updates properly. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Audit Logs
+Test Cycle No. | TC-15 | Function Name | View Audit History
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | At least one supported system action has been completed.
+Action Description | Validate visibility and traceability of audit records.
+Verification Steps | 1. Open Audit Logs; 2. Filter/view a record; 3. Open details
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Audit entry identifies the acting user, action, related asset/request, and timestamp. |  | 
+2 | Transfer, repair, replacement, disposal, request, and approval actions can be traced through the audit history. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Reports and Inventory
+Test Cycle No. | TC-16 | Function Name | Export Inventory and Status Reports
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Inventory contains test records.
+Action Description | Validate generation and download of inventory/report information.
+Verification Steps | 1. Open Reports; 2. Select report/filter; 3. Generate/export; 4. Review downloaded data
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Report reflects current inventory and selected filters. |  | 
+2 | Exported data is readable and corresponds to the records shown in the system. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+--- TABLE ---
+FUNCTIONALITY TEST DOCUMENT | Module Name | Asset Lifecycle Indicators
+Test Cycle No. | TC-17 | Function Name | Recent, Maintenance Due, and For Checking
+Date Tested | ________________ | User/Access Type | Asset Management Officer / Admin
+Pre-conditions | Inventory contains assets with recent registration, upcoming maintenance, and/or expired lifespan.
+Action Description | Validate that lifecycle indicators make important asset conditions easy to identify.
+Verification Steps | 1. Open Dashboard/Inventory; 2. Review status badges/alerts; 3. Open an affected asset
+--- END TABLE ---
+--- TABLE ---
+Runs | Expected Results | Actual Results | Remarks
+1 | Recently registered assets appear under the configured recent period. |  | 
+2 | Maintenance due items are clearly identified. |  | 
+3 | Expired lifespan assets are shown as For Checking/evaluation rather than automatically disposed. |  | 
+--- END TABLE ---
+--- TABLE ---
+Prepared By______________________________Capstone Development TeamSignature over Printed Name | Administered / Performed By______________________________IT Expert / Asset Management OfficerSignature over Printed Name
+--- END TABLE ---
+

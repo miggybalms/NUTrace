@@ -38,6 +38,7 @@ class Media
      */
     public const BRAND_FILES = [
         'logo-mark.png' => 'images/logo-mark.png',
+        'nu-seal.png' => 'images/nu-seal.png',
         'favicon.ico' => 'favicon.ico',
     ];
 

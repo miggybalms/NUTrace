@@ -1155,134 +1155,40 @@
             }
         }
         
-                function printQRCode() {
-                    const assetCode = document.getElementById('asset-code-input')?.value || '';
-                    const assetName = document.getElementById('asset-name')?.value || 'ASSET';
-                    const category  = document.getElementById('asset-category')?.value || '';
-                    const location  = document.getElementById('asset-location')?.value || '';
-                    const acquired  = document.querySelector('input[name="acquisition_date"]')?.value || '';
+        // Every sticker the registry prints comes from the shared label sheet, so
+        // it is the same layout as a label printed from the department page.
+        const LABEL_PREVIEW_URL = @json(url('/admin/assets/label-preview'));
+        const LABEL_SHEET_URL = @json(url('/admin/assets/labels'));
 
-                    let acquiredFormatted = '—';
-                    if (acquired) {
-                        const d = new Date(acquired);
-                        acquiredFormatted = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
-                    }
+        function openLabelPreview(fields) {
+            const query = new URLSearchParams(fields).toString();
+            window.open(LABEL_PREVIEW_URL + '?' + query, '_blank', 'width=760,height=520');
+        }
 
-                    let qrDataUrl = '';
-                    const canvas = document.querySelector('#qrcode canvas') || document.querySelector('#modal-qrcode canvas');
-                    if (canvas) qrDataUrl = canvas.toDataURL('image/png');
+        function labelSheetUrl(codes) {
+            return LABEL_SHEET_URL + '?' + new URLSearchParams({ codes: codes.join(',') }).toString();
+        }
 
-                    const win = window.open('', '_blank', 'width=500,height=300');
-                    win.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                <title>QR Sticker – ${assetCode}</title>
-                <style>
-                @page { size: 90mm 40mm; margin: 0; }
-                * { margin:0; padding:0; box-sizing:border-box; }
-                body { font-family: Arial, Helvetica, sans-serif; }
-                .tag {
-                    width: 90mm;
-                    height: 40mm;
-                    border: 0.4mm solid #222;
-                    display: grid;
-                    grid-template-columns: 1fr 28mm;
-                    grid-template-rows: auto 1fr auto;
-                    overflow: hidden;
-                }
-                .top {
-                    grid-column: 1 / -1;
-                    text-align: center;
-                    padding: 1.5mm 2mm 1mm;
-                    border-bottom: 0.3mm solid #222;
-                }
-                .top .office { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.4px; }
-                .top .name   { font-size: 9pt; font-weight: 700; text-transform: uppercase; margin-top: 0.5mm; }
-                .top .sub    { font-size: 5.5pt; color: #444; margin-top: 0.3mm; }
-                .left {
-                    padding: 1.5mm 2mm;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    gap: 1mm;
-                    border-right: 0.3mm solid #222;
-                }
-                .code {
-                    font-family: 'Courier New', monospace;
-                    font-size: 8pt;
-                    font-weight: 700;
-                    letter-spacing: 0.5px;
-                }
-                .meta {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr 1fr;
-                    gap: 1mm;
-                    font-size: 6pt;
-                }
-                .meta div {
-                    border: 0.25mm solid #999;
-                    padding: 0.8mm;
-                    text-align: center;
-                }
-                .meta strong { display:block; font-size: 5pt; color:#555; }
-                .qr-side {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 1mm;
-                }
-                .qr-side img { width: 22mm; height: 22mm; }
-                .qr-side span { font-size: 5pt; margin-top: 0.5mm; }
-                .footer {
-                    grid-column: 1 / -1;
-                    text-align: center;
-                    font-size: 6pt;
-                    font-weight: 700;
-                    color: #c00;
-                    padding: 1mm;
-                    border-top: 0.3mm solid #222;
-                    letter-spacing: 0.5px;
-                }
-                @media print {
-                    body { margin: 0; }
-                    .tag { border: 0.4mm solid #222; }
-                }
-                </style>
-                </head>
-                <body>
-                <div class="tag">
-                    <div class="top">
-                    <div class="office">ASSET MANAGEMENT OFFICE</div>
-                    <div class="name">${assetName}</div>
-                    <div class="sub">NU LIPA</div>
-                    </div>
-                    <div class="left">
-                    <div class="code">${assetCode}</div>
-                    <div class="meta">
-                        <div><strong>Location</strong>${location || '—'}</div>
-                        <div><strong>Category</strong>${category || '—'}</div>
-                        <div><strong>Acquired</strong>${acquiredFormatted}</div>
-                    </div>
-                    </div>
-                    <div class="qr-side">
-                    <img src="${qrDataUrl}" alt="QR">
-                    <span>Scan me</span>
-                    </div>
-                    <div class="footer">DO NOT REMOVE THIS TAG</div>
-                </div>
-                <script>
-                    window.onload = function() {
-                    window.print();
-                    setTimeout(() => window.close(), 500);
-                    };
-                <\/script>
-                </body>
-                </html>
-                    `);
-                    win.document.close();
-                }
+        function registeredLabelCodes() {
+            return (bulkQrLabels || []).map((label) => label.code).filter(Boolean);
+        }
+
+        function printQRCode() {
+            const code = (document.getElementById('asset-code-input')?.value || '').trim();
+
+            if (code === '') {
+                alert('No asset code available to print.');
+                return;
+            }
+
+            openLabelPreview({
+                code: code,
+                name: document.getElementById('asset-name')?.value || 'ASSET',
+                category: document.getElementById('asset-category')?.value || '',
+                location: document.getElementById('asset-location')?.value || '',
+                acquired: document.querySelector('input[name="acquisition_date"]')?.value || ''
+            });
+        }
 
         function openBulkQrModal() {
             const modal = document.getElementById('bulkQrModal');
@@ -1365,193 +1271,29 @@
                 return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
             }
 
-            async function buildBulkQrSheetHtml() {
-                // Recover form data saved before submit
-                let saved = {};
-                try {
-                    saved = JSON.parse(sessionStorage.getItem('lastAssetMeta') || '{}');
-                } catch (e) {}
+        function printBulkQrSheet() {
+            const codes = registeredLabelCodes();
 
-                const cards = await Promise.all(bulkQrLabels.map(async (label) => {
-                    let qrSrc = '';
-
-                    if (label.qr_url) {
-                        try {
-                            const res = await fetch(label.qr_url);
-                            const blob = await res.blob();
-                            qrSrc = await new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onload = () => resolve(reader.result);
-                                reader.readAsDataURL(blob);
-                            });
-                        } catch (e) {}
-                    }
-
-                    if (!qrSrc && label.code) {
-                        const temp = document.createElement('div');
-                        temp.style.cssText = 'position:absolute;left:-9999px';
-                        document.body.appendChild(temp);
-                        new QRCode(temp, {
-                            text: label.code,
-                            width: 128,
-                            height: 128,
-                            correctLevel: QRCode.CorrectLevel.H
-                        });
-                        const canvas = temp.querySelector('canvas');
-                        if (canvas) qrSrc = canvas.toDataURL('image/png');
-                        temp.remove();
-                    }
-
-                    // Prefer label data → saved form data → dash
-                    const location = label.location || saved.location || '—';
-                    const category = label.category || saved.category || '—';
-                    const acquired = formatAcquiredDate(label.acquired || saved.acquired || '');
-
-                    return `
-                    <div class="tag">
-                        <div class="header">
-                        <div class="office">ASSET MANAGEMENT OFFICE</div>
-                        <div class="name">${escapeHtml(label.name || saved.name || 'ASSET')}</div>
-                        <div class="campus">NU LIPA</div>
-                        </div>
-                        <div class="body">
-                        <div class="info">
-                            <div class="code">${escapeHtml(label.code || '')}</div>
-                            <div class="row">
-                            <div class="cell"><span>Location</span>${escapeHtml(location)}</div>
-                            <div class="cell"><span>Category</span>${escapeHtml(category)}</div>
-                            <div class="cell"><span>Acquired</span>${escapeHtml(acquired)}</div>
-                            </div>
-                        </div>
-                        <div class="qr">
-                            ${qrSrc ? `<img src="${qrSrc}" alt="QR">` : `<div class="no-qr">NO QR</div>`}
-                            <span>Scan me</span>
-                        </div>
-                        </div>
-                        <div class="footer">DO NOT REMOVE THIS TAG</div>
-                    </div>
-                    `;
-                }));
-
-                return `<!DOCTYPE html>
-            <html>
-            <head>
-            <title>Bulk QR Labels</title>
-            <style>
-            @page { size: A4; margin: 8mm; }
-            * { margin:0; padding:0; box-sizing:border-box; }
-            body { font-family: Arial, Helvetica, sans-serif; }
-            .sheet {
-                display: grid;
-                grid-template-columns: repeat(2, 90mm);
-                gap: 5mm 6mm;
-                justify-content: center;
-            }
-            .tag {
-                width: 90mm;
-                height: 40mm;
-                border: 0.45mm solid #111;
-                display: flex;
-                flex-direction: column;
-                page-break-inside: avoid;
-                break-inside: avoid;
-                overflow: hidden;
-            }
-            .header {
-                text-align: center;
-                padding: 1.2mm 2mm 0.8mm;
-                border-bottom: 0.35mm solid #111;
-            }
-            .header .office { font-size: 6pt; font-weight: 700; letter-spacing: 0.5px; }
-            .header .name   { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; margin-top: 0.3mm; }
-            .header .campus { font-size: 5.5pt; color: #444; }
-            .body {
-                flex: 1;
-                display: grid;
-                grid-template-columns: 1fr 25mm;
-                min-height: 0;
-            }
-            .info {
-                padding: 1.2mm 2mm;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                gap: 1.2mm;
-                border-right: 0.35mm solid #111;
-            }
-            .code {
-                font-family: 'Courier New', monospace;
-                font-size: 7.5pt;
-                font-weight: 700;
-            }
-            .row {
-                display: grid;
-                grid-template-columns: 1fr 1fr 1fr;
-                gap: 0.8mm;
-            }
-            .cell {
-                border: 0.25mm solid #888;
-                padding: 0.6mm 0.5mm;
-                text-align: center;
-                font-size: 5.5pt;
-                line-height: 1.15;
-            }
-            .cell span {
-                display: block;
-                font-size: 4.5pt;
-                color: #555;
-                font-weight: 600;
-            }
-            .qr {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 1mm;
-            }
-            .qr img { width: 20mm; height: 20mm; }
-            .qr span { font-size: 4.5pt; margin-top: 0.3mm; }
-            .no-qr {
-                width: 20mm; height: 20mm;
-                border: 0.3mm dashed #999;
-                display: flex; align-items: center; justify-content: center;
-                font-size: 5pt; color: #999;
-            }
-            .footer {
-                text-align: center;
-                font-size: 5.5pt;
-                font-weight: 700;
-                color: #c00;
-                padding: 0.7mm;
-                border-top: 0.35mm solid #111;
-                letter-spacing: 0.4px;
-            }
-            </style>
-            </head>
-            <body>
-            <div class="sheet">${cards.join('')}</div>
-            </body>
-            </html>`;
+            if (!codes.length) {
+                alert('No QR labels to print.');
+                return;
             }
 
-            async function printBulkQrSheet() {
-                if (!bulkQrLabels || !bulkQrLabels.length) {
-                    alert('No QR labels to print.');
-                    return;
-                }
-                const html = await buildBulkQrSheetHtml();
-                const win = window.open('', '_blank');
-                win.document.write(html);
-                win.document.close();
-                win.focus();
-                setTimeout(() => win.print(), 800);
-            }
+            window.open(labelSheetUrl(codes), '_blank');
+        }
 
-            async function downloadBulkQrSheet() {
-                if (!bulkQrLabels || !bulkQrLabels.length) return;
-                const html = await buildBulkQrSheetHtml();
-                const blob = new Blob([html], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
+        async function downloadBulkQrSheet() {
+            const codes = registeredLabelCodes();
+
+            if (!codes.length) return;
+
+            try {
+                const res = await fetch(labelSheetUrl(codes));
+
+                if (!res.ok) throw new Error('the sheet could not be built');
+
+                const html = await res.text();
+                const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
                 const link = document.createElement('a');
                 link.href = url;
                 link.download = 'bulk-qr-labels.html';
@@ -1559,8 +1301,11 @@
                 link.click();
                 link.remove();
                 URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Unable to download the label sheet: ' + e.message);
             }
-        
+        }
+
         // User search using server-side endpoint (returns real DB users)
         const searchInput = document.getElementById('user-search');
         const searchResults = document.getElementById('search-results');

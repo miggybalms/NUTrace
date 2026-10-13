@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin header preview</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+<style>
+    :root{
+        --navy-950:#0A1830; --navy-900:#0F2143; --navy-800:#15305B; --navy-700:#1D3F73;
+        --gold-500:#C9A227; --gold-600:#A8841E; --gold-ink:#7E5E0E; --gold-100:#F3E7C4;
+        --paper:#F3EEE0; --paper-2:#EAE2C9; --bronze:#B4791E; --bronze-dark:#8F5F16; --bronze-tint:#FBF1DE;
+        --brick:#A23B32; --brick-dark:#7E2E27; --brick-tint:#F7E9E6;
+        --ink-900:#1A2233; --ink-600:#4B5468; --ink-400:#5C6474; --line:#DED2AE;
+        --forest:#2F7A4D; --forest-dark:#245C3B; --forest-tint:#EAF4EE;
+    }
+    body{ margin:0; background:var(--paper); font-family:ui-sans-serif,system-ui,sans-serif; }
+    .font-display{ font-family:Georgia,serif; }
+</style>
+</head>
+<body>
+<style>
+    .admin-topbar{ background:#fff; border-bottom:1px solid var(--line,#E4DCC6); position:relative; }
+    .admin-topbar::after{ content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; background:linear-gradient(90deg, transparent, var(--gold-500,#C9A227) 20%, var(--gold-500,#C9A227) 80%, transparent); opacity:.7; }
+    .admin-topbar .search-input{ border:1px solid var(--line,#E4DCC6); background:#fff; transition:border-color .15s, box-shadow .15s; }
+    .admin-topbar .search-input:focus{ outline:none; border-color:var(--gold-500,#C9A227); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
+    .admin-topbar .avatar-badge{ background:var(--navy-950,#0A1830); color:var(--gold-500,#C9A227); border:1px solid var(--gold-500,#C9A227); }
+    .admin-topbar .badge-role{ background:var(--gold-100,#F3E7C4); color:var(--navy-900,#0F2143); }
+    .admin-topbar .btn-gold{ background:var(--gold-500,#C9A227); color:#0A1830; font-weight:600; padding:.625rem 1.1rem; border-radius:.6rem; display:inline-flex; align-items:center; justify-content:center; transition:background .15s; font-size:.875rem; }
+    .admin-topbar .btn-gold:hover{ background:var(--gold-400,#E0BC44); }
+    .admin-topbar .btn-ghost{ background:#fff; color:var(--ink-600,#5B6678); border:1px solid var(--gold-500,#C9A227); font-weight:600; padding:.625rem 1.1rem; border-radius:.6rem; display:inline-flex; align-items:center; justify-content:center; transition:background .15s; font-size:.875rem; }
+    .admin-topbar .btn-ghost:hover{ background:var(--paper-2,#EFE9D8); }
+</style>
+
+<div class="admin-topbar sticky top-0 z-10">
+    <div class="px-4 sm:px-8 py-5">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div class="flex items-center min-w-0">
+                                    <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400,#5C6474);" title="Menu">
+                        <i class="ri-menu-line text-2xl"></i>
+                    </button>
+                                <div class="flex items-center gap-3 min-w-0">
+                    <span class="hidden sm:flex w-10 h-10 rounded-xl items-center justify-center flex-shrink-0" style="background:var(--gold-100,#F3E7C4);" aria-hidden="true">
+                        <i class="ri-dashboard-line text-lg" style="color:var(--navy-900,#0F2143);"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900,#0F2143);">Dashboard</h2>
+                        <div class="flex items-center gap-2 mt-1 min-w-0">
+                            <span class="avatar-badge w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">AL</span>
+                            <p class="text-sm truncate">
+                                <span class="font-semibold" style="color:var(--navy-900,#0F2143);">alex</span>
+                                <span class="mx-1.5" style="color:var(--ink-400,#5C6474);">•</span>
+                                <span style="color:var(--ink-600,#5B6678);">Admin</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                                        
+                
+                
+
+                
+                
+                <div class="relative" id="admin-profile-wrapper">
+                    <button type="button"
+                            id="admin-profile-btn"
+                            class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1 focus:outline-none"
+                            style="transition:background .15s;"
+                            onmouseover="this.style.background='var(--paper-2,#EFE9D8)'"
+                            onmouseout="this.style.background='transparent'"
+                            aria-haspopup="true"
+                            aria-expanded="false">
+                        <span class="avatar-badge w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+                                                            <span class="text-xs font-semibold">AL</span>
+                                                    </span>
+                        <i class="ri-arrow-down-s-line" style="color:var(--ink-400,#5C6474);"></i>
+                    </button>
+
+                    <div id="admin-profile-dropdown"
+                         class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl z-50 overflow-hidden"
+                         style="border:1px solid var(--line,#E4DCC6);">
+                        <div class="px-4 py-4" style="background:linear-gradient(to right,#F8F1DE,#EFE5C9); border-bottom:1px solid #E3D6B0;">
+                            <div class="flex items-center gap-3">
+                                <span class="avatar-badge w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                                                            <span class="text-lg font-semibold">AL</span>
+                                                                    </span>
+                                <div class="min-w-0">
+                                    <p class="font-semibold truncate" style="color:var(--navy-900,#0F2143);">alex</p>
+                                    <p class="text-xs truncate" style="color:var(--ink-600,#5B6678);">alex@nu-lipa.edu.ph</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="px-4 py-3 space-y-2.5 text-sm">
+                            <div class="flex items-center gap-2.5">
+                                <i class="ri-user-3-line text-base" style="color:var(--ink-400,#5C6474);"></i>
+                                <div>
+                                    <p class="text-xs" style="color:var(--ink-400,#5C6474);">Role</p>
+                                    <p class="font-medium" style="color:var(--navy-800,#15305B);">Admin</p>
+                                </div>
+                            </div>
+                                                    </div>
+
+                        <div class="px-2 py-2" style="border-top:1px solid #EFE9D8;">
+                            <a href="http://localhost/logout"
+                               onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();"
+                               class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium"
+                               style="color:#A23B32;">
+                                <i class="ri-logout-box-r-line text-base"></i>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="admin-logout-form" action="http://localhost/logout" method="POST" class="hidden">
+                    <input type="hidden" name="_token" value="" autocomplete="off">                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    if (window.__adminProfileInit) return;
+    window.__adminProfileInit = true;
+
+    const btn  = document.getElementById('admin-profile-btn');
+    const menu = document.getElementById('admin-profile-dropdown');
+    const wrap = document.getElementById('admin-profile-wrapper');
+    if (!btn || !menu || !wrap) return;
+
+    function closeMenu() {
+        menu.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
+    }
+
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const willOpen = menu.classList.contains('hidden');
+        menu.classList.toggle('hidden', !willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+        // The dashboard's alert dropdowns (requests / maintenance / lifespan)
+        // share this corner of the topbar, so only one of them stays open.
+        if (willOpen && typeof window.closeAllAlertDropdowns === 'function') {
+            window.closeAllAlertDropdowns();
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!wrap.contains(e.target)) closeMenu();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeMenu();
+    });
+})();
+</script>
+
+
+<div style="padding:2rem;color:var(--ink-600)">
+    <p>Preview harness: this is the shared admin header exactly as a page includes it.</p>
+</div>
+<script>
+    // Stand-in for the dashboard's alert dropdowns, so the mutual-exclusion hook
+    // in the profile menu can be observed here too.
+    window.closeAllAlertDropdowns = function () {
+        document.querySelectorAll('[data-preview-alert]').forEach(el => el.classList.add('hidden'));
+    };
+</script>
+</body>
+</html>
