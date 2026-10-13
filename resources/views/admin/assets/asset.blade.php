@@ -141,7 +141,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
         <!-- Header (shared admin header) -->
         @include('admin.partials.header', [
             'adminHeaderPage'     => 'assets',
@@ -214,7 +214,7 @@
                                                 @else
                                                     <p class="text-sm italic" style="color:var(--ink-400);">No Department Head</p>
                                                 @endif
-                                                <button type="button" aria-label="Assign a department head to {{ $dept->name }}" onclick="event.stopPropagation(); openAssignDeptHeadModal({{ $dept->id }}, '{{ $dept->name }}')" class="ml-2 transition-colors flex-shrink-0" style="color:var(--ink-400);" onmouseover="this.style.color='var(--gold-ink)'" onmouseout="this.style.color='var(--ink-400)'">
+                                                <button type="button" aria-label="Assign a department head to {{ $dept->name }}" onclick="event.stopPropagation(); openAssignDeptHeadModal({{ $dept->id }}, '{{ $dept->name }}')" class="ml-2 p-2 -m-1 transition-colors flex-shrink-0" style="color:var(--ink-400);" onmouseover="this.style.color='var(--gold-ink)'" onmouseout="this.style.color='var(--ink-400)'">
                                                     <i class="ri-edit-line text-base"></i>
                                                 </button>
                                             </div>

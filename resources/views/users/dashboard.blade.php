@@ -70,7 +70,9 @@
         @include('users.partials.sidebar', ['currentUser' => $user])
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+            {{-- Space for the fixed mobile top bar above the scrolling column --}}
+            <div class="lg:hidden h-14"></div>
             <!-- Header -->
             @include('layouts.user_header', [
                 'title' => 'Dashboard',
@@ -175,7 +177,7 @@
                             <p class="text-sm text-[#5B6678] mt-1">Your latest request activities</p>
                         </div>
                             <a href="/user/requests"
-                            class="text-[#0A1830] hover:text-[#C9A227] text-sm font-medium flex items-center transition">
+                            class="text-[#0A1830] hover:text-[#C9A227] text-sm font-medium flex items-center py-2 lg:py-0 transition">
                                 View All
                                 <i class="ri-arrow-right-line ml-1"></i>
                             </a>

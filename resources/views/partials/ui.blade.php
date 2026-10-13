@@ -423,4 +423,43 @@
         border-color: var(--nt-gold-500);
         background-color: var(--nt-gold-tint);
     }
+
+    /* ================================================================
+       Phone and small-tablet ergonomics
+
+       Below `lg` every shell swaps its sidebar for a drawer and shows a fixed
+       3.5rem top bar above the scrolling column, so a sticky page header has
+       to start *under* that bar instead of sliding behind it. Touch targets
+       that are icon-sized on a monitor are grown to a thumb-sized 40px, and
+       the 11px label type is lifted to a readable 12px.
+       ================================================================ */
+    @media (max-width: 1023.98px) {
+        .nt-ui .brand-topbar,
+        .nt-ui .topbar { top: 3.5rem; }
+
+        /* min-width/min-height outrank the utility width/height they clash
+           with, so the control grows without touching the markup. */
+        .nt-ui button.w-8, .nt-ui a.w-8,
+        .nt-ui button.w-9, .nt-ui a.w-9,
+        .nt-ui button.p-1\.5, .nt-ui a.p-1\.5,
+        .nt-ui button.p-2, .nt-ui a.p-2 { min-width: 2.5rem; min-height: 2.5rem; }
+
+        /* Filter pills and mode switches are 28px tall on desktop. */
+        .nt-ui .filter-chip,
+        .nt-ui .mode-btn { min-height: 2.5rem; display: inline-flex; align-items: center; }
+    }
+
+    @media (max-width: 639.98px) {
+        .nt-ui .eyebrow,
+        .nt-ui .detail-label,
+        .nt-ui .detail-field .detail-label,
+        .nt-ui .table-container thead th { font-size: 12px; letter-spacing: .07em; }
+
+        /* The 12-24px cell padding the tables were built with is what forces a
+           sideways drag on a phone; shrinking it lets the same columns fit.
+           Only the application's own scrolling column is affected, so modal
+           tables keep their roomier spacing. */
+        .nt-ui main table > thead > tr > th,
+        .nt-ui main table > tbody > tr > td { padding-left: .5rem; padding-right: .5rem; }
+    }
 </style>

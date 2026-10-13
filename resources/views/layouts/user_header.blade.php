@@ -85,7 +85,7 @@
                     {{-- Icon-only, so it carries its own name; the badge is only a count. --}}
                     <button type="button" id="notification-bell"
                             aria-label="Notifications" aria-haspopup="true" aria-expanded="false"
-                            class="relative p-2 rounded-full hover:bg-[#EFE9D8] transition focus:outline-none">
+                            class="relative p-3 -m-1 rounded-full hover:bg-[#EFE9D8] transition focus:outline-none">
                         <i class="ri-notification-3-line text-xl text-[#46536B]"></i>
                         <span id="notification-badge"
                               class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-[#A23B32] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden">
@@ -114,7 +114,7 @@
 <div class="relative" id="profile-wrapper">
     <button type="button"
             id="profile-btn"
-            class="flex items-center space-x-2 cursor-pointer hover:bg-[#F5F0E2] rounded-lg px-2 py-1 focus:outline-none">
+            class="flex items-center space-x-2 cursor-pointer hover:bg-[#F5F0E2] rounded-lg px-2 py-2 focus:outline-none">
         
         {{-- Small avatar --}}
         <div class="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0

@@ -92,7 +92,7 @@
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'transfer',
                 'adminHeaderTitle'    => 'Transfer',
@@ -217,8 +217,11 @@
                             <thead class="sticky top-0" style="background:var(--paper-2); border-bottom:1px solid var(--line);">
                                 <tr>
                                     <th class="eyebrow text-left py-3 px-3">Employee</th>
-                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Employee No.</th>
-                                    <th class="eyebrow text-left py-3 px-3">Position / Department</th>
+                                    {{-- The employee number and the department column move out of the way on a
+                                     phone: the name is right there, the search box finds people by
+                                     number, and the assets modal repeats both. --}}
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap hidden lg:table-cell">Employee No.</th>
+                                    <th class="eyebrow text-left py-3 px-3 hidden xl:table-cell">Position / Department</th>
                                     <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Assigned Assets</th>
                                     <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Status</th>
                                     <th class="eyebrow text-right py-3 px-3 whitespace-nowrap">Action</th>
@@ -238,13 +241,15 @@
                                                     {{ strtoupper(mb_substr($employee['name'] ?? 'U', 0, 1) . (str_contains($employee['name'] ?? '', ' ') ? mb_substr(strrchr($employee['name'], ' '), 1, 1) : '')) }}
                                                 </span>
                                                 <div class="min-w-0">
-                                                    <p class="text-sm font-medium truncate" style="color:var(--navy-900);">{{ $employee['name'] }}</p>
-                                                    <p class="text-xs truncate" style="color:var(--ink-400);">{{ $employee['email'] }}</p>
+                                                    {{-- Wraps on a phone, ellipsised from sm up: a truncating cell is what
+                                                        forces this table wider than the screen. --}}
+                                                    <p class="text-sm font-medium break-words sm:truncate" style="color:var(--navy-900);">{{ $employee['name'] }}</p>
+                                                    <p class="text-xs break-words sm:truncate" style="color:var(--ink-400);">{{ $employee['email'] }}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--ink-600);">{{ $employee['employee_number'] ?? '—' }}</td>
-                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                        <td class="py-3 px-3 text-sm font-mono whitespace-nowrap hidden lg:table-cell" style="color:var(--ink-600);">{{ $employee['employee_number'] ?? '—' }}</td>
+                                        <td class="py-3 px-3 text-sm hidden xl:table-cell" style="color:var(--ink-600);">
                                             <span style="color:var(--navy-900);">{{ $employee['role'] ?: 'Employee' }}</span>
                                             <span class="mx-1" style="color:var(--ink-400);">•</span>
                                             {{ $employee['department'] ?? 'No department' }}

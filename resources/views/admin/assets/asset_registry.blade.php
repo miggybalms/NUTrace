@@ -148,7 +148,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             <!-- Header (shared admin header) -->
             @include('admin.partials.header', [
@@ -585,7 +585,7 @@
                                 <div class="flex items-center justify-between mb-3">
                                     <label class="text-sm font-medium text-[#33425C]">Asset QR Code</label>
                                     <button type="button" onclick="viewQRCode()" 
-                                            class="text-[#7E5E0E] hover:text-[#0F2143] text-sm flex items-center font-medium">
+                                            class="text-[#7E5E0E] hover:text-[#0F2143] text-sm flex items-center py-2 lg:py-0 font-medium">
                                         <i class="ri-eye-line mr-1"></i>
                                         View Full Size
                                     </button>

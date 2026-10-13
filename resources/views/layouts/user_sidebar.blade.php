@@ -54,7 +54,7 @@
 
     <!-- Mobile top bar with hamburger toggle (hidden on lg+) -->
     <div class="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#0B1220] text-white flex items-center px-4 z-40 shadow-md">
-        <button id="sidebarOpenBtn" class="text-2xl mr-3 focus:outline-none" aria-label="Open menu">
+        <button id="sidebarOpenBtn" class="-ml-1 mr-1 p-2 text-2xl focus:outline-none" aria-label="Open menu">
             <i class="ri-menu-line"></i>
         </button>
     <h1 class="text-lg font-bold flex items-center text-white gap-2">
@@ -80,7 +80,7 @@
                     @include('partials.logo', ['logoMarkSize' => 27, 'logoBoxSize' => 36])
                     <h1 class="text-[17px] font-medium text-[#F3EFE3]">NU Trace</h1>
                 </div>
-                <button id="sidebarCloseBtn" class="lg:hidden text-[#7C86A0] hover:text-white" aria-label="Close menu">
+                <button id="sidebarCloseBtn" class="lg:hidden p-2 -mr-2 text-[#7C86A0] hover:text-white" aria-label="Close menu">
                     <i class="ri-close-line text-2xl"></i>
                 </button>
             </div>
@@ -135,7 +135,7 @@
         </div>
 
         <!-- MAIN CONTENT -->
-<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Spacer so page content isn't hidden under the fixed mobile top bar -->
             <div class="lg:hidden h-14"></div>
             @yield('content')

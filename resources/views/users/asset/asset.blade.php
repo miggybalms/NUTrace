@@ -57,7 +57,9 @@
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 {{-- Tabs are links now: the filter is applied in the database, so
                      it covers every asset the holder has, not just this page. --}}
-                <div class="inline-flex items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                {{-- flex-wrap: on a phone the six lifecycle tabs become a two-row block of
+                     pills instead of a strip you have to drag sideways. --}}
+                <div class="inline-flex flex-wrap items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
                     @foreach(\App\Support\AssetListing::tabs(false) as $tabValue => $tabLabel)
                         <a href="{{ \App\Support\AssetListing::tabUrl(request()->url(), $tabValue, $currentSearch ?? '') }}"
                            class="filter-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition

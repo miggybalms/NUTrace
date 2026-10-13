@@ -127,7 +127,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
                 <!-- Header (shared admin header) -->
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'requests',
@@ -201,9 +201,12 @@
                                     <tr>
                                         <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Request ID</th>
                                         <th class="eyebrow text-left py-3 px-3">Asset Name</th>
-                                        <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Type</th>
-                                        <th class="eyebrow text-left py-3 px-3">Submitted By</th>
-                                        <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Date</th>
+                                        <th class="eyebrow text-left py-3 px-3 whitespace-nowrap hidden md:table-cell">Type</th>
+                                        {{-- Submitted By is the first thing to go on a phone: the row opens the
+                                             full request details on tap, and dropping one column is
+                                             what keeps the table from needing a sideways drag. --}}
+                                        <th class="eyebrow text-left py-3 px-3 hidden sm:table-cell">Submitted By</th>
+                                        <th class="eyebrow text-left py-3 px-3 whitespace-nowrap hidden sm:table-cell">Date</th>
                                         <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Status</th>
                                         <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Actions</th>
                                     </tr>
@@ -213,7 +216,7 @@
                                     <tr class="request-row" style="border-bottom:1px solid var(--line);" data-request-id="{{ $request->id }}" onclick="selectRequest({{ $request->id }})">
                                         <td class="py-3 px-3 text-sm font-mono whitespace-nowrap" style="color:var(--navy-900);">#REQ-{{ str_pad($request->id, 4, '0', STR_PAD_LEFT) }}</td>
                                         <td class="py-3 px-3 text-sm" style="color:var(--navy-900);">{{ $request->asset_name }}</td>
-                                        <td class="py-3 px-3">
+                                        <td class="py-3 px-3 hidden md:table-cell">
                                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap"
                                                 style="
                                                 @if($request->type == 'new_asset') background:var(--steel-tint); color:var(--steel-dark);
@@ -226,8 +229,8 @@
                                                 {{ ucfirst(str_replace('_', ' ', $request->type)) }}
                                             </span>
                                         </td>
-                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">{{ $request->submitted_by }}</td>
-                                        <td class="py-3 px-3 text-sm whitespace-nowrap" style="color:var(--ink-600);">{{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y') : '—' }}</td>
+                                        <td class="py-3 px-3 text-sm hidden sm:table-cell" style="color:var(--ink-600);">{{ $request->submitted_by }}</td>
+                                        <td class="py-3 px-3 text-sm whitespace-nowrap hidden lg:table-cell" style="color:var(--ink-600);">{{ data_get($request, 'created_at') ? \Carbon\Carbon::parse(data_get($request, 'created_at'))->format('M d, Y') : '—' }}</td>
                                         <td class="py-3 px-3 whitespace-nowrap">
                                             <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
                                                 style="

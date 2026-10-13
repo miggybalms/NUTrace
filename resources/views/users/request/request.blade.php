@@ -63,7 +63,9 @@
 <!-- Tabs + Search under them -->
             <div class="px-4 sm:px-6 pt-5 pb-4 border-b border-[#EFE9D8] space-y-3">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="inline-flex items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                    {{-- flex-wrap: the tabs become a block of pills on a phone rather than a
+                         strip that has to be dragged sideways. --}}
+                    <div class="inline-flex flex-wrap items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
                         @php
                             $currentStatus = $status ?? request('status', 'all');
                             $currentSearch = $search ?? request('q', '');

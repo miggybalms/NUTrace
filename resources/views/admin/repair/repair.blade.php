@@ -158,7 +158,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <!-- Header (shared admin header) -->
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'repair',
@@ -219,7 +219,9 @@
 
                 <!-- Filter Tabs -->
                 <div class="mb-6 overflow-x-auto scrollbar-hide">
-                    <div class="flex space-x-1 min-w-max" style="border-bottom:1px solid var(--line);">
+                    {{-- Wraps on a phone: five status tabs do not fit one row, and a wrapped
+                         block of tabs needs no sideways drag to discover. --}}
+                    <div class="flex flex-wrap space-x-1" style="border-bottom:1px solid var(--line);">
                         <button class="filter-btn active px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="all">
                             All Requests
                         </button>
@@ -415,7 +417,10 @@
                                         <i class="ri-tools-line text-lg" style="color:var(--brick);"></i>
                                     </div>
                                     <div class="min-w-0">
-                                        <h3 class="font-semibold text-base truncate" style="color:var(--navy-900);">${repair.asset_name}</h3>
+                                        {{-- Wraps instead of truncating: a phone card is too narrow
+                                             for a full asset name on one line, and a cut-off name
+                                             tells the officer nothing. --}}
+                                        <h3 class="font-semibold text-base" style="color:var(--navy-900); overflow-wrap:anywhere;">${repair.asset_name}</h3>
                                         <p class="text-xs font-mono" style="color:var(--ink-400);">${repair.asset_code}</p>
                                     </div>
                                 </div>

@@ -105,10 +105,14 @@
                     <thead>
                         <tr style="background:var(--paper-2);">
                             <th class="eyebrow px-6 py-3.5 text-left">Old Asset Code</th>
-                            <th class="eyebrow px-6 py-3.5 text-left">New Asset Code</th>
-                            <th class="eyebrow px-6 py-3.5 text-left">Requested By</th>
+                            {{-- Which three of these seven columns survive on a phone: the old asset
+                                (what is being replaced), the reason, the status and the actions.
+                                The successor asset, the requester and the progress tracker are all
+                                repeated in the row's detail modal. --}}
+                            <th class="eyebrow px-6 py-3.5 text-left hidden lg:table-cell">New Asset Code</th>
+                            <th class="eyebrow px-6 py-3.5 text-left hidden lg:table-cell">Requested By</th>
                             <th class="eyebrow px-6 py-3.5 text-left">Reason</th>
-                            <th class="eyebrow px-6 py-3.5 text-left">Progress</th>
+                            <th class="eyebrow px-6 py-3.5 text-left hidden xl:table-cell">Progress</th>
                             <th class="eyebrow px-6 py-3.5 text-left">Status</th>
                             <th class="eyebrow px-6 py-3.5 text-left">Actions</th>
                         </tr>
@@ -135,7 +139,7 @@
                             </td>
 
                                         {{-- New Asset --}}
-                                        <td class="px-6 py-4">
+                                        <td class="px-6 py-4 hidden lg:table-cell">
                                             @php
                                             $hasRealNewAsset = data_get($replacement, 'new_asset_id')
                                             && data_get($replacement, 'new_asset_id') != data_get($replacement, 'old_asset_id')
@@ -176,18 +180,20 @@
                         </td>
 
                             {{-- Requested By --}}
-                            <td class="px-6 py-4">
+                            <td class="px-6 py-4 hidden lg:table-cell">
                                 <p class="font-medium" style="color:var(--navy-900);">{{ data_get($replacement, 'requested_by') ?? ($replacement->request->user?->display_name ?? '—') }}</p>
                                 <p class="text-xs" style="color:var(--ink-400);">{{ data_get($replacement, 'department') ?? ($replacement->request->user->department ?? '—') }}</p>
                             </td>
 
                             {{-- Reason --}}
                             <td class="px-6 py-4">
-                                <p class="max-w-xs truncate" style="color:var(--ink-600);">{{ $replacement->reason ?? '—' }}</p>
+                                {{-- A nowrap cell with a 320px cap is the widest thing in this row on a
+                                    phone; it wraps there and truncates from sm up. --}}
+                                <p class="max-w-xs break-words sm:truncate" style="color:var(--ink-600);">{{ $replacement->reason ?? '—' }}</p>
                             </td>
 
                             {{-- Progress Steps --}}
-                            <td class="px-6 py-4">
+                            <td class="px-6 py-4 hidden xl:table-cell">
                                 <div class="flex items-center space-x-1">
                                     <div class="flex flex-col items-center">
                                         <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"

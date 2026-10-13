@@ -34,12 +34,14 @@
     <div class="flex h-screen overflow-hidden">
         @include('department_head.partial.sidebar')
 
-<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+            {{-- Space for the fixed mobile top bar above the scrolling column --}}
+            <div class="lg:hidden h-14"></div>
             <!-- Header -->
             <div class="topbar sticky top-0 z-10">
                 <div class="px-4 sm:px-8 py-4 sm:py-5">
                     <div class="flex items-start sm:items-center">
-                        <a href="{{ route('department_head.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] mr-3 sm:mr-4 mt-1 sm:mt-0 flex-shrink-0" aria-label="Back to department requests">
+                        <a href="{{ route('department_head.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] -ml-2 mr-2 sm:mr-3 mt-1 sm:mt-0 p-2 flex-shrink-0" aria-label="Back to department requests">
                             <i class="ri-arrow-left-line text-xl" aria-hidden="true"></i>
                         </a>
                         <div class="min-w-0">

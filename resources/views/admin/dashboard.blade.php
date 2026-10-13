@@ -116,11 +116,11 @@
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @section('admin_header_actions')
                 <!-- Requests bell (user submitted requests) -->
                             <div class="relative">
-                                <button id="requestsBell" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="User Requests">
+                                <button id="requestsBell" class="relative p-3 -m-1 cursor-pointer transition" style="color:var(--ink-600);" title="User Requests" aria-label="User requests">
                                     <i class="ri-mail-line text-xl"></i>
                                     <span id="requestBadge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden" style="background:var(--steel);">0</span>
                                 </button>
@@ -140,7 +140,7 @@
                                         </div>
                                     </div>
                                     <div class="p-3 text-center" style="border-top:1px solid var(--line);">
-                                        <a href="/admin/requests?tab=pending" class="text-sm font-medium" style="color:var(--gold-ink);">
+                                        <a href="/admin/requests?tab=pending" class="text-sm font-medium inline-block py-1.5" style="color:var(--gold-ink);">
                                             Go to Requests page <i class="ri-arrow-right-line"></i>
                                         </a>
                                     </div>
@@ -149,7 +149,7 @@
 
                             <!-- Maintenance icon (separate from bell) -->
                             <div class="relative">
-                                <button id="maintenanceIcon" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="Maintenance Due">
+                                <button id="maintenanceIcon" class="relative p-3 -m-1 cursor-pointer transition" style="color:var(--ink-600);" title="Maintenance Due" aria-label="Assets due for maintenance">
                                     <i class="ri-tools-line text-xl"></i>
                                     <span id="maintenanceBadge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden" style="background:var(--bronze);">0</span>
                                 </button>
@@ -173,7 +173,7 @@
 
                             <!-- Lifespan icon (separate from bell) -->
                             <div class="relative">
-                                <button id="lifespanIcon" class="relative cursor-pointer transition" style="color:var(--ink-600);" title="Expired Lifespans">
+                                <button id="lifespanIcon" class="relative p-3 -m-1 cursor-pointer transition" style="color:var(--ink-600);" title="Expired Lifespans" aria-label="Assets with expired lifespans">
                                     <i class="ri-timer-flash-line text-xl"></i>
                                     <span id="lifespanBadge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 hidden" style="background:var(--brick);">0</span>
                                 </button>

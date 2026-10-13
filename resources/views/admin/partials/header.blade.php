@@ -56,7 +56,7 @@
                         <i class="ri-arrow-left-line text-xl"></i>
                     </a>
                 @else
-                    <button onclick="toggleSidebar()" class="lg:hidden mr-3" style="color:var(--ink-400,#5C6474);" title="Menu">
+                    <button onclick="toggleSidebar()" class="lg:hidden -ml-2 mr-1 p-2" style="color:var(--ink-400,#5C6474);" title="Menu">
                         <i class="ri-menu-line text-2xl"></i>
                     </button>
                 @endif
@@ -195,7 +195,7 @@
                 <div class="relative" id="admin-profile-wrapper">
                     <button type="button"
                             id="admin-profile-btn"
-                            class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-1 focus:outline-none"
+                            class="flex items-center space-x-2 cursor-pointer rounded-lg px-2 py-2 focus:outline-none"
                             style="transition:background .15s;"
                             onmouseover="this.style.background='var(--paper-2,#EFE9D8)'"
                             onmouseout="this.style.background='transparent'"

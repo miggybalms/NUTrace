@@ -137,7 +137,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main class="flex-1 overflow-y-auto bg-[#F3EEE0]">
             <!-- Header -->
             <!-- Header (shared admin header) -->
             @include('admin.partials.header', [
@@ -279,10 +279,13 @@
                                     </th>
                                     <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Asset ID</th>
                                     <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Asset Name</th>
-                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Category</th>
-                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Accountable</th>
-                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Date Acquired</th>
-                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Current Location</th>
+                                    {{-- Category, acquisition date and location are the least urgent of the nine
+                                        columns here, and dropping them below lg is what lets the rest
+                                        fit a phone without a sideways drag. --}}
+                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider hidden lg:table-cell">Category</th>
+                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider hidden lg:table-cell">Accountable</th>
+                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider hidden lg:table-cell">Date Acquired</th>
+                                    <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider hidden xl:table-cell">Current Location</th>
                                     <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Lifecycle Stage</th>
                                     <th class="text-left py-3 px-4 text-[11px] font-semibold text-[#5B6678] uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -316,10 +319,10 @@
                                             <span class="text-sm font-medium text-[#0F2143]">{{ $asset->name }}</span>
                                         </div>
                                     </td>
-                                    <td class="py-3 px-4 text-sm text-[#4B5468]">{{ $asset->category }}</td>
-                                    <td class="py-3 px-4 text-sm text-[#4B5468]">{{ $asset->accountable }}</td>
-                                    <td class="py-3 px-4 text-sm text-[#4B5468]">{{ $asset->date_acquired }}</td>
-                                    <td class="py-3 px-4 text-sm text-[#4B5468]">{{ $asset->location }}</td>
+                                    <td class="py-3 px-4 text-sm text-[#4B5468] hidden lg:table-cell">{{ $asset->category }}</td>
+                                    <td class="py-3 px-4 text-sm text-[#4B5468] hidden lg:table-cell">{{ $asset->accountable }}</td>
+                                    <td class="py-3 px-4 text-sm text-[#4B5468] hidden lg:table-cell">{{ $asset->date_acquired }}</td>
+                                    <td class="py-3 px-4 text-sm text-[#4B5468] hidden xl:table-cell">{{ $asset->location }}</td>
                                     <td class="py-3 px-4">
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
                                             @if($asset->status == 'active') bg-[#EAF4EE] text-[#245C3B] ring-1 ring-inset ring-[#CFE3D4]

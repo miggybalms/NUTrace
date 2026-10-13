@@ -178,7 +178,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
                 <!-- Header (shared admin header) -->
                 @include('admin.partials.header', [
                     'adminHeaderPage'     => 'pullout',

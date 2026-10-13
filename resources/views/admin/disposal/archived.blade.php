@@ -89,7 +89,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'disposal',
                 'adminHeaderTitle'    => 'Archived Disposal Assets',
@@ -170,11 +170,13 @@
                                 <thead style="background:var(--paper-2);">
                                     <tr>
                                         <th class="eyebrow py-3 px-4 whitespace-nowrap">Asset Name</th>
-                                        <th class="eyebrow py-3 px-4 whitespace-nowrap">Asset Code</th>
-                                        <th class="eyebrow py-3 px-4 whitespace-nowrap">Disposal Date</th>
+                                        <th class="eyebrow py-3 px-4 whitespace-nowrap hidden lg:table-cell">Asset Code</th>
+                                        {{-- Name, code, reason and actions are what this page is for; the two dates
+                                            and the archiving officer stay for wider screens. --}}
+                                        <th class="eyebrow py-3 px-4 whitespace-nowrap hidden lg:table-cell">Disposal Date</th>
                                         <th class="eyebrow py-3 px-4 whitespace-nowrap">Reason</th>
-                                        <th class="eyebrow py-3 px-4 whitespace-nowrap">Archived Date</th>
-                                        <th class="eyebrow py-3 px-4 whitespace-nowrap">Archived By</th>
+                                        <th class="eyebrow py-3 px-4 whitespace-nowrap hidden lg:table-cell">Archived Date</th>
+                                        <th class="eyebrow py-3 px-4 whitespace-nowrap hidden xl:table-cell">Archived By</th>
                                         <th class="eyebrow py-3 px-4 whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
@@ -193,11 +195,11 @@
                                                 @endif
                                             @endunless
                                         </td>
-                                        <td class="py-3 px-4 text-xs font-mono detail-value" style="color:var(--ink-600);">{{ $record->asset_code ?? 'N/A' }}</td>
-                                        <td class="py-3 px-4 text-sm" style="color:var(--ink-600);">{{ $record->disposal_date ?? '—' }}</td>
+                                        <td class="py-3 px-4 text-xs font-mono detail-value hidden lg:table-cell" style="color:var(--ink-600);">{{ $record->asset_code ?? 'N/A' }}</td>
+                                        <td class="py-3 px-4 text-sm hidden lg:table-cell" style="color:var(--ink-600);">{{ $record->disposal_date ?? '—' }}</td>
                                         <td class="py-3 px-4 text-sm detail-value" style="color:var(--ink-600);">{{ $record->reason ?? '—' }}</td>
-                                        <td class="py-3 px-4 text-sm" style="color:var(--ink-600);">{{ $record->archived_at ? \Illuminate\Support\Carbon::parse($record->archived_at)->format('M d, Y') : '—' }}</td>
-                                        <td class="py-3 px-4 text-sm detail-value" style="color:var(--ink-600);">{{ $record->archived_by_name ?: '—' }}</td>
+                                        <td class="py-3 px-4 text-sm hidden lg:table-cell" style="color:var(--ink-600);">{{ $record->archived_at ? \Illuminate\Support\Carbon::parse($record->archived_at)->format('M d, Y') : '—' }}</td>
+                                        <td class="py-3 px-4 text-sm detail-value hidden xl:table-cell" style="color:var(--ink-600);">{{ $record->archived_by_name ?: '—' }}</td>
                                         <td class="py-3 px-4">
                                             <div class="flex items-center gap-2">
                                                 <button type="button" onclick="viewDisposalDetails({{ $record->id }})"

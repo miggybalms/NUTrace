@@ -59,7 +59,7 @@
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
 
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <div class="max-w-4xl mx-auto p-8">
                 <div class="card-registry">
 

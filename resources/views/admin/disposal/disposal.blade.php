@@ -93,7 +93,7 @@
         @include('admin.partials.sidebar')
 
         <!-- Main Content -->
-<main    <div class="flex-1 overflow-y-auto" style="background:var(--paper);">
+<main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             @include('admin.partials.header', [
                 'adminHeaderPage'     => 'disposal',
                 'adminHeaderTitle'    => 'Disposal',

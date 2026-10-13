@@ -86,8 +86,11 @@
         <div class="bg-white rounded-xl border border-[#DED2AE] shadow-sm">
 
             <!-- Tabs -->
-            <div class="flex items-center justify-between px-6 pt-5 pb-0 border-b border-[#EFE9D8]">
-                <div class="flex space-x-1">
+            {{-- On a phone the four tabs plus the record count are wider than the
+                 screen, so the row wraps: the count drops to its own line instead of
+                 pushing the page sideways. --}}
+            <div class="flex flex-wrap items-center justify-between gap-x-3 px-4 sm:px-6 pt-5 pb-0 border-b border-[#EFE9D8]">
+                <div class="flex space-x-1 overflow-x-auto scrollbar-hide">
                     @php
                         $tabs = [
                             'all'     => 'All',
@@ -118,7 +121,9 @@
                             <th class="px-6 py-4 text-left font-semibold">User</th>
                             <th class="px-6 py-4 text-left font-semibold">Action</th>
                             <th class="px-6 py-4 text-left font-semibold">Asset</th>
-                            <th class="px-6 py-4 text-left font-semibold">Request</th>
+                            {{-- The rest of the row is what the office audits by; the linked request is
+                                one tap away on wider screens. --}}
+                            <th class="px-6 py-4 text-left font-semibold hidden lg:table-cell">Request</th>
                             <th class="px-6 py-4 text-left font-semibold">Date & Time</th>
                             <th class="px-6 py-4 text-left font-semibold">Actions</th>
                         </tr>
@@ -182,7 +187,7 @@
                             </td>
 
                             {{-- Request --}}
-                            <td class="px-6 py-4">
+                            <td class="px-6 py-4 hidden lg:table-cell">
                                 @if(!empty($log->request_type) || !empty($log->request_id))
                                 <div>
                                     <p class="font-medium text-[#0F2143]">{{ $log->request_type ?? '—' }}</p>

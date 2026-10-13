@@ -38,12 +38,14 @@
     <div class="flex h-screen overflow-hidden">
         @include('users.partials.sidebar')
 
-<main    <div class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+<main class="flex-1 overflow-y-auto bg-[#F3EEE0]">
+            {{-- Space for the fixed mobile top bar above the scrolling column --}}
+            <div class="lg:hidden h-14"></div>
             <!-- Header -->
             <div class="topbar sticky top-0 z-10">
                 <div class="px-8 py-5">
                     <div class="flex items-center">
-                        <a href="{{ route('user.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] mr-4" aria-label="Back to my requests">
+                        <a href="{{ route('user.requests.index') }}" class="text-[#5B6678] hover:text-[#33425C] -ml-2 mr-3 p-2" aria-label="Back to my requests">
                             <i class="ri-arrow-left-line text-xl" aria-hidden="true"></i>
                         </a>
                         <div>
