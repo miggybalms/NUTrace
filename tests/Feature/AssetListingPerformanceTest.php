@@ -104,13 +104,13 @@ class AssetListingPerformanceTest extends TestCase
         $response = $this->actingAs($this->employee)->get('/users/assets')->assertOk();
         $withOneAsset = $this->queries - $before;
 
-        $assets = $response->viewData('assignedAssets');
-        $row = collect($assets)->firstWhere('id', $assetId);
+        $page = $response->viewData('assignedAssets');
+        $row = collect($page->items())->firstWhere('id', $assetId);
 
-        // The same value the removed MAX(asset_files.url) join produced, and the
-        // listing still contains exactly one row per asset.
+        // The same value the MAX(asset_files.url) join produced, and the page
+        // still contains exactly one row per asset.
         $this->assertSame('https://media.example.test/AST-0001-3.jpg', $row->image_url);
-        $this->assertCount(1, $assets);
+        $this->assertSame(1, $page->total());
 
         for ($i = 2; $i <= 25; $i++) {
             $this->makeAsset('AST-'.str_pad((string) $i, 4, '0', STR_PAD_LEFT), 2);
@@ -139,7 +139,7 @@ class AssetListingPerformanceTest extends TestCase
         $response = $this->actingAs($this->head)->get('/department-head/assets')->assertOk();
         $withOneAsset = $this->queries - $before;
 
-        $this->assertCount(1, $response->viewData('assignedAssets'));
+        $this->assertSame(1, $response->viewData('assignedAssets')->total());
 
         for ($i = 2; $i <= 25; $i++) {
             $this->makeAsset('AST-'.str_pad((string) $i, 4, '0', STR_PAD_LEFT), 2);
@@ -151,7 +151,7 @@ class AssetListingPerformanceTest extends TestCase
         $response = $this->actingAs($this->head)->get('/department-head/assets')->assertOk();
         $withManyAssets = $this->queries - $before;
 
-        $this->assertCount(25, $response->viewData('assignedAssets'));
+        $this->assertSame(25, $response->viewData('assignedAssets')->total());
         $this->assertSame(
             $withOneAsset,
             $withManyAssets,
@@ -181,8 +181,8 @@ class AssetListingPerformanceTest extends TestCase
     {
         $assetId = $this->makeAsset('AST-0099', 0);
 
-        $assets = $this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets');
-        $row = collect($assets)->firstWhere('id', $assetId);
+        $page = $this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets');
+        $row = collect($page->items())->firstWhere('id', $assetId);
 
         $this->assertNull($row->image_url);
     }

@@ -55,64 +55,49 @@
         <!-- Filter Tabs + Search (search is now under the tabs) -->
         <div class="mb-6 space-y-3">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {{-- Tabs are links now: the filter is applied in the database, so
+                     it covers every asset the holder has, not just this page. --}}
                 <div class="inline-flex items-center gap-1 bg-[#0A1830]/5 rounded-full p-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
-                    <button class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-[#0A1830] text-white shadow-sm whitespace-nowrap transition" data-filter="all">
-                        All Assets
-                    </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="Active">
-                        Active
-                    </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Checking">
-                        For Checking
-                    </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Repair">
-                        For Repair
-                    </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="For Replacement">
-                        For Replacement
-                    </button>
-                    <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium text-[#5B6678] hover:text-[#0A1830] whitespace-nowrap transition" data-filter="recent">
-                        Recently Added
-                    </button>
+                    @foreach(\App\Support\AssetListing::tabs(false) as $tabValue => $tabLabel)
+                        <a href="{{ \App\Support\AssetListing::tabUrl(request()->url(), $tabValue, $currentSearch ?? '') }}"
+                           class="filter-btn px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition
+                                  {{ \App\Support\AssetListing::isActive($tabValue, $currentFilter ?? 'all')
+                                      ? 'active bg-[#0A1830] text-white shadow-sm'
+                                      : 'text-[#5B6678] hover:text-[#0A1830]' }}"
+                           @if(\App\Support\AssetListing::isActive($tabValue, $currentFilter ?? 'all')) aria-current="page" @endif>
+                            {{ $tabLabel }}
+                        </a>
+                    @endforeach
                 </div>
 
-                @php
-                    $currentUser = Auth::user();
-                    // Pullout and Disposal assets are no longer part of the user's assets;
-                    // the Asset Management Office keeps their records for audit and reporting.
-                    $visibleStatuses = ['Acquired', 'Active', 'For Checking', 'For Repair', 'For Replacement'];
-                    $visibleAssets = collect();
-
-                    if (isset($assignedAssets) && $currentUser) {
-                        $visibleAssets = $assignedAssets->filter(function($a) use ($visibleStatuses, $currentUser) {
-                            $statusOk = in_array(($a->Lifecycle_Status ?? 'Acquired'), $visibleStatuses, true);
-                            if (($currentUser->role ?? '') === 'Admin') {
-                                return $statusOk;
-                            }
-                            return ($a->user_id === $currentUser->id) && $statusOk;
-                        });
-                    }
-                @endphp
+                {{-- The count is the whole filtered set, not the page: the route
+                     filters before it pages. --}}
                 <p class="text-sm text-[#5B6678] whitespace-nowrap" data-list-count>
-                    Showing {{ $visibleAssets->count() ?? 0 }} assets
+                    Showing {{ $assignedAssets->total() }} assets
                 </p>
             </div>
 
-            <!-- NEW: Search bar under the filters -->
-            <div class="relative max-w-md">
+            {{-- Search under the filters. It submits to the server, so it searches
+                 every asset the holder has rather than the cards on this page. --}}
+            <form method="GET" action="{{ request()->url() }}" class="relative max-w-md">
+                @if(($currentFilter ?? 'all') !== 'all')
+                    <input type="hidden" name="filter" value="{{ $currentFilter }}">
+                @endif
                 <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#5C6474] text-sm"></i>
                 <input type="text"
                        id="asset-search-input"
+                       name="q"
+                       value="{{ $currentSearch ?? '' }}"
                        placeholder="Search assets..."
                        class="pl-9 pr-4 py-2.5 border border-[#DED2AE] rounded-lg text-sm focus:outline-none focus:border-[#C9A227] w-full bg-white shadow-sm"
                        autocomplete="off">
-            </div>
+            </form>
         </div>
 
         <!-- Assets Grid -->
-        @if(isset($visibleAssets) && $visibleAssets->count() > 0)
+        @if($assignedAssets->total() > 0)
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" id="assetsGrid">
-            @foreach($visibleAssets as $asset)
+            @foreach($assignedAssets as $asset)
             @php
                 // When the asset landed on this user's account: assignment/acquisition date,
                 // falling back to when the record was registered. Drives "Recently Added".
@@ -216,14 +201,28 @@
             @endforeach
         </div>
 
+        @include('partials.asset_pagination', ['assets' => $assignedAssets])
+
         @else
         {{-- Empty state --}}
         <div class="text-center py-12 sm:py-16">
             <div class="w-16 h-16 sm:w-20 sm:h-20 bg-[#0A1830]/5 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="ri-inbox-line text-2xl sm:text-3xl text-[#C9A227]"></i>
             </div>
-            <h3 class="text-[#33425C] font-semibold text-lg mb-1">No Assets Found</h3>
-            <p class="text-[#5C6474] text-sm">You have no assigned assets at the moment.</p>
+            <h3 class="text-[#33425C] font-semibold text-lg mb-1">
+                {{ \App\Support\AssetListing::hasFilters($currentFilter ?? 'all', $currentSearch ?? '') ? 'No Matching Assets' : 'No Assets Found' }}
+            </h3>
+            <p class="text-[#5C6474] text-sm">
+                {{ \App\Support\AssetListing::hasFilters($currentFilter ?? 'all', $currentSearch ?? '')
+                    ? 'Nothing matches the selected tab or search.'
+                    : 'You have no assigned assets at the moment.' }}
+            </p>
+            @if(\App\Support\AssetListing::hasFilters($currentFilter ?? 'all', $currentSearch ?? ''))
+                <a href="{{ request()->url() }}"
+                   class="inline-flex items-center mt-3 px-3.5 py-1.5 rounded-full text-xs font-medium bg-[#0A1830]/5 text-[#33425C] hover:bg-[#0A1830]/10 transition">
+                    <i class="ri-refresh-line mr-1"></i> Show all assets
+                </a>
+            @endif
         </div>
         @endif
 
@@ -266,123 +265,13 @@
     <script>
         let qrModalInstance = null;
 
-        // =====================
-        // Filter + Search logic (with URL persistence)
-        // =====================
-        (function () {
-            const searchInput = document.getElementById('asset-search-input');
-            const filterBtns  = document.querySelectorAll('.filter-btn');
-            const cards       = document.querySelectorAll('.asset-card');
-            const countLabel  = document.querySelector('[data-list-count]');
-
-            // Read initial state from URL
-            const params = new URLSearchParams(window.location.search);
-            let currentFilter = params.get('filter') || 'all';
-            let currentSearch = params.get('q') || '';
-
-            // "Recently Added" = assigned/registered to this user within the last 7 days.
-            const RECENT_DAYS = 7;
-
-            function isRecentlyAdded(card) {
-                const raw = (card.dataset.added || '').trim();
-                if (!raw) return false;
-                const added = new Date(raw + 'T00:00:00');
-                if (isNaN(added.getTime())) return false;
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                const days = Math.round((today - added) / 86400000);
-                return days >= 0 && days < RECENT_DAYS;
-            }
-
-            // Apply initial search value
-            if (searchInput && currentSearch) {
-                searchInput.value = currentSearch;
-            }
-
-            // Activate the correct tab
-            filterBtns.forEach(btn => {
-                const isActive = btn.dataset.filter === currentFilter;
-                btn.classList.toggle('active', isActive);
-                btn.classList.toggle('bg-[#0A1830]', isActive);
-                btn.classList.toggle('text-white', isActive);
-                btn.classList.toggle('shadow-sm', isActive);
-                btn.classList.toggle('text-[#5B6678]', !isActive);
-            });
-
-            function getCardText(card) {
-                return [
-                    card.dataset.name,
-                    card.dataset.code,
-                    card.dataset.category,
-                    card.dataset.location,
-                    card.dataset.status
-                ].filter(Boolean).join(' ').toLowerCase();
-            }
-
-            function applyFilters() {
-                const q = (searchInput?.value || '').trim().toLowerCase();
-                let visible = 0;
-
-                cards.forEach(card => {
-                    const status = (card.dataset.status || '').trim();
-                    let statusOk;
-                    if (currentFilter === 'all') {
-                        statusOk = true;
-                    } else if (currentFilter === 'recent') {
-                        statusOk = isRecentlyAdded(card);
-                    } else {
-                        statusOk = status === currentFilter;
-                    }
-
-                    const searchOk = !q || getCardText(card).includes(q);
-                    const show = statusOk && searchOk;
-
-                    card.style.display = show ? '' : 'none';
-                    if (show) visible++;
-                });
-
-                if (countLabel) {
-                    countLabel.textContent = `Showing ${visible} assets`;
-                }
-
-                // Persist in URL (so browser back restores the state)
-                const newParams = new URLSearchParams();
-                if (currentFilter && currentFilter !== 'all') {
-                    newParams.set('filter', currentFilter);
-                }
-                if (q) {
-                    newParams.set('q', q);
-                }
-
-                const newUrl = window.location.pathname + (newParams.toString() ? '?' + newParams.toString() : '');
-                window.history.replaceState({}, '', newUrl);
-            }
-
-            // Tab clicks
-            filterBtns.forEach(btn => {
-                btn.addEventListener('click', function () {
-                    filterBtns.forEach(b => {
-                        b.classList.remove('active', 'bg-[#0A1830]', 'text-white', 'shadow-sm');
-                        b.classList.add('text-[#5B6678]');
-                    });
-                    this.classList.add('active', 'bg-[#0A1830]', 'text-white', 'shadow-sm');
-                    this.classList.remove('text-[#5B6678]');
-
-                    currentFilter = this.dataset.filter;
-                    applyFilters();
-                });
-            });
-
-            // Live search
-            if (searchInput) {
-                searchInput.addEventListener('input', applyFilters);
-            }
-
-            // Run once on load (restores filter + search from URL)
-            applyFilters();
-        })();
+        // Search runs on the server, so it covers every asset the holder has and
+        // not only the cards on this page: typing pauses, then the form submits.
+        let assetSearchTimer;
+        document.getElementById('asset-search-input')?.addEventListener('input', function () {
+            clearTimeout(assetSearchTimer);
+            assetSearchTimer = setTimeout(() => this.form.submit(), 450);
+        });
 
         // =====================
         // QR Modal (unchanged)

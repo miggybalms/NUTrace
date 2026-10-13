@@ -437,14 +437,21 @@ class DisposalWorkflowTest extends TestCase
                 ->contains($this->assetId);
         };
 
-        // Control: before archiving, every listing really does show the asset.
+        // Control: before archiving, the office's own Assets page and the
+        // institution's inventory export still carry the asset.
         $this->assertTrue($listedOnAdminAssets());
-        $this->assertFalse(
-            $this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')
+
+        // The disposal request is already approved, so the asset is Disposed, and
+        // a disposed asset has always been off the holder's list. That rule now
+        // lives in the query — the holder's listing is filtered and paged in the
+        // database rather than hiding cards in the browser — so it holds before
+        // the record is archived as well as after.
+        $this->assertTrue(
+            collect($this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')->items())
                 ->where('id', $this->assetId)->isEmpty()
         );
-        $this->assertFalse(
-            $this->actingAs($head)->get('/department-head/assets')->viewData('assignedAssets')
+        $this->assertTrue(
+            collect($this->actingAs($head)->get('/department-head/assets')->viewData('assignedAssets')->items())
                 ->where('id', $this->assetId)->isEmpty()
         );
         $this->actingAs($this->admin)->get('/admin/inventory-download')->assertOk()->assertSee('AST-0001');
@@ -455,11 +462,11 @@ class DisposalWorkflowTest extends TestCase
         // department's list and the institution's inventory export.
         $this->assertFalse($listedOnAdminAssets(), 'a removed asset must not be listed on the Assets page');
         $this->assertTrue(
-            $this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')
+            collect($this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')->items())
                 ->where('id', $this->assetId)->isEmpty()
         );
         $this->assertTrue(
-            $this->actingAs($head)->get('/department-head/assets')->viewData('assignedAssets')
+            collect($this->actingAs($head)->get('/department-head/assets')->viewData('assignedAssets')->items())
                 ->where('id', $this->assetId)->isEmpty()
         );
         $this->actingAs($this->admin)->get('/admin/inventory-download')->assertOk()->assertDontSee('AST-0001');

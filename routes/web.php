@@ -17,6 +17,7 @@ use App\Http\Controllers\TransferController;
 use App\Support\Media;
 use App\Support\AssetLabel;
 use App\Support\AssetDetails;
+use App\Support\AssetListing;
 use App\Support\DepartmentAssets;
 use App\Support\AssetCode;
 use App\Support\AssetTransfer;
@@ -483,19 +484,30 @@ Route::post('/forgot-password/reset', function (Request $request) {
 
 // Users area -> render users.dashboard and show assigned assets when logged in
 // User assets page (My Assets) - show assigned assets for authenticated user
-Route::get('/users/assets', function () {
+Route::get('/users/assets', function (Request $request) {
     $user = Auth::user();
-    $assignedAssets = collect([]);
-    if ($user) {
-        // Fetch assets with their first attached image from asset_files table.
-        // Disposed assets leave the inventory once their disposal is archived.
-        // The photo is resolved with one join + MAX instead of a per-asset
-        // subquery: measured on 400 assets x 3 photos the join runs 1.8ms and the
-        // correlated subquery 18ms, because the join reads asset_files once
-        // while a subquery re-scans it for every asset.
-        $assignedAssets = Inventory::excludeRemoved(DB::table('assets'))
+
+    $filter = (string) $request->query('filter', 'all');
+    $search = trim((string) $request->query('q', ''));
+
+    // What the holder still has. The summary cards count this, not the filtered
+    // page, so they do not move when a tab is clicked.
+    $holdings = AssetListing::onlyVisible(
+        Inventory::excludeRemoved(DB::table('assets'))->where('assets.user_id', $user?->id)
+    );
+
+    $totalAssets = (clone $holdings)->count();
+    $activeAssets = (clone $holdings)->where('assets.Lifecycle_Status', 'Active')->count();
+
+    $pendingRequests = $user
+        ? DB::table('requests')->where('user_id', $user->id)->where('status', 'Pending')->count()
+        : 0;
+
+    // Filtering and paging both happen in the database: a tab or a search covers
+    // every asset the holder has, not just the page on screen.
+    $assignedAssets = AssetListing::paginate(
+        (clone $holdings)
             ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
-            ->where('assets.user_id', $user->id)
             ->select(
                 'assets.id',
                 'assets.user_id',
@@ -511,22 +523,20 @@ Route::get('/users/assets', function () {
                 'assets.created_at',
                 DB::raw('MAX(asset_files.url) as image_url')
             )
-            ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'assets.created_at')
-            ->orderBy('assets.Asset_name')
-            ->get();
-    }
-    // Count what the page actually lists, so the summary cards are not zeros.
-    $visibleAssets = $assignedAssets->filter(
-        fn ($a) => in_array(($a->Lifecycle_Status ?? 'Acquired'), AssetDetails::USER_VISIBLE_STATUSES, true)
+            ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'assets.created_at'),
+        $filter,
+        $search,
+        $user?->id
     );
 
-    $totalAssets = $visibleAssets->count();
-    $activeAssets = $visibleAssets->where('Lifecycle_Status', 'Active')->count();
-    $pendingRequests = $user
-        ? DB::table('requests')->where('user_id', $user->id)->where('status', 'Pending')->count()
-        : 0;
-
-    return view('users.asset.asset', compact('assignedAssets', 'totalAssets', 'activeAssets', 'pendingRequests'));
+    return view('users.asset.asset', [
+        'assignedAssets'  => $assignedAssets,
+        'totalAssets'     => $totalAssets,
+        'activeAssets'    => $activeAssets,
+        'pendingRequests' => $pendingRequests,
+        'currentFilter'   => $filter,
+        'currentSearch'   => $search,
+    ]);
 });
 
 // User-facing asset detail (only accessible to the assigned user or admins)
@@ -738,52 +748,60 @@ Route::get('/department-head/assets', function (Request $request) {
     }
     if (($user->role ?? '') !== 'Department Head') return abort(403);
 
-    // Fetch all assets in the department with their images from asset_files.
-    // Assets removed from the inventory are no longer held by the department.
-    // Same join + MAX shape as the employee listing above, for the same reason:
-    // measured faster than a per-asset subquery, and it keeps one row per asset.
-    $assets = Inventory::excludeRemoved(DB::table('assets'))
-        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
-        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
-        ->where('users.department_id', $user->department_id)
-        ->select(
-            'assets.id',
-            'assets.user_id',
-            'assets.Asset_code',
-            'assets.Asset_name',
-            'assets.Category',
-            'assets.Condition',
-            'assets.Lifecycle_Status',
-            'assets.accusion_date',
-            'assets.asset_location',
-            'assets.next_maintenance_date',
-            'assets.qr_code_path',
-            'assets.created_at',
-            'users.department_id',
-            DB::raw('MAX(asset_files.url) as image_url')
-        )
-        ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'assets.created_at', 'users.department_id')
-        ->orderBy('assets.Asset_name')
-        ->get();
+    $filter = (string) $request->query('filter', 'all');
+    $search = trim((string) $request->query('q', ''));
 
-    // Count what the page actually lists: assets still held by the department.
-    // Pullout and Disposal assets drop off the department's active holdings.
-    $visibleStatuses = AssetDetails::USER_VISIBLE_STATUSES;
-    $visibleAssets = $assets->filter(fn ($a) => in_array(($a->Lifecycle_Status ?? 'Acquired'), $visibleStatuses, true));
+    // Everything the department still holds, which is what the summary cards
+    // count — not the filtered page.
+    $holdings = AssetListing::onlyVisible(
+        Inventory::excludeRemoved(DB::table('assets'))
+            ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+            ->where('users.department_id', $user->department_id)
+    );
 
-    $totalAssets = $visibleAssets->count();
-    $activeAssets = $visibleAssets->where('Lifecycle_Status', 'Active')->count();
+    $totalAssets = (clone $holdings)->count();
+    $activeAssets = (clone $holdings)->where('assets.Lifecycle_Status', 'Active')->count();
+
     $pendingRequests = DB::table('requests')
         ->join('users', 'requests.user_id', '=', 'users.id')
         ->where('users.department_id', $user->department_id)
         ->where('requests.status', 'Pending')
         ->count();
 
+    // "My Personal Assets" is the tab this page has always had, now applied in
+    // the database so it searches the whole department rather than one page.
+    $assignedAssets = AssetListing::paginate(
+        (clone $holdings)
+            ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
+            ->select(
+                'assets.id',
+                'assets.user_id',
+                'assets.Asset_code',
+                'assets.Asset_name',
+                'assets.Category',
+                'assets.Condition',
+                'assets.Lifecycle_Status',
+                'assets.accusion_date',
+                'assets.asset_location',
+                'assets.next_maintenance_date',
+                'assets.qr_code_path',
+                'assets.created_at',
+                'users.department_id',
+                DB::raw('MAX(asset_files.url) as image_url')
+            )
+            ->groupBy('assets.id', 'assets.user_id', 'assets.Asset_code', 'assets.Asset_name', 'assets.Category', 'assets.Condition', 'assets.Lifecycle_Status', 'assets.accusion_date', 'assets.asset_location', 'assets.next_maintenance_date', 'assets.qr_code_path', 'assets.created_at', 'users.department_id'),
+        $filter,
+        $search,
+        $user->id
+    );
+
     return view('department_head.asset.asset', [
-        'assignedAssets' => $assets,
-        'totalAssets' => $totalAssets,
-        'activeAssets' => $activeAssets,
+        'assignedAssets'  => $assignedAssets,
+        'totalAssets'     => $totalAssets,
+        'activeAssets'    => $activeAssets,
         'pendingRequests' => $pendingRequests,
+        'currentFilter'   => $filter,
+        'currentSearch'   => $search,
     ]);
 });
 
