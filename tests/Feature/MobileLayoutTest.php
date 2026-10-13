@@ -142,6 +142,45 @@ class MobileLayoutTest extends TestCase
         $this->assertStringContainsString('min-height: 2.5rem', $head);
     }
 
+    /**
+     * The page header used to stack the identity line and then leave the bell and
+     * the profile chip floating under it, with the page's own action squeezed onto
+     * the title row and clipped. On a phone it is now one row — title, then the
+     * account controls — with the page's own search/action on a row of their own.
+     */
+    public function test_the_page_header_keeps_the_account_controls_beside_the_title(): void
+    {
+        $roleHeader = $this->actingAs($this->head)->get('/department-head/assets')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/order-2 ml-auto[^"]*">\s*<div class="relative" id="notification-wrapper">/',
+            $roleHeader,
+            'the role header no longer groups the bell and the profile chip together on the title row'
+        );
+        $this->assertMatchesRegularExpression('/order-3 basis-full[^"]*">/', $roleHeader, 'the role header does not give the search/action its own row');
+        $this->assertStringContainsString(
+            'hidden sm:flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1',
+            $roleHeader,
+            'the signed-in identity is no longer dropped on a phone'
+        );
+
+        $adminHeader = $this->actingAs($this->admin)->get('/admin/requests')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/order-2 ml-auto[^"]*">/', $adminHeader, 'the admin header no longer groups the alerts and the profile chip');
+        $this->assertMatchesRegularExpression('/order-3 basis-full[^"]*">/', $adminHeader, 'the admin header does not give the page buttons their own row');
+
+        // The profile chip has to sit inside that account group, not after it.
+        $accountGroup = strpos($adminHeader, 'order-2 ml-auto');
+        $profileChip = strpos($adminHeader, 'id="admin-profile-btn"');
+        $pageControls = strpos($adminHeader, 'order-3 basis-full');
+
+        $this->assertNotFalse($accountGroup);
+        $this->assertNotFalse($profileChip);
+        $this->assertNotFalse($pageControls);
+        $this->assertGreaterThan($pageControls, $accountGroup, 'the account group should follow the page controls in the markup');
+        $this->assertGreaterThan($accountGroup, $profileChip, 'the profile chip is outside the account group');
+    }
+
     /** The drawer's open and close controls need a real hit area on a phone. */
     public function test_the_drawer_controls_have_a_touch_sized_hit_area(): void
     {

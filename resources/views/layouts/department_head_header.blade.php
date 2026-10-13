@@ -42,11 +42,16 @@
 </style>
 <div class="brand-topbar bg-white sticky top-0 z-10 shadow-sm">
     <div class="px-4 sm:px-8 py-4 sm:py-5">
-        <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
+        {{-- One row on a phone: the title on the left, the account controls on
+             the right. The page's own search/action drop to the row below (see
+             the order-* classes) instead of stacking under the identity line. --}}
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-2 lg:flex-nowrap lg:justify-between lg:gap-3">
             {{-- Left: page title + who is signed in --}}
-            <div>
+            <div class="min-w-0 flex-1 lg:flex-none">
                 <h2 class="brand-title text-xl sm:text-2xl font-semibold text-[#0F2143]">{{ $title }}</h2>
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
+                {{-- The signed-in identity is the first thing to go on a phone:
+                     the drawer and the profile menu both repeat it. --}}
+                <div class="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
                     <span class="text-sm font-semibold text-[#0F2143]">{{ $displayName }}</span>
                     <span class="text-[#A8AFBC]">•</span>
                     <span class="text-sm text-[#5B6678]">{{ $user?->role ?? 'Employee' }}</span>
@@ -57,8 +62,10 @@
                 </div>
             </div>
 
-        {{-- Right: search (optional) + action button (optional) + notifications + profile --}}
-        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        {{-- This page's own controls. `basis-full` below lg is what puts them on
+             a row of their own on a phone, instead of letting them squeeze in
+             next to the title and get clipped. --}}
+        <div class="order-3 basis-full flex flex-wrap items-center gap-2 sm:gap-3 lg:order-none lg:basis-auto lg:flex-1 lg:justify-end">
             @if($showSearch)
                 <div class="relative flex-1 min-w-[140px] sm:flex-none">
                     <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-[#5C6474] text-sm"></i>
@@ -79,6 +86,11 @@
 
 
                 {{-- Notification bell --}}
+            </div>
+
+            {{-- Account controls: notifications + profile. These two stay on the
+                 title row on a phone, where they belong to the account, not the page. --}}
+            <div class="order-2 ml-auto flex items-center gap-2 sm:gap-3 lg:order-none lg:ml-0">
                 <div class="relative" id="notification-wrapper">
                     {{-- Icon-only, so it carries its own name; the badge is only a count. --}}
                     <button type="button" id="notification-bell"

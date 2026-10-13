@@ -49,7 +49,10 @@
 
 <div class="admin-topbar sticky top-0 z-10">
     <div class="px-4 sm:px-8 py-5">
-        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        {{-- On a phone the header is two rows: navigation, page title and the
+             account controls on the first; the page's own buttons (export, add,
+             search) on their own row below, where they have room to sit. --}}
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-2.5 lg:flex-nowrap lg:justify-between lg:gap-3">
             <div class="flex items-center min-w-0">
                 @if(!empty($adminHeaderBackUrl))
                     <a href="{{ $adminHeaderBackUrl }}" class="text-[#5C6474] hover:text-[#33425C] mr-3.5 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#EFE9D8] transition-colors flex-shrink-0" title="Back">
@@ -66,7 +69,10 @@
                     </span>
                     <div class="min-w-0">
                         <h2 class="font-display text-xl sm:text-2xl font-semibold tracking-tight" style="color:var(--navy-900,#0F2143);">{{ $adminHeaderTitle }}</h2>
-                        <div class="flex items-center gap-2 mt-1 min-w-0">
+                        {{-- The signed-in identity goes on a phone: the drawer and the
+                             profile menu both repeat it, and the room is needed for
+                             the page's own controls. --}}
+                        <div class="hidden sm:flex items-center gap-2 mt-1 min-w-0">
                             <span class="avatar-badge w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">{{ $adminInitials }}</span>
                             <p class="text-sm truncate">
                                 <span class="font-semibold" style="color:var(--navy-900,#0F2143);">{{ $adminName }}</span>
@@ -78,7 +84,7 @@
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="order-3 basis-full flex flex-wrap items-center gap-2 sm:gap-3 lg:order-none lg:basis-auto lg:flex-1 lg:justify-end">
                 @switch($adminHeaderPage ?? '')
                     {{-- Dashboard: page-specific actions come via @section('admin_header_actions') --}}
                     @case('dashboard')
@@ -185,6 +191,10 @@
                         @break
                 @endswitch
 
+                </div>
+
+                {{-- Account controls: the page's alert icons and the profile chip. --}}
+                <div class="order-2 ml-auto flex items-center gap-2 sm:gap-3 lg:order-none lg:ml-0">
                 {{-- Optional page-specific actions (e.g. dashboard alert icons) --}}
                 @yield('admin_header_actions')
 
