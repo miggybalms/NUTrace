@@ -13,6 +13,8 @@
         category  asset category
         acquired  already formatted for print (see AssetLabel::formatAcquired)
         qr        URL of the stored QR image, or null to draw it in the browser
+        qr_payload  what the QR encodes when the browser draws it: the asset's
+                    signed payload, or its plain code without signing keys
         logo      URL of the official NU seal, or null when it is not available
 
     Everything is measured in millimetres and the box never grows: long values
@@ -25,6 +27,7 @@
     $category = trim((string) ($label['category'] ?? '')) ?: '—';
     $acquired = trim((string) ($label['acquired'] ?? '')) ?: '—';
     $qr       = $label['qr'] ?? null;
+    $payload  = trim((string) ($label['qr_payload'] ?? '')) ?: \App\Support\AssetQr::textFor($code);
     $logo     = $label['logo'] ?? null;
     $logoFallback = $label['logo_fallback'] ?? \App\Support\AssetLabel::logoFallbackUrl();
 @endphp
@@ -61,7 +64,9 @@
             </div>
         </div>
 
-        <div class="trace-label__qr" data-asset-code="{{ $code }}">
+        {{-- data-qr-payload is what the sheet draws when there is no stored
+             image: the signed payload, never a bare code once signing is on. --}}
+        <div class="trace-label__qr" data-asset-code="{{ $code }}" data-qr-payload="{{ $payload }}">
             @if($qr)
                 <img class="trace-label__qr-image" src="{{ $qr }}" alt="QR code for {{ $code }}">
             @endif

@@ -1124,9 +1124,19 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                         return;
                     }
 
+                    // The preview shows what the sticker will carry. A signed
+                    // payload is minted by the server for this code (it does not
+                    // have to exist yet), so the QR on screen is the QR on paper.
                     const img = document.getElementById('generatedQrImg');
                     if (img) {
-                        img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(code);
+                        img.alt = 'QR code for ' + code;
+                        img.src = qrServiceUrl(code);
+
+                        if (window.NUTraceQr && typeof window.NUTraceQr.payloadFor === 'function') {
+                            window.NUTraceQr.payloadFor(code).then(function (payload) {
+                                img.src = qrServiceUrl(payload || code);
+                            });
+                        }
                     }
 
                     document.getElementById('linkQrSection')?.classList.remove('hidden');
@@ -1137,6 +1147,17 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
             function regenerateCode() {
                 regenerateCodeOnly();
             }
+
+        // One QR service URL for both the preview and its download. A signed
+        // payload is a long string, so it is asked for at error correction level
+        // M; a short legacy code stays on L, exactly as the stored images are
+        // made server-side.
+        function qrServiceUrl(text) {
+            const signed = /^NUT[0-9]{1,2}[-:]/i.test(text || '');
+
+            return 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc='
+                + (signed ? 'M' : 'L') + '&data=' + encodeURIComponent(text || '');
+        }
 
         // Download generated QR image as PNG
         async function downloadGeneratedQr() {
@@ -1276,5 +1297,7 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
             document.getElementById('deleteModal').classList.remove('hidden');
         }
     </script>
+
+    @include('partials.qr_scan_js')
 
 @endsection

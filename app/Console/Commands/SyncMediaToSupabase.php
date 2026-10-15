@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\AssetQr;
 use App\Support\Media;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -318,14 +319,11 @@ class SyncMediaToSupabase extends Command
         $generated = 0;
 
         foreach ($assets as $asset) {
-            $path = Media::generateQr((string) $asset->Asset_code);
+            // One place mints sticker images (App\Support\AssetQr), so the
+            // image and the payload it encodes are always stored together.
+            $path = AssetQr::saveSticker((int) $asset->id);
 
             if ($path !== null) {
-                DB::table('assets')->where('id', $asset->id)->update([
-                    'qr_code_path' => $path,
-                    'updated_at' => now(),
-                ]);
-
                 $generated++;
             }
 

@@ -20,6 +20,9 @@ use App\Support\AssetDetails;
 use App\Support\AssetListing;
 use App\Support\DepartmentAssets;
 use App\Support\AssetCode;
+use App\Support\AssetQr;
+use App\Support\QrSigner;
+use App\Support\QrVerification;
 use App\Support\AssetTransfer;
 use App\Support\Disposals;
 use App\Support\DisposalReason;
@@ -948,92 +951,142 @@ Route::get('/admin', function () {
     ));
 });
 
-// API: lookup asset by Asset_code (used by admin scanner modal)
+// API: lookup asset by scanned code (used by admin scanner modal)
+//
+// What arrives here is whatever the camera decoded, and since stickers are
+// signed that is a payload - NUT1-<code>-<key>-<signature> - not a bare code.
+// Both shapes are answered, but not alike: a signed payload is verified before
+// any asset is reported, a plain code is reported as the unsigned legacy
+// sticker it is, and an altered or revoked sticker is refused outright rather
+// than dressed up with genuine asset details.
 Route::get('/admin/assets/scan', function (Request $request) {
-    $code = trim((string) $request->query('code', ''));
-    if ($code === '') {
+    $scanned = trim((string) $request->query('code', ''));
+
+    if ($scanned === '') {
         return response()->json(['success' => false, 'message' => 'code missing'], 422);
     }
 
-    $codeLower = strtolower($code);
+    $verification = QrVerification::verify($scanned, Auth::user());
 
-    $asset = DB::table('assets')
-        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
-        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
-        ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
-        ->whereRaw('LOWER("Asset_code") = ?', [$codeLower])
-        ->select(
-            'assets.id',
-            'assets.Asset_name',
-            'assets.Asset_code',
-            'assets.Lifecycle_Status',
-            'assets.asset_location',
-            'employee_numbers.Full_Name as owner_name',
-            'departments.Name as department_name',
-            DB::raw('MAX(asset_files.url) as image_url')
-        )
-        ->groupBy(
-            'assets.id',
-            'assets.Asset_name',
-            'assets.Asset_code',
-            'assets.Lifecycle_Status',
-            'assets.asset_location',
-            'employee_numbers.Full_Name',
-            'departments.Name'
-        )
-        ->first();
-
-    // Fallback if quoted column fails
-    if (!$asset) {
-        $asset = DB::table('assets')
-            ->leftJoin('users', 'assets.user_id', '=', 'users.id')
-            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-            ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
-            ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
-            ->whereRaw('LOWER(Asset_code) = ?', [$codeLower])
-            ->select(
-                'assets.id',
-                'assets.Asset_name',
-                'assets.Asset_code',
-                'assets.Lifecycle_Status',
-                'assets.asset_location',
-                'employee_numbers.Full_Name as owner_name',
-                'departments.Name as department_name',
-                DB::raw('MAX(asset_files.url) as image_url')
-            )
-            ->groupBy(
-                'assets.id',
-                'assets.Asset_name',
-                'assets.Asset_code',
-                'assets.Lifecycle_Status',
-                'assets.asset_location',
-                'employee_numbers.Full_Name',
-                'departments.Name'
-            )
-            ->first();
+    if (in_array($verification['status'], QrVerification::BLOCKING, true)) {
+        return response()->json([
+            'success'      => false,
+            'message'      => $verification['detail'],
+            'verification' => $verification,
+        ], 422);
     }
 
-    if (!$asset) {
-        return response()->json(['success' => false, 'message' => 'Asset not found'], 404);
+    if ($verification['asset'] === null) {
+        return response()->json([
+            'success'      => false,
+            'message'      => $verification['status'] === QrVerification::UNKNOWN_ASSET
+                ? 'Asset not found'
+                : $verification['detail'],
+            'verification' => $verification,
+        ], 404);
     }
-
-    // Build image URL from whatever the column holds (absolute URL or path)
-    $imageUrl = Media::url($asset->image_url ?? null);
 
     return response()->json([
-        'success' => true,
-        'data' => [
-            'id'         => $asset->id,
-            'name'       => $asset->Asset_name ?? '-',
-            'asset_code' => $asset->Asset_code ?? '-',
-            'status'     => $asset->Lifecycle_Status ?? '-',
-            'department' => $asset->department_name ?? '-',
-            'owner'      => $asset->owner_name ?? 'Unassigned',
-            'location'   => $asset->asset_location ?? '-',
-            'image_url'  => $imageUrl,
-        ],
+        'success'      => true,
+        'data'         => $verification['asset'],
+        'verification' => $verification,
     ]);
+})->middleware('auth');
+
+// API: verify one scanned sticker.
+//
+// Used by the screens that scan and need to know what they are looking at
+// without pulling asset details (pullout, transfer, the request forms). Every
+// outcome answers 200 with its own status, so the interface shows a state
+// rather than guessing one from a status code; only a missing payload is an
+// error. "Verification unavailable" is its own status on purpose - a server
+// without keys must never make a genuine sticker look fake.
+Route::get('/qr/verify', function (Request $request) {
+    $scanned = trim((string) $request->query('payload', (string) $request->query('code', '')));
+
+    if ($scanned === '') {
+        return response()->json(['message' => 'payload missing'], 422);
+    }
+
+    return response()->json(QrVerification::verify($scanned, Auth::user()));
+})->middleware('auth');
+
+// API: the signed payload for asset codes, so the screens that draw a QR in the
+// browser (the registry form and its QR modal) encode exactly what the stored
+// sticker encodes. Admin-only: this is the one place that mints a signature for
+// a code that does not exist yet, and registering codes is the office's job.
+Route::get('/admin/assets/qr-payload', function (Request $request) {
+    $user = Auth::user();
+
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return response()->json(['message' => 'Not allowed'], 403);
+    }
+
+    $codes = AssetCode::parseList((string) $request->query('codes', (string) $request->query('code', '')));
+
+    if (empty($codes)) {
+        return response()->json(['message' => 'codes missing'], 422);
+    }
+
+    return response()->json([
+        'signed'   => QrSigner::isConfigured(),
+        'payloads' => AssetQr::payloadsFor($codes),
+    ]);
+})->middleware('auth');
+
+// Revoke or reissue one asset's sticker. Admin-only: this is the Asset
+// Management Office saying "that tag is no longer ours", which is also what a
+// scan of it will then report.
+Route::post('/admin/assets/{id}/qr/revoke', function (Request $request, $id) {
+    $user = Auth::user();
+
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return $request->expectsJson()
+            ? response()->json(['success' => false, 'message' => 'Not allowed'], 403)
+            : abort(403);
+    }
+
+    $asset = DB::table('assets')->where('id', $id)->first();
+
+    if (!$asset) {
+        return $request->expectsJson()
+            ? response()->json(['success' => false, 'message' => 'Asset not found'], 404)
+            : abort(404);
+    }
+
+    AssetQr::revoke((int) $asset->id, (int) $user->id);
+
+    return $request->expectsJson()
+        ? response()->json(['success' => true, 'revoked' => true])
+        : back()->with('qr_status', 'Sticker for ' . ($asset->Asset_code ?? 'asset') . ' was revoked. Scans of it will report the revocation.');
+})->middleware('auth');
+
+Route::post('/admin/assets/{id}/qr/reissue', function (Request $request, $id) {
+    $user = Auth::user();
+
+    if (!$user || ($user->role ?? '') !== 'Admin') {
+        return $request->expectsJson()
+            ? response()->json(['success' => false, 'message' => 'Not allowed'], 403)
+            : abort(403);
+    }
+
+    $asset = DB::table('assets')->where('id', $id)->first();
+
+    if (!$asset) {
+        return $request->expectsJson()
+            ? response()->json(['success' => false, 'message' => 'Asset not found'], 404)
+            : abort(404);
+    }
+
+    $path = AssetQr::reissue((int) $asset->id);
+
+    $message = $path === null
+        ? 'Revocation cleared, but a fresh sticker image could not be produced. Print the sticker from the label sheet.'
+        : 'Sticker reissued for ' . ($asset->Asset_code ?? 'asset') . '. It verifies again.';
+
+    return $request->expectsJson()
+        ? response()->json(['success' => true, 'revoked' => false, 'stored' => $path !== null])
+        : back()->with('qr_status', $message);
 })->middleware('auth');
 
 // Create Department Endpoint
@@ -4220,9 +4273,8 @@ Route::match(['post', 'patch'], '/admin/replacements/{id}/link', function (Reque
             // 2. Generate QR on the media disk so it resolves from any device
             $qrUrl = null;
             try {
-                $qrPath = Media::generateQr($validated['Asset_code'], 400);
+                $qrPath = AssetQr::saveSticker((int) $newAssetId);
                 if ($qrPath) {
-                    DB::table('assets')->where('id', $newAssetId)->update(['qr_code_path' => $qrPath]);
                     $qrUrl = Media::url($qrPath);
                 }
             } catch (\Throwable $e) {
@@ -4911,14 +4963,12 @@ Route::post('/admin/assets', function (Request $request) {
 
             $saveQrToAsset = function (Asset $asset, string $assetCode) {
                 try {
-                    $qrPath = Media::generateQr($assetCode, 300);
+                    // The sticker image is minted from the asset's own signed
+                    // payload, and both halves - image path and the exact text
+                    // it encodes - are recorded together.
+                    $qrPath = AssetQr::saveSticker((int) $asset->id, 300);
 
                     if ($qrPath) {
-                        DB::table('assets')->where('id', $asset->id)->update([
-                            'qr_code_path' => $qrPath,
-                            'updated_at' => now(),
-                        ]);
-
                         return Media::url($qrPath);
                     }
                 } catch (\Throwable $e) {
@@ -5492,37 +5542,41 @@ Route::post('/admin/requests/{id}/reject', function (Request $request, $id) {
     return response()->json(['message' => 'Request rejected successfully.']);
 })->name('admin.requests.reject');
 
-// AJAX: find asset by code (used by scanner fallback)
+// AJAX: find asset by scanned code (used by the pullout scanner fallback)
+//
+// Same rule as the scanner lookup: the payload is verified first, and a sticker
+// that fails its authenticity check (or has been revoked) is refused instead of
+// being turned into a pullout.
 Route::get('/admin/assets/find-by-code', function (Request $request) {
-    $code = trim((string) $request->query('code', ''));
-    if ($code === '') {
+    $scanned = trim((string) $request->query('code', ''));
+    if ($scanned === '') {
         return response()->json(['message' => 'code missing'], 422);
     }
 
-    $codeLower = strtolower($code);
+    $verification = QrVerification::verify($scanned, Auth::user());
 
-    $asset = DB::table('assets')
-        ->whereRaw('LOWER("Asset_code") = ?', [$codeLower])
-        ->orWhereRaw('LOWER(asset_code) = ?', [$codeLower])
-        ->first();
-
-    if (!$asset) {
-        // fallback
-        $asset = DB::table('assets')
-            ->where('Asset_code', $code)
-            ->orWhere('asset_code', $code)
-            ->first();
+    if (in_array($verification['status'], QrVerification::BLOCKING, true)) {
+        return response()->json([
+            'message'      => $verification['detail'],
+            'verification' => $verification,
+        ], 422);
     }
 
+    $asset = $verification['code'] !== null ? AssetQr::findByCode($verification['code']) : null;
+
     if (!$asset) {
-        return response()->json(['message' => 'not found'], 404);
+        return response()->json([
+            'message'      => 'not found',
+            'verification' => $verification,
+        ], 404);
     }
 
     return response()->json([
-        'id'         => $asset->id,
-        'Asset_name' => $asset->Asset_name ?? null,
-        'Asset_code' => $asset->Asset_code ?? null,
-        'status'     => $asset->Lifecycle_Status ?? null,
+        'id'           => $asset->id,
+        'Asset_name'   => $asset->Asset_name ?? null,
+        'Asset_code'   => $asset->Asset_code ?? null,
+        'status'       => $asset->Lifecycle_Status ?? null,
+        'verification' => $verification,
     ]);
 })->middleware('auth');
 
@@ -6153,17 +6207,43 @@ Route::post('/logout', function (Request $request) {
 
 // User Request Routes
 Route::middleware(['auth'])->group(function () {
-    // AJAX: validate asset code belongs to authenticated user
+    // AJAX: validate a scanned sticker against the scanned-in account's own assets.
+    //
+    // The code typed in by hand still works; the text from a camera is verified
+    // first. A sticker that fails its authenticity check (or was revoked) is
+    // refused with the reason, and a genuine sticker whose signature could not
+    // be checked on this server is accepted with that fact attached, so a
+    // missing key never blocks the office's work.
     Route::get('/user/assets/check-code', function (Request $request) {
-    $code = trim((string) $request->query('code', ''));
+    $scanned = trim((string) $request->query('code', ''));
     $user = Auth::user();
 
-    if (!$user || $code === '') {
+    if (!$user || $scanned === '') {
         return response()->json(['exists' => false]);
+    }
+
+    $verification = QrVerification::verify($scanned, $user);
+
+    if (in_array($verification['status'], QrVerification::BLOCKING, true)) {
+        return response()->json([
+            'exists'       => false,
+            'message'      => $verification['detail'],
+            'verification' => $verification,
+        ]);
+    }
+
+    if ($verification['status'] === QrVerification::UNSUPPORTED) {
+        return response()->json([
+            'exists'       => false,
+            'message'      => $verification['detail'],
+            'verification' => $verification,
+        ]);
     }
 
     // Codes are matched the same way the admin scanner matches them: trimmed
     // and case-insensitively, so a QR that carries "ast-..." still resolves.
+    $code = (string) ($verification['code'] ?? AssetCode::normalize($scanned));
+
     $asset = DB::table('assets')
         ->whereRaw('LOWER("Asset_code") = ?', [mb_strtolower($code)])
         ->where('user_id', $user->id)
@@ -6172,8 +6252,9 @@ Route::middleware(['auth'])->group(function () {
 
     if ($asset) {
         return response()->json([
-            'exists' => true,
-            'asset'  => [
+            'exists'       => true,
+            'verification' => $verification,
+            'asset'        => [
                 'id'               => $asset->id,
                 'code'             => $asset->Asset_code,
                 'name'             => $asset->Asset_name,
@@ -6184,17 +6265,29 @@ Route::middleware(['auth'])->group(function () {
         ]);
     }
 
-    return response()->json(['exists' => false]);
+    return response()->json(['exists' => false, 'verification' => $verification]);
 })->name('user.assets.check');
 
-// AJAX: validate asset code for Department Head (own + department employees)
+// AJAX: validate a scanned sticker for a Department Head (own + department employees)
 Route::get('/department-head/assets/check-code', function (Request $request) {
-    $code = trim((string) $request->query('code', ''));
+    $scanned = trim((string) $request->query('code', ''));
     $user = Auth::user();
 
-    if (!$user || ($user->role ?? '') !== 'Department Head' || $code === '') {
+    if (!$user || ($user->role ?? '') !== 'Department Head' || $scanned === '') {
         return response()->json(['exists' => false]);
     }
+
+    $verification = QrVerification::verify($scanned, $user);
+
+    if (in_array($verification['status'], array_merge(QrVerification::BLOCKING, [QrVerification::UNSUPPORTED]), true)) {
+        return response()->json([
+            'exists'       => false,
+            'message'      => $verification['detail'],
+            'verification' => $verification,
+        ]);
+    }
+
+    $code = (string) ($verification['code'] ?? AssetCode::normalize($scanned));
 
     $asset = DB::table('assets')
         ->leftJoin('users', 'assets.user_id', '=', 'users.id')
@@ -6212,8 +6305,9 @@ Route::get('/department-head/assets/check-code', function (Request $request) {
 
     if ($asset) {
         return response()->json([
-            'exists' => true,
-            'asset'  => [
+            'exists'       => true,
+            'verification' => $verification,
+            'asset'        => [
                 'id'               => $asset->id,
                 'code'             => $asset->Asset_code,
                 'name'             => $asset->Asset_name,
@@ -6224,7 +6318,7 @@ Route::get('/department-head/assets/check-code', function (Request $request) {
         ]);
     }
 
-    return response()->json(['exists' => false]);
+    return response()->json(['exists' => false, 'verification' => $verification]);
 })->name('department_head.assets.check');
 
 Route::get('/user/requests', function (Request $request) {

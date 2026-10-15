@@ -103,13 +103,19 @@ class AssetDetailAndAdminHeaderTest extends TestCase
 
         $html = $page->getContent();
 
-        // The payload is the asset code the scanner looks up …
+        // The text drawn is the asset's own sticker text. This install has no
+        // signing key configured, so that is the plain asset code - the same
+        // string a sticker printed before signing carries (with a key present it
+        // is the signed payload; see QrSignatureTest).
         $page->assertSee('var assetCode', false);
         $page->assertSee('"AST-0001"', false);
-        $page->assertSee('correctLevel: QRCode.CorrectLevel.H', false);
+        $page->assertSee('var qrPayload   = "AST-0001"', false);
 
-        // … and it is what gets drawn. The stored PNG is only the fallback for an
-        // asset that has no code at all.
+        // … and it is what gets drawn, through the one shared reader, which also
+        // lowers the error correction level for a long signed payload.
+        $page->assertSee('window.NUTraceQr.draw(holder, qrPayload', false);
+
+        // The stored PNG is only the fallback for an asset that has no code at all.
         $draw   = strpos($html, 'if (assetCode) {');
         $stored = strpos($html, 'showStoredQr(holder);');
 

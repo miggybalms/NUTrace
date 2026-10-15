@@ -276,10 +276,26 @@
     </style>
 </head>
 <body>
+    @php
+        // Which stickers on this sheet still carry an unsigned code - printed
+        // before signing existed, or signed with a key this install no longer
+        // holds. Shown on screen (the bar is not printed) so the office can see
+        // what a reprint would cover, instead of finding out by scanning.
+        $unsignedCount = collect($labels)
+            ->filter(fn ($label) => ! \App\Support\QrPayload::isPayload((string) ($label['qr_payload'] ?? '')))
+            ->count();
+    @endphp
     <div class="sheet-bar">
         <div>
             <h1>{{ $labels === [] ? 'Asset Labels' : ($single ? 'Asset Label' : count($labels) . ' Asset Labels') }}</h1>
             <p>{{ $subtitle ?? '' }}</p>
+            @if($unsignedCount > 0)
+                <p style="margin-top:4px;color:#7A5B00;font-size:12px;">
+                    {{ $unsignedCount }} of these {{ $unsignedCount === 1 ? 'sticker carries' : 'stickers carry' }}
+                    an unsigned code (no signature). They still scan as “unsigned”, and
+                    <code>php artisan qr:resign</code> re-mints the stored images.
+                </p>
+            @endif
         </div>
         @if($labels !== [])
             <button type="button" onclick="window.print()">Print</button>
@@ -304,13 +320,24 @@
     @if($labels !== [])
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
         <script>
+            // What a sticker's QR carries when the browser has to draw it: the
+            // signed payload the server put in the label, or the plain code of
+            // an install without signing keys.
+            function stickerText(root) {
+                return (root.dataset.qrPayload || root.dataset.assetCode || '').trim();
+            }
+
+            function isSignedText(text) {
+                return /^NUT[0-9]{1,2}[-:]/i.test(text);
+            }
+
             // A label without a stored QR image draws its own code in the browser,
             // so a sticker is never printed with an empty square.
             function drawMissingQr(root) {
                 const target = root.querySelector('.trace-label__qr-draw');
-                const code = root.dataset.assetCode || '';
+                const payload = stickerText(root);
 
-                if (!target || target.dataset.drawn === '1' || !code) {
+                if (!target || target.dataset.drawn === '1' || !payload) {
                     return Promise.resolve();
                 }
 
@@ -318,23 +345,30 @@
 
                 if (typeof QRCode !== 'undefined') {
                     new QRCode(target, {
-                        text: code,
+                        text: payload,
                         width: 240,
                         height: 240,
                         colorDark: '#111111',
                         colorLight: '#ffffff',
-                        correctLevel: QRCode.CorrectLevel.H
+                        // A signed payload is around 130 characters. Measured in
+                        // this browser: level H puts about 75 modules across the
+                        // 20mm square (0.27mm each), level M about 50 (0.4mm),
+                        // and a short legacy code stays on H at 30 modules.
+                        correctLevel: isSignedText(payload) ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.H
                     });
                     return Promise.resolve();
                 }
 
                 // qrcodejs did not load (offline print station): ask the same
-                // QR service the rest of the app falls back to.
+                // QR service the rest of the app falls back to. Level M with
+                // the quiet zone, the pair the stored images are made with.
                 return new Promise((resolve) => {
                     const img = document.createElement('img');
-                    img.alt = 'QR code for ' + code;
+                    img.alt = 'QR code for ' + (root.dataset.assetCode || '');
                     img.onload = img.onerror = () => resolve();
-                    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(code);
+                    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&qzone=1&ecc='
+                        + (isSignedText(payload) ? 'M' : 'L')
+                        + '&data=' + encodeURIComponent(payload);
                     target.replaceWith(img);
                 });
             }

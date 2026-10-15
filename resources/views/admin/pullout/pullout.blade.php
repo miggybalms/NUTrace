@@ -674,6 +674,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    @include('partials.qr_scan_js')
     <script>
         // Scanner variables - camera stays open until manually closed (same as disposal)
         let html5QrCode = null;
@@ -1016,7 +1017,15 @@ function toggleEditActionFields() {
             }
         }
 
-        function handleSuccessfulScan(decodedText) {
+        //
+        // A scan is checked before anything is recorded. Stickers are signed
+        // now, so the camera reads a payload rather than a bare code: the code
+        // inside it is extracted locally, the signature is verified by the
+        // server, and only then is the pullout recorded. An altered, revoked or
+        // unreadable sticker is refused. A plain (legacy) code and a sticker
+        // whose signature this server cannot check are still accepted, with a
+        // note - a missing key must not stop the office's work.
+        async function handleSuccessfulScan(decodedText) {
             // Visual feedback - flash the scanner area
             const scannerDiv = document.getElementById('qrScanner');
             if (scannerDiv) {
@@ -1026,12 +1035,39 @@ function toggleEditActionFields() {
                     scannerDiv.style.opacity = '1';
                 }, 100);
             }
-            
+
+            const reader = window.NUTraceQr;
+            const parsed = reader
+                ? reader.parse(decodedText)
+                : { type: 'legacy', code: decodedText, signed: false };
+
+            if (parsed.type === 'malformed') {
+                showToast('Damaged sticker payload — nothing was recorded.', 'error');
+                if (statusEl) statusEl.textContent = '✕ Damaged sticker — not used.';
+                return;
+            }
+
+            if (parsed.signed) {
+                const verification = await reader.verify(decodedText);
+
+                if (reader.blocking(verification.status)) {
+                    showToast(verification.label + ': ' + verification.detail, 'error');
+                    if (statusEl) statusEl.textContent = '✕ ' + verification.label;
+                    return;
+                }
+
+                if (verification.status !== 'valid') {
+                    showToast(verification.label + ' — continuing with the code only.');
+                }
+            }
+
+            const code = parsed.code || decodedText;
+
             if (scannerAutoMode) {
-                handleAutoPullout(decodedText);
+                handleAutoPullout(code);
                 if (statusEl) statusEl.textContent = '✓ Pullout recorded! Ready for next scan...';
             } else if (currentScannerSelectId) {
-                handleScannedCode(decodedText, currentScannerSelectId);
+                handleScannedCode(code, currentScannerSelectId);
                 if (statusEl) statusEl.textContent = '✓ Asset selected! Ready for next scan...';
             }
         }
@@ -1042,9 +1078,8 @@ function toggleEditActionFields() {
             if (!sel) return;
             
             let opt = sel.querySelector('option[data-code="' + code + '"]');
-            if (!opt) {
-                const opts = Array.from(sel.options).filter(o => 
-                    (o.dataset.code && (o.dataset.code === code || o.dataset.code.includes(code))) || 
+            if (!opt) {                    const opts = Array.from(sel.options).filter(o =>
+                    (o.dataset.code && (o.dataset.code === code || o.dataset.code.includes(code))) ||
                     (o.text && o.text.includes(code))
                 );
                 opt = opts.length ? opts[0] : null;

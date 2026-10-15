@@ -661,16 +661,18 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+@include('partials.qr_scan_js')
 <script>
     (function () {
         // ── QR code ──
-        // The code is drawn in the browser from the asset code this page shows,
-        // so the picture always encodes the *current* code — exactly the string
-        // the "Scan QR" lookup (assets.Asset_code) matches on. The high error
-        // correction level keeps it readable straight off a screen. The stored
-        // PNG is only used when the asset has no code to draw at all.
+        // The code is drawn in the browser from the asset's own sticker text:
+        // the signed payload when the server can sign, otherwise the plain asset
+        // code. Either way it is exactly what the printed sticker carries, so a
+        // phone scanning this screen and a phone scanning the tag agree. The
+        // stored PNG is only used when the asset has no code to draw at all.
         var storedQrUrl = @json($details['qrUrl']);
         var assetCode   = @json($asset->Asset_code);
+        var qrPayload   = @json(\App\Support\AssetQr::textFor($asset->Asset_code ?? ''));
         var qrInstance  = null;
         var qrRendered  = false;
 
@@ -694,17 +696,12 @@
         };
 
         function drawQr(holder) {
-            holder.innerHTML = '';
-            if (!assetCode || typeof QRCode === 'undefined') return;
+            if (!qrPayload) return;
             try {
-                qrInstance = new QRCode(holder, {
-                    text: assetCode,
-                    width: 220,
-                    height: 220,
-                    colorDark: '#0A1830',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H
-                });
+                // Drawn through the shared reader, which lowers the error
+                // correction level for a long signed payload so the screen code
+                // stays as easy to scan as a sticker.
+                qrInstance = window.NUTraceQr.draw(holder, qrPayload, { width: 220, height: 220, colorDark: '#0A1830' });
             } catch (e) {}
         }
 

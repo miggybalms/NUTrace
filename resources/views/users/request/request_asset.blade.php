@@ -213,6 +213,7 @@
     </div>
 
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    @include('partials.qr_scan_js')
     <script>
         // ─────────────────────────────────────────────
         // State
@@ -324,7 +325,10 @@
                 const data = await resp.json();
 
                 if (!data.exists || !data.asset) {
-                    showFeedback("This asset doesn't exist or isn't assigned to you.", 'error');
+                    // The server has already decided what the sticker was - an
+                    // altered one, a revoked one, or simply not this account's -
+                    // and its own words are shown when it sent any.
+                    showFeedback(data.message || "This asset doesn't exist or isn't assigned to you.", 'error');
                     return;
                 }
 
@@ -337,13 +341,25 @@
 
                 draftAssets.set(asset.id, asset);
                 updateUI();
-                showFeedback(`Added: ${asset.name} (${asset.code})`, 'success');
+                // Say which kind of sticker was scanned: a plain code from
+                // before signing, or one whose signature this server could not
+                // check, is reported as such rather than passed off as verified.
+                showFeedback(`Added: ${asset.name} (${asset.code})${stickerNote(data.verification)}`, 'success');
                 assetCodeInput.value = '';
                 assetCodeInput.focus();
 
             } catch (e) {
                 showFeedback('Unable to validate asset. Please try again.', 'error');
             }
+        }
+
+        // A short, honest suffix for a sticker that is not fully verified.
+        function stickerNote(verification) {
+            if (!verification || verification.status === 'valid') return '';
+            if (verification.status === 'legacy_unsigned') return ' — unsigned sticker';
+            if (verification.status === 'unavailable') return ' — signature not checked';
+
+            return ' — ' + (verification.label || 'sticker not verified');
         }
 
         // Button + Enter key

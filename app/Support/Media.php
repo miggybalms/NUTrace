@@ -267,13 +267,18 @@ class Media
     }
 
     /**
-     * Render an asset code as a PNG QR image, store it and return its path
-     * (relative to the media disk) so it can be saved on the asset row.
+     * Render the text of an asset's sticker as a PNG QR image, store it and
+     * return its path (relative to the media disk) so it can be saved on the
+     * asset row.
+     *
+     * `$text` is what actually gets encoded - normally the signed payload from
+     * App\Support\AssetQr. Omitting it encodes the plain asset code, which is
+     * what a sticker printed before signing existed carries.
      *
      * Returns null when the QR could not be produced; callers keep the asset
      * without a stored QR and the UI falls back to drawing it in the browser.
      */
-    public static function generateQr(string $assetCode, int $size = 400): ?string
+    public static function generateQr(string $assetCode, int $size = 400, ?string $text = null): ?string
     {
         $assetCode = trim($assetCode);
 
@@ -281,7 +286,10 @@ class Media
             return null;
         }
 
-        $png = self::fetchQrPng($assetCode, $size);
+        $encoded = trim((string) ($text ?? ''));
+        $encoded = $encoded === '' ? $assetCode : $encoded;
+
+        $png = self::fetchQrPng($encoded, $size);
 
         if ($png === null) {
             return null;
@@ -292,14 +300,20 @@ class Media
         return self::put($path, $png, ['mimetype' => 'image/png']) ? $path : null;
     }
 
-    protected static function fetchQrPng(string $assetCode, int $size): ?string
+    protected static function fetchQrPng(string $text, int $size): ?string
     {
         try {
             $response = Http::timeout(15)
                 ->retry(2, 400)
                 ->get('https://api.qrserver.com/v1/create-qr-code/', [
                     'size' => $size.'x'.$size,
-                    'data' => $assetCode,
+                    'data' => $text,
+                    // A signed payload is a long string for a 20mm square, so
+                    // the code carries the error correction that goes with its
+                    // length: level M still reads through a scuff, and stays
+                    // small enough to scan from a phone held at arm's length.
+                    'ecc' => QrPayload::isPayload($text) ? 'M' : 'L',
+                    'qzone' => 1,
                 ]);
         } catch (Throwable $e) {
             report($e);

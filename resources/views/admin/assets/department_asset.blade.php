@@ -292,7 +292,7 @@
                             </thead>
                             <tbody id="assetsTableBody" class="divide-y divide-[#EFE9D8]">
                                 @forelse($assets ?? [] as $asset)
-                                <tr class="asset-row transition-colors" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
+                                <tr class="asset-row transition-colors" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}" data-qr-payload="{{ \App\Support\AssetQr::textFor($asset->id) }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
                                     <td class="py-3 px-4">
                                         @if($asset->status === 'active')
                                             <input type="checkbox" class="asset-select-checkbox rounded border-[#CFC4A4] text-[#C9A227] focus:ring-[#E0BC44]" value="{{ $asset->db_id ?? $asset->id }}" data-status="{{ $asset->status }}" onchange="updateBulkPulloutButtonState()">
@@ -769,6 +769,9 @@ document.querySelectorAll('.view-qr-btn').forEach((btn) => {
 
         const qrUrl = row.getAttribute('data-qr-url') || row.getAttribute('data-qr-path') || '';
         const assetCode = row.getAttribute('data-asset-code') || row.getAttribute('data-id') || '';
+        // What the sticker carries: the signed payload, or the plain code on an
+        // install without signing keys.
+        const qrPayload = row.getAttribute('data-qr-payload') || assetCode;
         const img = document.getElementById('qrModalImg');
         const canvasWrap = document.getElementById('qrModalCanvas');
         const idEl = document.getElementById('qrModalAssetId');
@@ -786,24 +789,24 @@ document.querySelectorAll('.view-qr-btn').forEach((btn) => {
 
         // Draw the code in the browser (used when no stored image is available).
         const drawQrInBrowser = () => {
-            if (!assetCode) return;
+            if (!qrPayload) return;
 
             canvasWrap.innerHTML = '';
             canvasWrap.style.display = 'flex';
 
-            if (typeof QRCode !== 'undefined') {
-                modalQRCodeInstance = new QRCode(canvasWrap, {
-                    text: assetCode,
+            if (typeof QRCode !== 'undefined' && window.NUTraceQr) {
+                modalQRCodeInstance = window.NUTraceQr.draw(canvasWrap, qrPayload, {
                     width: 220,
                     height: 220,
-                    colorDark: '#1f2937',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H
+                    colorDark: '#1f2937'
                 });
             } else {
-                // Fallback: external QR API
+                // Fallback: the same QR service the stored images come from,
+                // with the error correction level a long payload needs.
                 img.onerror = null;
-                img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(assetCode);
+                img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&qzone=1&ecc='
+                    + (/^NUT[0-9]{1,2}[-:]/i.test(qrPayload) ? 'M' : 'L')
+                    + '&data=' + encodeURIComponent(qrPayload);
                 img.classList.remove('hidden');
                 canvasWrap.style.display = 'none';
             }
@@ -872,5 +875,6 @@ function downloadQRFromModal() {
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    @include('partials.qr_scan_js')
 </body>
 </html>

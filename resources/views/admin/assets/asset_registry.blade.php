@@ -680,6 +680,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    @include('partials.qr_scan_js')
     <script>
         let qrcodeInstance = null;
         let modalQRCodeInstance = null;
@@ -712,51 +713,61 @@
             }
         });
         
+        // Guards against an older preview landing after a newer one when the
+        // code is being changed quickly.
+        let qrDrawToken = 0;
+
+        // The preview shows the sticker's real text. That is the signed payload
+        // the server will store for this code - the same string the printed
+        // label carries - falling back to the plain code on an install that
+        // cannot sign yet.
+        function stickerTextFor(code) {
+            if (window.NUTraceQr && typeof window.NUTraceQr.payloadFor === 'function') {
+                return window.NUTraceQr.payloadFor(code);
+            }
+
+            return Promise.resolve(code);
+        }
+
         function generateQRCode() {
             const assetId = document.getElementById('asset-code-input').value;
-            const assetName = document.getElementById('asset-name')?.value || 'New Asset';
-            const category = document.getElementById('asset-category')?.value || 'Uncategorized';
-            const location = document.getElementById('asset-location')?.value || 'Not specified';
-            
-            // Use only the asset code as QR payload
-            const qrData = assetId || '';
 
             // Clear previous QR code
             const qrcodeDiv = document.getElementById('qrcode');
+            const token = ++qrDrawToken;
             qrcodeDiv.innerHTML = '';
+            qrcodeInstance = null;
 
-            if (!qrData) {
-                qrcodeInstance = null;
+            if (!assetId) {
                 // ensure register button is disabled when no QR
                 if (window._registerBtn) window._registerBtn.disabled = true;
                 return;
             }
 
-            // Generate new QR code (payload = asset code string)
-            qrcodeInstance = new QRCode(qrcodeDiv, {
-                text: qrData,
-                width: 120,
-                height: 120,
-                colorDark: "#1f2937",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
+            stickerTextFor(assetId).then((payload) => {
+                if (token !== qrDrawToken) return; // superseded by a newer code
 
-            // after generating QR, enable register button
-            setTimeout(() => {
-                const qrCanvas = document.querySelector('#qrcode canvas');
-                if (qrCanvas && window._registerBtn) {
-                    window._registerBtn.disabled = !checkFormReadiness();
-                    // also store the QR image into the hidden input so server receives it
-                    try {
-                        const dataUrl = qrCanvas.toDataURL('image/png');
-                        const qrInput = document.getElementById('qr_image_input');
-                        if (qrInput) qrInput.value = dataUrl;
-                    } catch (err) {
-                        // ignore canvas errors
+                qrcodeDiv.innerHTML = '';
+                qrcodeInstance = window.NUTraceQr
+                    ? window.NUTraceQr.draw(qrcodeDiv, payload || assetId, { width: 120, height: 120, colorDark: '#1f2937' })
+                    : null;
+
+                // after generating QR, enable register button
+                setTimeout(() => {
+                    const qrCanvas = document.querySelector('#qrcode canvas');
+                    if (qrCanvas && window._registerBtn) {
+                        window._registerBtn.disabled = !checkFormReadiness();
+                        // also store the QR image into the hidden input so server receives it
+                        try {
+                            const dataUrl = qrCanvas.toDataURL('image/png');
+                            const qrInput = document.getElementById('qr_image_input');
+                            if (qrInput) qrInput.value = dataUrl;
+                        } catch (err) {
+                            // ignore canvas errors
+                        }
                     }
-                }
-            }, 100);
+                }, 100);
+            });
         }
         
         function updateQRCode() {
@@ -1125,14 +1136,13 @@
             const modalQRDiv = document.getElementById('modal-qrcode');
             modalQRDiv.innerHTML = '';
 
-            // Modal QR encodes only the asset code string
-            modalQRCodeInstance = new QRCode(modalQRDiv, {
-                text: assetId,
-                width: 200,
-                height: 200,
-                colorDark: "#1f2937",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
+            // The modal shows the sticker's real text (signed payload), not a
+            // bare code, so what is on screen matches what will be printed.
+            stickerTextFor(assetId).then((payload) => {
+                modalQRDiv.innerHTML = '';
+                modalQRCodeInstance = window.NUTraceQr
+                    ? window.NUTraceQr.draw(modalQRDiv, payload || assetId, { width: 200, height: 200, colorDark: '#1f2937' })
+                    : null;
             });
 
             document.getElementById('modal-asset-id').textContent = assetId;

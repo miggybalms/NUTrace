@@ -158,6 +158,8 @@
                            title="View QR Code"
                            data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}"
                            data-asset-code="{{ $asset->Asset_code ?? '' }}"
+                           {{-- What the sticker actually carries: the signed payload. --}}
+                           data-qr-payload="{{ \App\Support\AssetQr::textFor($asset->Asset_code ?? '') }}"
                            onclick="openQrModal(this)">
                             <i class="ri-qr-code-line text-[#0A1830] text-sm"></i>
                         </a>
@@ -263,6 +265,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    @include('partials.qr_scan_js')
 
     <script>
         let qrModalInstance = null;
@@ -280,6 +283,9 @@
         // =====================
         function openQrModal(el) {
             var code = el.getAttribute('data-asset-code') || '';
+            // The signed payload is what the printed sticker carries, so the
+            // modal shows the same code a camera would read off the tag.
+            var payload = el.getAttribute('data-qr-payload') || code;
             var canvas = document.getElementById('qrModalCanvas');
             var idEl = document.getElementById('qrModalAssetId');
 
@@ -288,14 +294,11 @@
             }
             canvas.innerHTML = '';
 
-            if (code && code.length > 0) {
-                qrModalInstance = new QRCode(canvas, {
-                    text: code,
+            if (payload && payload.length > 0) {
+                qrModalInstance = window.NUTraceQr.draw(canvas, payload, {
                     width: 220,
                     height: 220,
-                    colorDark: "#0A1830",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
+                    colorDark: "#0A1830"
                 });
                 idEl.textContent = code;
             }

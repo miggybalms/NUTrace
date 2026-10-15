@@ -477,6 +477,9 @@
                         </div>
                     </div>
                 </div>
+                {{-- What the sticker itself turned out to be: verified, unsigned,
+                     altered, revoked, or not a NU Trace code at all. --}}
+                <div id="scannerVerification" class="mt-3 hidden"></div>
                 <p id="scannerMsg" class="text-sm hidden" style="color:var(--brick-dark);"></p>
             </div>
             <div class="flex justify-end p-6 pt-0">
@@ -487,6 +490,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    @include('partials.qr_scan_js')
     <script>
         function openScannerModal() {
             document.getElementById('scannerModal').classList.remove('hidden');
@@ -514,8 +518,21 @@
         }
 
         document.getElementById('openScannerBtn').addEventListener('click', openScannerModal);
+
+        // The verification banner is shown for every outcome, including the
+        // refused ones: the office needs to see "altered sticker" or "unsigned
+        // sticker" rather than a bare "asset not found".
+        function showVerification(verification) {
+            const holder = document.getElementById('scannerVerification');
+            if (!holder) return;
+            holder.innerHTML = (verification && window.NUTraceQr) ? window.NUTraceQr.banner(verification) : '';
+            holder.classList.toggle('hidden', holder.innerHTML === '');
+        }
+
         // lookup helper used by scanner on successful decode
         function lookupAsset(code) {
+            showVerification(null);
+
             if (!code) {
                 document.getElementById('scannerMsg').textContent = 'Invalid code scanned.';
                 document.getElementById('scannerMsg').classList.remove('hidden');
@@ -525,6 +542,8 @@
             fetch(`/admin/assets/scan?code=${encodeURIComponent(code)}`)
                 .then(res => res.json())
                 .then(json => {
+                    showVerification(json.verification);
+
                     if (!json.success) {
                         document.getElementById('scannerMsg').textContent = json.message || 'Asset not found';
                         document.getElementById('scannerMsg').classList.remove('hidden');
@@ -551,7 +570,10 @@
                     document.getElementById('scannerResult').classList.remove('hidden');
                 })
                 .catch(err => {
-                    document.getElementById('scannerMsg').textContent = 'Lookup failed';
+                    // A lookup that could not reach the server says exactly that:
+                    // it never turns into an accusation against the sticker.
+                    showVerification(window.NUTraceQr ? window.NUTraceQr.OFFLINE : null);
+                    document.getElementById('scannerMsg').textContent = 'Lookup failed — the server could not be reached.';
                     document.getElementById('scannerMsg').classList.remove('hidden');
                 });
         }

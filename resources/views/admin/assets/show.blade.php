@@ -61,6 +61,13 @@
 
 <main class="flex-1 overflow-y-auto" style="background:var(--paper);">
             <div class="max-w-4xl mx-auto p-8">
+                @if(session('qr_status'))
+                    {{-- What the last revoke / reissue did. --}}
+                    <div class="mb-4 p-4 rounded-lg" style="background:#FDF6E3; border:1px solid #DED2AE; color:#7A5B00;">
+                        <i class="ri-qr-code-line mr-1"></i>{{ session('qr_status') }}
+                    </div>
+                @endif
+
                 <div class="card-registry">
 
                     <!-- Registry header band -->
@@ -97,13 +104,53 @@
                                 </div>
                                 @endif
 
-                                @if(!empty($asset->qr_code_path))
+                                @php
+                                    // The sticker's real text: the signed payload when
+                                    // this install can sign, otherwise the plain code.
+                                    $qrPayload = \App\Support\AssetQr::textFor($asset->Asset_code ?? '');
+                                    $qrRevoked = ! empty($asset->qr_revoked_at);
+                                @endphp
+
                                 <div class="mt-4 stub p-3">
                                     <p class="eyebrow" style="color:var(--navy-800); font-size:.6rem;">Scan to Verify</p>
+                                    {{-- With no stored image the src is empty and the QR
+                                         service draws the same payload the sticker
+                                         carries, at the error correction level a long
+                                         signed payload needs. --}}
                                     <img src="{{ \App\Support\Media::url($asset->qr_code_path) }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
-                                         onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent('{{ $asset->Asset_code }}');" />
+                                         onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc={{ str_starts_with($qrPayload, 'NUT') ? 'M' : 'L' }}&data=' + encodeURIComponent('{{ $qrPayload }}');" />
+
+                                    @if($qrRevoked)
+                                        <p class="text-xs mt-2" style="color:#7E2E27;">
+                                            Revoked — scanning this sticker reports it as revoked.
+                                        </p>
+                                    @endif
+
+                                    @if((auth()->user()->role ?? '') === 'Admin')
+                                        <div class="mt-3">
+                                            @if($qrRevoked)
+                                                <form method="POST" action="{{ url('/admin/assets/' . $asset->id . '/qr/reissue') }}">
+                                                    @csrf
+                                                    <button type="submit" class="w-full"
+                                                            style="padding:.35rem .6rem;border-radius:.5rem;font-size:.72rem;background:#0F2143;color:#fff;">
+                                                        Reissue sticker
+                                                    </button>
+                                                </form>
+                                                <p class="text-xs mt-1" style="color:#5C6474;">Clears the revocation and prints a fresh code.</p>
+                                            @else
+                                                <form method="POST" action="{{ url('/admin/assets/' . $asset->id . '/qr/revoke') }}"
+                                                      onsubmit="return confirm('Revoke this asset\'s sticker? Scans of it will report a revoked code until it is reissued.');">
+                                                    @csrf
+                                                    <button type="submit" class="w-full"
+                                                            style="padding:.35rem .6rem;border-radius:.5rem;font-size:.72rem;background:#fff;color:#A23B32;border:1px solid #A23B32;">
+                                                        Revoke sticker
+                                                    </button>
+                                                </form>
+                                                <p class="text-xs mt-1" style="color:#5C6474;">Use when the printed tag is lost.</p>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </div>
-                                @endif
                             </div>
                         </div>
                     </div>

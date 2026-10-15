@@ -42,13 +42,19 @@ class AssetLabel
      */
     public static function fromRow(object $row): array
     {
+        $code = trim((string) ($row->id ?? $row->Asset_code ?? ''));
+
         return [
-            'code'     => trim((string) ($row->id ?? $row->Asset_code ?? '')),
+            'code'     => $code,
             'name'     => self::clean($row->name ?? $row->Asset_name ?? ''),
             'location' => self::clean($row->location ?? $row->asset_location ?? ''),
             'category' => self::clean($row->category ?? $row->Category ?? ''),
             'acquired' => self::formatAcquired($row->accusion_date ?? $row->date_acquired ?? null),
             'qr'       => Media::url($row->qr_code_path ?? null),
+            // What the sticker's QR encodes when the browser has to draw it:
+            // the asset's signed payload, or its plain code on an install
+            // without signing keys.
+            'qr_payload' => AssetQr::textFor($code),
             'logo'     => self::logoUrl(),
             'logo_fallback' => self::logoFallbackUrl(),
         ];
@@ -60,13 +66,18 @@ class AssetLabel
      */
     public static function fromInput(array $input): array
     {
+        $code = trim((string) ($input['code'] ?? ''));
+
         return [
-            'code'     => trim((string) ($input['code'] ?? '')),
+            'code'     => $code,
             'name'     => self::clean($input['name'] ?? ''),
             'location' => self::clean($input['location'] ?? ''),
             'category' => self::clean($input['category'] ?? ''),
             'acquired' => self::formatAcquired($input['acquired'] ?? null),
             'qr'       => null, // no stored image yet; the sheet draws the code instead
+            // Signing needs no database row, so a label previewed before the
+            // asset exists carries the same payload it will carry once saved.
+            'qr_payload' => AssetQr::textFor($code),
             'logo'     => self::logoUrl(),
             'logo_fallback' => self::logoFallbackUrl(),
         ];
