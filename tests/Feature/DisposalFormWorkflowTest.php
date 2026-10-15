@@ -742,16 +742,23 @@ class DisposalFormWorkflowTest extends TestCase
         $this->assertSame($this->admin->id, (int) $form->finalized_by);
         $this->assertSame(now()->toDateString(), (string) $form->actual_disposal_date);
 
-        // Audit + notification, in the existing systems.
-        $audit = DB::table('audit_logs')
-            ->where('request_id', $requestId)
-            ->where('asset_id', $this->assetId)
-            ->where('action_type', 'DISPOSAL')
-            ->where('action_description', 'like', '%finalized%')
-            ->first();
-        $this->assertNotNull($audit);
-        $this->assertStringContainsString('AST-0001', $audit->action_description);
+        // The finalization's own audit entry, matched on what only it says.
+        // A looser match is satisfied by the wrong row: the approval logs
+        // action_type DISPOSAL, for this asset, on this request, and its text
+        // names the finalization too — which is how an entry that was never
+        // written (and an action_type holding the asset id) went unnoticed.
+        $entries = DB::table('audit_logs')->where('notes', 'like', 'Disposal finalized%')->get();
+
+        $this->assertCount(1, $entries, 'the finalization must leave one entry for a one-asset form');
+
+        $audit = $entries->first();
+        $this->assertSame('DISPOSAL', $audit->action_type, 'the entry has to be an action the log accepts');
+        $this->assertSame($requestId, (int) $audit->request_id);
+        $this->assertSame($this->assetId, (int) $audit->asset_id, 'the entry names the asset it retired');
         $this->assertSame($this->admin->id, (int) $audit->user_id);
+        $this->assertStringContainsString('AST-0001', $audit->action_description);
+        $this->assertStringContainsString('was marked disposed of', $audit->action_description);
+        $this->assertStringContainsString('reason code B', $audit->notes);
 
         $notification = DB::table('notifications')
             ->where('user_id', $this->employee->id)
@@ -785,6 +792,14 @@ class DisposalFormWorkflowTest extends TestCase
         }
 
         $this->assertSame(2, DB::table('disposals')->where('Request_id', $requestId)->count());
+
+        // One entry per asset, each naming its own — and every one of them an
+        // action the log's constraint accepts.
+        $entries = DB::table('audit_logs')->where('notes', 'like', 'Disposal finalized%')->get();
+
+        $this->assertCount(2, $entries);
+        $this->assertSame([$this->assetId, $secondAsset], $entries->pluck('asset_id')->map(fn ($id) => (int) $id)->sort()->values()->all());
+        $this->assertSame(['DISPOSAL'], $entries->pluck('action_type')->unique()->values()->all());
     }
 
     public function test_finalizing_twice_changes_nothing_and_creates_nothing_twice(): void
@@ -974,5 +989,82 @@ class DisposalFormWorkflowTest extends TestCase
         // And nothing was disposed of by preparing it.
         $this->assertSame('Active', DB::table('assets')->where('id', $this->assetId)->value('Lifecycle_Status'));
         $this->assertSame(0, DB::table('disposals')->count());
+    }
+
+    /* ═══════════ the driver the office actually runs ═══════════ */
+
+    /**
+     * The columns this schema spells with a capital letter.
+     *
+     * They were created as quoted, mixed-case names, so PostgreSQL folds an
+     * unquoted reference to lowercase and refuses the statement (42703) — while
+     * SQLite matches names case-insensitively and passes. That difference put a
+     * 500 on production: `DB::raw('requests.Note ...')` spelled the column the
+     * way the table does, SQLite accepted it, PostgreSQL read it as
+     * `requests.note` and threw "column requests.note does not exist".
+     *
+     * @var array<int, string>
+     */
+    private const CASE_SENSITIVE_COLUMNS = [
+        'Note', 'Full_Name', 'Employee_number', 'Request_id', 'Disposal_ID',
+        'Approve_by', 'Asset_code', 'Asset_name', 'Category', 'Condition',
+        'Is_Current', 'Assign_date', 'Department_id', 'Create_at', 'Update_at',
+    ];
+
+    public function test_no_statement_the_chain_runs_leaves_a_case_sensitive_column_unquoted(): void
+    {
+        // SQLite cannot tell a quoted identifier from an unquoted one, so this
+        // test reads the statements themselves rather than their results: it
+        // runs the whole chain with the query log on and checks that every
+        // case-sensitive column reached the driver quoted. It therefore fails
+        // here, on either driver, for a mistake that would only throw in
+        // production.
+        DB::enableQueryLog();
+
+        [, $formId] = $this->approveAndForm();
+
+        // The queue, the preparation screen, the reprint, the saved form, the
+        // signed receipt and the finalization — every statement the office's
+        // own steps run.
+        $this->actingAs($this->admin)->get('/admin/disposal?tab=forms')->assertOk();
+        $this->actingAs($this->admin)->get("/admin/disposal/forms/{$formId}")->assertOk();
+
+        $this->takeToSigned($formId);
+
+        $this->actingAs($this->admin)->get("/admin/disposal/forms/{$formId}/preview")->assertOk();
+
+        $this->actingAs($this->admin)->post("/admin/disposal/forms/{$formId}/finalize", [
+            'confirm'              => '1',
+            'actual_disposal_date' => now()->toDateString(),
+        ])->assertRedirect('/admin/disposal?tab=forms');
+
+        $this->actingAs($this->admin)->get('/admin/disposal')->assertOk();
+
+        $log = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertNotEmpty($log, 'the chain must have run the statements this test reads');
+
+        $offenders = [];
+
+        foreach ($log as $entry) {
+            $sql = (string) ($entry['query'] ?? '');
+
+            // Drop every quoted identifier first, so `"requests"."Note"` is left
+            // as `"x"."x"` and cannot be mistaken for an unquoted reference.
+            $bare = (string) preg_replace('/"[^"]*"/', '"x"', $sql);
+
+            foreach (self::CASE_SENSITIVE_COLUMNS as $column) {
+                if (preg_match('/\b' . preg_quote($column, '/') . '\b/', $bare) === 1) {
+                    $offenders[$column] = $sql;
+                }
+            }
+        }
+
+        $this->assertSame([], $offenders,
+            'These statements name a column in a case the database will not fold: '
+            . implode(', ', array_keys($offenders))
+            . '. Quote it (or let the query builder quote it) or PostgreSQL refuses the query. First: '
+            . (reset($offenders) ?: ''));
     }
 }

@@ -260,7 +260,13 @@ class DisposalForms
             ->whereIn('disposal_forms.id', $formIds)
             ->get([
                 'disposal_forms.*',
-                DB::raw('requests.Note as request_note'),
+                // A plain column string, never a raw fragment: `requests.Note`
+                // is a mixed-case column, and the query builder is what quotes
+                // it. Handed to DB::raw() unquoted, PostgreSQL folds it to
+                // `requests.note` and refuses the query (42703) — which is
+                // exactly how this broke in production while SQLite, matching
+                // names case-insensitively, kept passing the suite.
+                'requests.Note as request_note',
                 'requests.status as request_status',
                 'requests.created_at as request_date',
                 DB::raw('requester.email as requester_email'),
@@ -689,11 +695,12 @@ class DisposalForms
         }
 
         self::audit(
-            $actor,
-            (int) $fresh->request_id,
-            $status === self::STATUS_READY ? 'UPDATE' : 'UPDATE',
-            'Official disposal form #' . $formId . ' saved (' . self::label($status) . ')',
-            'Disposal form #' . $formId . ' for request #' . $fresh->request_id . ' was saved by '
+            actor: $actor,
+            requestId: (int) $fresh->request_id,
+            assetId: null,
+            actionType: 'UPDATE',
+            notes: 'Official disposal form #' . $formId . ' saved (' . self::label($status) . ')',
+            description: 'Disposal form #' . $formId . ' for request #' . $fresh->request_id . ' was saved by '
                 . self::actorName($actor) . '. Stage: ' . self::label($status) . '.'
                 . ($missing ? ' Still missing: ' . implode(', ', $missing) . '.' : '')
         );
@@ -890,11 +897,12 @@ class DisposalForms
             $printed[] = $formId;
 
             self::audit(
-                $actor,
-                (int) $form->request_id,
-                'UPDATE',
-                'Official disposal form #' . $formId . ' printed',
-                'Disposal form #' . $formId . ' was printed by ' . self::actorName($actor)
+                actor: $actor,
+                requestId: (int) $form->request_id,
+                assetId: null,
+                actionType: 'UPDATE',
+                notes: 'Official disposal form #' . $formId . ' printed',
+                description: 'Disposal form #' . $formId . ' was printed by ' . self::actorName($actor)
                     . '. Printing does not confirm any signature and does not dispose of the asset.'
             );
         }
@@ -979,11 +987,12 @@ class DisposalForms
         DB::table('disposal_forms')->where('id', $formId)->update($update);
 
         self::audit(
-            $actor,
-            (int) $form->request_id,
-            'UPDATE',
-            'Signed disposal form #' . $formId . ' recorded as received',
-            'The signed official disposal form #' . $formId . ' for request #' . $form->request_id
+            actor: $actor,
+            requestId: (int) $form->request_id,
+            assetId: null,
+            actionType: 'UPDATE',
+            notes: 'Signed disposal form #' . $formId . ' recorded as received',
+            description: 'The signed official disposal form #' . $formId . ' for request #' . $form->request_id
                 . ' was recorded as received by ' . self::actorName($actor)
                 . ($uploaded ? ' with a scanned copy attached' : '')
                 . '. The disposal itself has not been finalized yet.'
@@ -1182,15 +1191,18 @@ class DisposalForms
                     $code = $item->tag_no ?: ('asset #' . $assetId);
 
                     self::audit(
-                        $actor,
-                        (int) $request->id,
-                        $assetId,
-                        'DISPOSAL',
-                        'Disposal finalized — disposal record #' . ($disposalId ?? 'existing')
+                        actor: $actor,
+                        requestId: (int) $request->id,
+                        assetId: $assetId,
+                        actionType: 'DISPOSAL',
+                        notes: 'Disposal finalized — disposal record #' . ($disposalId ?? 'existing')
                             . ', form #' . $formId . ', reason code ' . ($item->reason_code ?: '—'),
-                        'Disposal form #' . $formId . ' finalized by ' . self::actorName($actor)
+                        description: 'Disposal form #' . $formId . ' finalized by ' . self::actorName($actor)
                             . ': asset ' . $code . ' was marked disposed of.',
-                        false
+                        // Inside the transaction opened above: an entry that
+                        // cannot be written rolls the retirement back with it,
+                        // rather than leaving a disposed asset and no trail.
+                        ownTransaction: false
                     );
 
                     $codes[$assetId] = $code;
@@ -1239,12 +1251,26 @@ class DisposalForms
     /**
      * One audit entry, in the existing log.
      *
+     * Call sites name their arguments. This helper outgrew a positional call:
+     * one argument landing in the wrong slot still writes a plausible-looking
+     * row, which is how a finalization entry once recorded the asset id as its
+     * action_type — accepted by SQLite, where the enum sits on the column, and
+     * refused by PostgreSQL's check constraint (23514), which turned the whole
+     * finalization into a 500. Named arguments make that shift impossible to
+     * write by accident.
+     *
+     * @param  int|null  $assetId  the asset this entry is about, when it is about
+     *                             one: the retirement entries name theirs.
      * @param  bool  $ownTransaction  false when already inside a transaction
-     *                                whose outcome this entry must share.
+     *                                whose outcome this entry must share. The
+     *                                failure is then re-thrown, so the caller's
+     *                                transaction rolls back instead of retiring
+     *                                an asset with no trail left behind.
      */
     private static function audit(
         ?User $actor,
         int $requestId,
+        ?int $assetId,
         string $actionType,
         string $notes,
         string $description,
@@ -1254,7 +1280,7 @@ class DisposalForms
             DB::table('audit_logs')->insert([
                 'user_id'            => $actor?->id,
                 'request_id'         => $requestId > 0 ? $requestId : null,
-                'asset_id'           => null,
+                'asset_id'           => $assetId,
                 'action_type'        => $actionType,
                 'notes'              => $notes,
                 'action_description' => $description,
