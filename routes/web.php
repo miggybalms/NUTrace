@@ -26,6 +26,7 @@ use App\Support\QrVerification;
 use App\Support\AssetTransfer;
 use App\Support\Disposals;
 use App\Support\DisposalReason;
+use App\Support\DisposalForms;
 use App\Support\Inventory;
 use App\Support\Access;
 use App\Support\AccountAdmin;
@@ -165,10 +166,13 @@ Route::post('/login', function (Request $request) {
         }
 
         $request->session()->regenerate();
-        // Admin or Facilities users go to admin area
-        $facilitiesDeptId = DB::table('departments')->where('Name', 'Facilities')->value('id');
-        $isAdmin = ($user->role === 'Admin' || $user->role === 'Facilities' || $user->department_id === $facilitiesDeptId);
-        if ($isAdmin) {
+
+        // The Asset Management Office goes to the admin area. Asked through
+        // Access, so the sign-in redirect and the /admin/* gate give the same
+        // answer. The Facilities role used to be sent here too and was refused
+        // at the door, because the department an account sits in was never what
+        // granted it the area.
+        if (Access::isAssetOffice($user)) {
             return redirect('/admin');
         }
 
@@ -2680,7 +2684,13 @@ Route::get('/api/notifications/user', function () {
 // transaction, so this page has no manual "record a disposal" form. It views,
 // searches, explains and archives records — and only ever lists the records
 // that have NOT been archived.
-Route::get('/admin/disposal', function () {
+// The Disposal page has two tabs on one URL: the finished disposal records
+// (default) and the official disposal forms being prepared, printed and filed.
+// Keeping them on one page means the sidebar entry the office already knows is
+// where the whole workflow lives.
+Route::get('/admin/disposal', function (Request $request) {
+    $tab = $request->query('tab') === 'forms' ? 'forms' : 'records';
+
     $disposalRecords = Disposals::query(false)
         ->orderByDesc('disposals.disposal_date')
         ->get()
@@ -2690,12 +2700,29 @@ Route::get('/admin/disposal', function () {
         ? DB::table('disposals')->where('is_archived', true)->count()
         : 0;
 
+    $formCounts = DisposalForms::statusCounts();
+    $formsReady = DisposalForms::tablesReady();
+
+    $shared = [
+        'disposalTab'  => $tab,
+        'formCounts'   => $formCounts,
+        'formsReady'   => $formsReady,
+        'awaitingFormCount' => $formsReady ? DisposalForms::awaitingForm()->count() : 0,
+    ];
+
+    if ($tab === 'forms') {
+        return view('admin.disposal.forms', $shared + [
+            'forms'    => $formsReady ? DisposalForms::queue() : collect(),
+            'awaiting' => $formsReady ? DisposalForms::awaitingForm() : collect(),
+        ]);
+    }
+
     return view('admin.disposal.disposal', [
         'disposalRecords'  => $disposalRecords,
         'totalDisposed'    => $disposalRecords->count(),
         'archivedCount'    => $archivedCount,
         'archiveReady'     => Disposals::archiveColumnsReady(),
-    ]);
+    ] + $shared);
 })->middleware('auth');
 
 // Archived Disposal Assets — older records kept separately for reference.
@@ -2739,7 +2766,7 @@ Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
     };
 
     $admin = Auth::user();
-    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+    if (!$admin || ! Access::isAssetOffice($admin)) {
         return $fail('Only the Asset Management Office can archive a disposal record.', 403);
     }
 
@@ -2800,7 +2827,7 @@ Route::post('/admin/disposal/{id}/archive', function (Request $request, $id) {
 // of arriving as a surprise (or as a foreign-key error half way through).
 Route::get('/admin/disposal/{id}/delete-impact', function ($id) {
     $admin = Auth::user();
-    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+    if (!$admin || ! Access::isAssetOffice($admin)) {
         return response()->json(['success' => false, 'message' => 'Only the Asset Management Office can delete an archived disposal record.'], 403);
     }
 
@@ -2820,7 +2847,7 @@ Route::post('/admin/disposal/archived/delete-all', function (Request $request) {
     $wantsJson = $request->expectsJson();
 
     $admin = Auth::user();
-    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+    if (!$admin || ! Access::isAssetOffice($admin)) {
         $message = 'Only the Asset Management Office can permanently delete archived disposal records.';
 
         return $wantsJson
@@ -2880,7 +2907,7 @@ Route::post('/admin/disposal/{id}/delete-archived', function (Request $request, 
     };
 
     $admin = Auth::user();
-    if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
+    if (!$admin || ! Access::isAssetOffice($admin)) {
         return $fail('Only the Asset Management Office can permanently delete an archived disposal record.', 403);
     }
 
@@ -3037,6 +3064,296 @@ Route::get('/admin/disposal/{id}/details', function ($id) {
         // ── Lifecycle history ─────────────────────────────────────────
         'history' => Disposals::history($assetId),
     ]);
+})->middleware('auth');
+
+/*
+ |─────────────────────── Official disposal forms ───────────────────────
+ |
+ | The official NU Lipa Disposal Form: generated from an approved disposal
+ | request, completed and validated, printed, filed once Accountancy returns
+ | it signed, and only then finalized.
+ |
+ | The rule these routes exist to enforce: NONE of them disposes of an asset
+ | except the last one, and that one refuses until the signed form has been
+ | recorded and the Admin has confirmed the assets by name.
+ |
+ | This is the Asset Management Office's work, exactly like the rest of the
+ | Disposal page: /admin is guarded by RequireAdminArea, and each route asks
+ | Access again so the two can never drift apart.
+ */
+
+// Prepare (or reopen) the official form for a request.
+//
+// Approval already generates it, so the common path is "open it"; this action
+// exists for the requests approved before the form existed, and it is
+// idempotent either way — a second click reopens the same form instead of
+// creating a second one.
+Route::post('/admin/disposal/requests/{requestId}/form', function (Request $request, $requestId) {
+    $wantsJson = $request->expectsJson();
+
+    $fail = function (string $message, int $status) use ($wantsJson, $requestId) {
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], $status)
+            : redirect('/admin/disposal?tab=forms')->with('error', $message);
+    };
+
+    $admin = Auth::user();
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        return $fail('Only the Asset Management Office can prepare an official disposal form.', 403);
+    }
+
+    if (! DisposalForms::tablesReady()) {
+        return $fail('The disposal form tables have not been created yet — run the database migration first.', 503);
+    }
+
+    $requestRecord = DB::table('requests')->where('id', $requestId)->first();
+
+    if (! $requestRecord) {
+        return $fail('Request not found.', 404);
+    }
+
+    if (strtolower((string) $requestRecord->request_type) !== 'disposal') {
+        return $fail('Only a disposal request has an official disposal form.', 422);
+    }
+
+    // Approval is what authorizes preparation. A pending or rejected request
+    // never gets a form.
+    if (strtolower((string) $requestRecord->status) !== 'approved') {
+        return $fail('Only an approved disposal request can go to form preparation. This request is ' . $requestRecord->status . '.', 422);
+    }
+
+    $formId = DisposalForms::ensureForRequest((int) $requestId, $admin);
+
+    if ($formId === null) {
+        return $fail('The official disposal form could not be prepared for this request.', 422);
+    }
+
+    $message = 'Official disposal form #' . $formId . ' is ready to be completed.';
+
+    return $wantsJson
+        ? response()->json(['success' => true, 'message' => $message, 'form_id' => $formId])
+        : redirect('/admin/disposal/forms/' . $formId)->with('success', $message);
+})->middleware('auth');
+
+// The preparation screen: every field the official form prints, prefilled from
+// the records, with whatever is still missing called out.
+Route::get('/admin/disposal/forms/{id}', function ($id) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        abort(403, 'Only the Asset Management Office can prepare the official disposal form.');
+    }
+
+    $form = DisposalForms::load([(int) $id])->first();
+
+    if (! $form) {
+        abort(404, 'Disposal form not found.');
+    }
+
+    return view('admin.disposal.form_edit', [
+        'form'    => $form,
+        'items'   => $form->items,
+        'missing' => DisposalForms::missingFields($form, $form->items->all()),
+        'formCounts' => DisposalForms::statusCounts(),
+    ]);
+})->middleware('auth');
+
+// Save the office's completion of the form. Server-side validation decides
+// whether the form is complete enough to print; printing itself is separate.
+Route::post('/admin/disposal/forms/{id}/save', function (Request $request, $id) {
+    $wantsJson = $request->expectsJson();
+
+    $admin = Auth::user();
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        $message = 'Only the Asset Management Office can prepare the official disposal form.';
+
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], 403)
+            : redirect('/admin/disposal?tab=forms')->with('error', $message);
+    }
+
+    $result = DisposalForms::save((int) $id, $request->all(), $admin);
+
+    if (! $result['ok']) {
+        if ($wantsJson) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The form could not be saved. Please check the highlighted fields.',
+                'errors'  => $result['errors'],
+            ], 422);
+        }
+
+        return redirect('/admin/disposal/forms/' . $id)
+            ->with('error', 'The form could not be saved. Please check the highlighted fields.')
+            ->withErrors($result['errors'])
+            ->withInput();
+    }
+
+    return $wantsJson
+        ? response()->json(['success' => true, 'message' => $result['message'], 'status' => $result['status']])
+        : redirect('/admin/disposal/forms/' . $id)->with($result['missing'] ? 'error' : 'success', $result['message']);
+})->middleware('auth');
+
+// Print one or several forms.
+//
+// Registered before the {id} routes so "print" is never read as a form id.
+// Printing records the printing and nothing else: no signature is claimed and
+// no asset changes status. The response is the printable document itself, which
+// is why this is the one action that answers with a page instead of a redirect.
+Route::post('/admin/disposal/forms/print', function (Request $request) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        return redirect('/admin/disposal?tab=forms')
+            ->with('error', 'Only the Asset Management Office can print an official disposal form.');
+    }
+
+    $ids = (array) $request->input('ids', []);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn ($id) => $id > 0)));
+
+    if (! $ids) {
+        return redirect('/admin/disposal?tab=forms')->with('error', 'Select at least one form to print.');
+    }
+
+    $result = DisposalForms::recordPrint($ids, $admin);
+
+    if (! $result['printed']) {
+        return redirect('/admin/disposal?tab=forms')
+            ->with('error', 'Nothing was printed. ' . implode(' ', $result['refused']));
+    }
+
+    return view('admin.disposal.form_print', [
+        'forms'    => DisposalForms::load($result['printed']),
+        'refused'  => $result['refused'],
+        'preview'  => false,
+        'forPrint' => true,
+    ]);
+})->middleware('auth');
+
+// A read-only look at the form as it would print, without recording a print.
+Route::get('/admin/disposal/forms/{id}/preview', function ($id) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        abort(403, 'Only the Asset Management Office can review an official disposal form.');
+    }
+
+    $forms = DisposalForms::load([(int) $id]);
+
+    if ($forms->isEmpty()) {
+        abort(404, 'Disposal form not found.');
+    }
+
+    return view('admin.disposal.form_print', [
+        'forms'    => $forms,
+        'refused'  => [],
+        'preview'  => true,
+        'forPrint' => false,
+    ]);
+})->middleware('auth');
+
+// Record that the signed form came back from Accountancy, with an optional
+// scanned copy. Accepted file types and size are enforced here, and the file
+// never lands on a publicly readable disk.
+Route::post('/admin/disposal/forms/{id}/signed', function (Request $request, $id) {
+    $wantsJson = $request->expectsJson();
+
+    $fail = function (string $message, int $status) use ($wantsJson, $id) {
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], $status)
+            : redirect('/admin/disposal/forms/' . $id)->with('error', $message);
+    };
+
+    $admin = Auth::user();
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        return $fail('Only the Asset Management Office can record the signed disposal form.', 403);
+    }
+
+    $validated = $request->validate([
+        'signed_notes' => 'nullable|string|max:1000',
+        'received_date' => 'nullable|date',
+        'signed_copy'  => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:' . DisposalForms::UPLOAD_MAX_KB,
+    ], [
+        'received_date.date' => 'The date the signed form was received is not a valid date.',
+        'signed_copy.mimes'  => 'The signed copy must be a JPG, PNG, WEBP or PDF file.',
+        'signed_copy.max'    => 'The signed copy may not be larger than ' . (DisposalForms::UPLOAD_MAX_KB / 1024) . ' MB.',
+        'signed_notes.max'   => 'The notes cannot exceed 1000 characters.',
+    ]);
+
+    $result = DisposalForms::recordSigned((int) $id, $validated, $request->file('signed_copy'), $admin);
+
+    if (! $result['ok']) {
+        return $fail($result['message'], 422);
+    }
+
+    $message = $result['message'] . ($result['warning'] ? ' ' . $result['warning'] : '');
+
+    return $wantsJson
+        ? response()->json(['success' => true, 'message' => $message, 'uploaded' => $result['uploaded']])
+        : redirect('/admin/disposal/forms/' . $id)->with($result['warning'] ? 'error' : 'success', $message);
+})->middleware('auth');
+
+// The scanned signed copy. Streamed through this authorized route — there is no
+// public URL for it, and an account that is not the Asset Management Office
+// never reaches the file.
+Route::get('/admin/disposal/forms/{id}/signed-copy', function ($id) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        abort(403, 'Only the Asset Management Office can open a signed disposal form.');
+    }
+
+    $form = DB::table('disposal_forms')->where('id', $id)->first();
+
+    if (! $form) {
+        abort(404, 'Disposal form not found.');
+    }
+
+    $path = DisposalForms::signedCopyPath($form);
+
+    if ($path === null) {
+        abort(404, 'No scanned signed copy is stored for this form.');
+    }
+
+    $name = trim((string) $form->signed_file_name) ?: basename($path);
+
+    return Storage::disk(DisposalForms::UPLOAD_DISK)->download($path, $name);
+})->middleware('auth');
+
+// Finalize the disposal: the only action in the whole workflow that retires an
+// asset. Refused unless the signed form has been recorded and the Admin has
+// confirmed which assets this covers.
+Route::post('/admin/disposal/forms/{id}/finalize', function (Request $request, $id) {
+    $wantsJson = $request->expectsJson();
+
+    $fail = function (string $message, int $status) use ($wantsJson, $id) {
+        return $wantsJson
+            ? response()->json(['success' => false, 'message' => $message], $status)
+            : redirect('/admin/disposal/forms/' . $id)->with('error', $message);
+    };
+
+    $admin = Auth::user();
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        return $fail('Only the Asset Management Office can finalize a disposal.', 403);
+    }
+
+    $request->validate([
+        'actual_disposal_date' => 'nullable|date',
+        'confirm'              => 'accepted',
+    ], [
+        'actual_disposal_date.date' => 'The date of disposal is not a valid date.',
+        'confirm.accepted'          => 'Confirm the disposal first: check the assets listed and tick the confirmation box.',
+    ]);
+
+    $result = DisposalForms::finalize((int) $id, $request->all(), $admin);
+
+    if (! $result['ok']) {
+        return $fail($result['message'], 422);
+    }
+
+    return $wantsJson
+        ? response()->json(['success' => true, 'message' => $result['message'], 'assets' => $result['assets']])
+        : redirect('/admin/disposal?tab=forms')->with('success', $result['message']);
 })->middleware('auth');
 
 // Admin requests page – supports bulk requests via request_items
@@ -5226,17 +5543,13 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
 
         if (trim((string) $requestRecord->Note) === '' && trim((string) $request->input('disposal_reason', '')) === '') {
             return response()->json([
-                'message' => 'This disposal request has neither a note nor a reason, so the disposal record would have nothing to explain. Add a reason before approving.',
+                'message' => 'This disposal request has neither a note nor a reason, so the official disposal form would have nothing to explain. Add a reason before approving.',
             ], 422);
         }
     }
 
-    // Disposal records created by this call, keyed by asset id. Empty means the
-    // records already existed, so nothing is written twice.
-    $createdDisposals = [];
-
     try {
-        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds, $isDisposal, $disposalReason, $disposalDate, $assetCodes, &$createdDisposals) {
+        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds, $isDisposal, $disposalReason, $disposalDate, $assetCodes) {
 
             // 1. Mark the request as Approved
             DB::table('requests')
@@ -5278,39 +5591,19 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                 }
 
                 // ─────────────── DISPOSAL ───────────────
-                // The request is the source of the disposal transaction: the
-                // record is created here from what the requester submitted, and
-                // the asset is retired — never deleted, so its whole history
-                // (accountability, repairs, replacements, disposals) survives.
+                // Approving a disposal request authorizes preparation of the
+                // official NU Lipa Disposal Form. It does not dispose of
+                // anything: the asset keeps the lifecycle status it had, no
+                // disposal record is written, and nothing leaves the inventory.
+                // The asset is retired only when an Admin finalizes the
+                // disposal on the Disposal Forms tab, after the signed form has
+                // come back from Accountancy.
                 if ($isDisposal) {
-                    $assetStillExists = DB::table('assets')->where('id', $assetId)->exists();
-
-                    if (! $assetStillExists) {
+                    if (! DB::table('assets')->where('id', $assetId)->exists()) {
                         throw new \RuntimeException(
                             'Asset #' . $assetId . ' no longer exists, so this disposal request cannot be approved.'
                         );
                     }
-
-                    $disposalId = Disposals::createFromRequest(
-                        (int) $requestRecord->id,
-                        (int) $assetId,
-                        $approvedBy,
-                        (string) $disposalReason,
-                        $requestRecord->Note,
-                        'Disposal request #' . $requestRecord->id . ' approved',
-                        $disposalDate
-                    );
-
-                    // null => a record already existed for this request. The
-                    // Admin clicking Approve twice must not duplicate history.
-                    if ($disposalId !== null) {
-                        $createdDisposals[(int) $assetId] = $disposalId;
-                    }
-
-                    DB::table('assets')->where('id', $assetId)->update([
-                        'Lifecycle_Status' => Disposals::DISPOSED_STATUS,
-                        'updated_at'       => now(),
-                    ]);
                 }
 
                 // ─────────────── REPLACEMENT ───────────────
@@ -5372,6 +5665,27 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                 }
             }
 
+            // ─────────────── Official disposal form ───────────────
+            // One form per approved request, prefilled from what is already
+            // recorded. Generated inside this transaction, so an approval can
+            // never exist without the form it authorizes.
+            $disposalFormId = null;
+
+            if ($isDisposal) {
+                $disposalFormId = DisposalForms::ensureForRequest(
+                    (int) $requestRecord->id,
+                    Auth::user(),
+                    (string) $disposalReason,
+                    $disposalDate
+                );
+
+                if ($disposalFormId === null) {
+                    throw new \RuntimeException(
+                        'The official disposal form could not be prepared for this request, so the approval was not recorded. Nothing was changed.'
+                    );
+                }
+            }
+
             // ─────────────── PULLOUT (one transaction for all assets) ───────────────
             if ($requestType === 'pullout') {
                 $exists = DB::table('pullouts')
@@ -5396,10 +5710,10 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                 }
             }
 
-            // 3. Audit log — a disposal approval is recorded as a DISPOSAL
-            //    event against the retired asset, because that is what happened.
+            // 3. Audit log — the approval is recorded against each asset on the
+            //    request, and says plainly that the asset is not disposed of yet.
             if ($isDisposal) {
-                foreach ($createdDisposals as $assetId => $disposalId) {
+                foreach ($assetIds as $assetId) {
                     $code = $assetCodes[$assetId] ?? ('asset #' . $assetId);
 
                     DB::table('audit_logs')->insert([
@@ -5408,9 +5722,11 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                         'asset_id'           => $assetId,
                         'action_type'        => 'DISPOSAL',
                         'notes'              => 'Approved disposal request #' . $requestRecord->id
-                            . ' (disposal record #' . $disposalId . ', reason: ' . $disposalReason . ')',
+                            . ' (official disposal form #' . $disposalFormId . ', reason: ' . $disposalReason . ')',
                         'action_description' => 'Disposal request #' . $requestRecord->id
-                            . ' was approved and a disposal record was created for asset ' . $code . '.',
+                            . ' was approved and official disposal form #' . $disposalFormId
+                            . ' was generated for preparation. Asset ' . $code
+                            . ' is not disposed of yet — it is retired only when the disposal is finalized.',
                         'created_at'         => now(),
                         'updated_at'         => now(),
                     ]);
@@ -5449,29 +5765,29 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
             }
 
             if ($isDisposal) {
-                // Only tell the requester when this call really created the
-                // record, so a repeated approval cannot send a second notice.
-                if (! empty($createdDisposals)) {
-                    $codes = array_values(array_map(
-                        fn ($assetId) => $assetCodes[$assetId] ?? ('asset #' . $assetId),
-                        array_keys($createdDisposals)
-                    ));
+                // A request can only be approved once (it has to be Pending), so
+                // this notice is written exactly once per approved request. It
+                // says what approval really means now: the office is preparing
+                // the official form, and the asset has not been disposed of yet.
+                $codes = array_values(array_map(
+                    fn ($assetId) => $assetCodes[$assetId] ?? ('asset #' . $assetId),
+                    $assetIds
+                ));
 
-                    $disposedLabel = count($codes) === 1
-                        ? $codes[0]
-                        : (implode(', ', array_slice($codes, 0, -1)) . ' and ' . end($codes));
+                $approvedLabel = count($codes) === 1
+                    ? $codes[0]
+                    : (implode(', ', array_slice($codes, 0, -1)) . ' and ' . end($codes));
 
-                    createNotification(
-                        (int) $requestRecord->user_id,
-                        'Disposal Request Approved',
-                        count($codes) === 1
-                            ? "Your disposal request for asset {$disposedLabel} has been approved and recorded as disposed."
-                            : "Your disposal request for assets {$disposedLabel} has been approved and recorded as disposed.",
-                        'DISPOSAL',
-                        (int) $requestRecord->id,
-                        'disposal'
-                    );
-                }
+                createNotification(
+                    (int) $requestRecord->user_id,
+                    'Disposal Request Approved',
+                    count($codes) === 1
+                        ? "Your disposal request for asset {$approvedLabel} has been approved. The Asset Management Office is preparing the official disposal form."
+                        : "Your disposal request for assets {$approvedLabel} has been approved. The Asset Management Office is preparing the official disposal forms.",
+                    'DISPOSAL',
+                    (int) $requestRecord->id,
+                    'disposal'
+                );
             } else {
                 $typeLabel = ucfirst($requestRecord->request_type ?? 'request');
 
@@ -5505,9 +5821,9 @@ Route::post('/admin/requests/{id}/reject', function (Request $request, $id) {
     $admin = Auth::user();
 
     // Rejecting follows the same authority as approving: the Asset Management
-    // Office decides, and the Facilities accounts that run the office are part
-    // of it. (This used to be Admin-only, which left Facilities able to approve
-    // a disposal but not to refuse one.)
+    // Office decides. Both routes ask Access, so the two can no longer disagree
+    // - they used to, which let the office approve a disposal it was not
+    // allowed to refuse.
     if (! Access::canDecideRequests($admin)) {
         $existing = DB::table('requests')->where('id', $id)->first();
 

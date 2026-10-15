@@ -47,6 +47,10 @@ class ApprovalRbacTest extends TestCase
         ]);
 
         $this->admin = $this->account(1, 1, 'amo@nu-lipa.edu.ph', 'Admin');
+
+        // An account still holding the retired Facilities role, the way one
+        // created before the role was retired would look. It is used here to
+        // prove such a row is understood but has no office authority left.
         $this->facilities = $this->account(5, 1, 'facilities@nu-lipa.edu.ph', 'Facilities');
         $this->employee = $this->account(2, 2, 'nena@nu-lipa.edu.ph', 'Employee');
         $this->head = $this->account(3, 2, 'head@nu-lipa.edu.ph', 'Department Head');
@@ -104,28 +108,6 @@ class ApprovalRbacTest extends TestCase
         // post-approval behaviour, and they still happen.
         $this->assertSame(1, DB::table('repairs')->where('Request_id', $requestId)->count());
         $this->assertSame('For Repair', DB::table('assets')->where('id', $this->assetId)->value('Lifecycle_Status'));
-    }
-
-    public function test_facilities_may_decide_too(): void
-    {
-        $requestId = $this->submitRequest();
-
-        $this->actingAs($this->facilities)
-            ->postJson("/admin/requests/{$requestId}/approve")
-            ->assertOk();
-
-        $this->assertSame('Approved', DB::table('requests')->where('id', $requestId)->value('status'));
-    }
-
-    public function test_facilities_may_reject(): void
-    {
-        $requestId = $this->submitRequest();
-
-        $this->actingAs($this->facilities)
-            ->postJson("/admin/requests/{$requestId}/reject", ['reason' => 'Not covered by the maintenance budget.'])
-            ->assertOk();
-
-        $this->assertSame('Rejected', DB::table('requests')->where('id', $requestId)->value('status'));
     }
 
     public function test_a_decided_request_cannot_be_decided_again(): void
@@ -253,9 +235,9 @@ class ApprovalRbacTest extends TestCase
 
     public function test_a_department_head_only_sees_their_own_departments_requests(): void
     {
-        // A request from the Facilities office, which is not this head's
-        // department. A different note on each one, so the page can be read
-        // for which request it shows.
+        // A request from an account in another department, which is not this
+        // head's. A different note on each one, so the page can be read for
+        // which request it shows.
         $outsiderAsset = (int) DB::table('assets')->insertGetId([
             'user_id' => $this->facilities->id, 'Asset_code' => 'AST-0900', 'Asset_name' => 'Printer',
             'Category' => 'General and Office Equipment', 'Condition' => 'Good', 'Lifecycle_Status' => 'Active',
@@ -322,16 +304,26 @@ class ApprovalRbacTest extends TestCase
     {
         $requestId = $this->submitRequest();
 
-        // The Facilities account can decide today…
-        $this->actingAs($this->facilities)->get('/admin/requests')->assertOk();
+        // A second administrator, so this test can demote one without the
+        // page's own "last administrator" rule getting in the way of the raw
+        // update below.
+        DB::table('employee_numbers')->insert([
+            ['id' => 6, 'Employee_number' => 'EMP-6', 'Full_Name' => 'Mara Diaz', 'Department_id' => 1,
+             'created_at' => now(), 'updated_at' => now()],
+        ]);
 
-        DB::table('users')->where('id', $this->facilities->id)->update(['role' => 'Employee']);
+        $second = $this->account(6, 1, 'amo2@nu-lipa.edu.ph', 'Admin');
+
+        // This administrator can decide today…
+        $this->actingAs($second)->get('/admin/requests')->assertOk();
+
+        DB::table('users')->where('id', $second->id)->update(['role' => 'Employee']);
 
         // …and the very next request is refused, without anything being cached
         // from the sign-in.
-        $this->actingAs(User::find($this->facilities->id))->get('/admin/requests')->assertStatus(403);
+        $this->actingAs(User::find($second->id))->get('/admin/requests')->assertStatus(403);
 
-        $this->actingAs(User::find($this->facilities->id))
+        $this->actingAs(User::find($second->id))
             ->postJson("/admin/requests/{$requestId}/approve")
             ->assertStatus(403);
 
@@ -479,14 +471,67 @@ class ApprovalRbacTest extends TestCase
         $this->assertSame('The unit is still under warranty.', DB::table('requests')->where('id', $requestId)->value('admin_remarks'));
     }
 
-    /* ═══════════ 3.4 — Facilities stays limited to what it was ═══════════ */
+    /* ═══════════ the retired Facilities role ═══════════ */
 
-    public function test_facilities_keeps_its_repair_work_without_gaining_new_authority(): void
+    public function test_the_facilities_role_can_no_longer_be_assigned(): void
     {
-        $this->actingAs($this->facilities)->get('/admin/repair')->assertOk();
-        $this->actingAs($this->facilities)->get('/admin/assets')->assertOk();
+        // The role endpoint is the only door a role comes through, and it
+        // refuses a retired role the same way it refuses an invented one.
+        $this->actingAs($this->admin)
+            ->postJson("/admin/accounts/{$this->employee->id}/role", ['role' => 'Facilities'])
+            ->assertStatus(422);
 
-        // Managing people is not part of the repair work.
+        $this->assertSame('Employee', User::find($this->employee->id)->role);
+
+        $this->assertNotContains('Facilities', \App\Support\Access::ROLES);
+        $this->assertFalse(\App\Support\Access::isKnownRole('Facilities'));
+    }
+
+    public function test_a_legacy_facilities_account_holds_no_office_authority(): void
+    {
+        // An account created before the retirement still reads correctly and
+        // can still sign in as an ordinary account - but the office's area and
+        // the office's decisions are no longer open to it.
+        $this->assertSame('Facilities', User::find($this->facilities->id)->role);
+
+        $this->actingAs($this->facilities)->get('/admin/requests')->assertStatus(403);
+        $this->actingAs($this->facilities)->get('/admin/repair')->assertStatus(403);
+        $this->actingAs($this->facilities)->get('/admin/assets')->assertStatus(403);
         $this->actingAs($this->facilities)->get('/admin/employees')->assertStatus(403);
+
+        $requestId = $this->submitRequest();
+
+        $this->actingAs($this->facilities)
+            ->postJson("/admin/requests/{$requestId}/approve")
+            ->assertStatus(403);
+
+        $this->actingAs($this->facilities)
+            ->postJson("/admin/requests/{$requestId}/reject", ['reason' => 'Not covered by the maintenance budget.'])
+            ->assertStatus(403);
+
+        $this->assertSame('Pending', DB::table('requests')->where('id', $requestId)->value('status'));
+
+        // Nothing else about the account is broken: it still has its own pages.
+        $this->actingAs($this->facilities)->get('/users')->assertOk();
+    }
+
+    public function test_the_office_is_the_administrator_role_alone(): void
+    {
+        $requestId = $this->submitRequest();
+
+        // A department head of the submitter's own department is not the office.
+        $this->actingAs($this->head)
+            ->postJson("/admin/requests/{$requestId}/approve")
+            ->assertStatus(403);
+
+        $this->assertSame('Pending', DB::table('requests')->where('id', $requestId)->value('status'));
+
+        // The administrator still decides, so nothing was taken away from the
+        // office in the process.
+        $this->actingAs($this->admin)
+            ->postJson("/admin/requests/{$requestId}/approve")
+            ->assertOk();
+
+        $this->assertSame('Approved', DB::table('requests')->where('id', $requestId)->value('status'));
     }
 }

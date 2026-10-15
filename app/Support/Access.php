@@ -17,18 +17,37 @@ use Illuminate\Support\Facades\DB;
  *
  * Two rules from the panel recommendations live here and nowhere else:
  *
- *   - approval authority is the Asset Management Office (Admin / Facilities),
- *     which is what the disposal and reject routes already enforced;
+ *   - approval authority is the Asset Management Office, which is the
+ *     Administrator role; the Facilities role that used to share it has been
+ *     retired and can no longer be handed out;
  *   - nobody decides their own request, compared against the submitter stored
  *     on the request row, never against anything the browser sent.
  */
 class Access
 {
-    /** The four roles the users table allows. */
-    public const ROLES = ['Admin', 'Employee', 'Department Head', 'Facilities'];
+    /**
+     * The roles an account may be given.
+     *
+     * This is the list the dropdowns offer and the only list the role
+     * endpoints accept, so it is also what stops a role from being handed out.
+     */
+    public const ROLES = ['Admin', 'Employee', 'Department Head'];
+
+    /**
+     * Roles that are no longer assignable but still exist in the users table.
+     *
+     * 'Facilities' was retired: the office runs on the Administrator role, and
+     * one role is enough for it. The value stays allowed by the database's role
+     * column (the check constraint is not narrowed, and no row is rewritten
+     * with a migration), because an account created before the retirement may
+     * still hold it and its row, history and requests must stay readable. Such
+     * an account is an ordinary account now - it holds no office authority -
+     * and it cannot be given the role again.
+     */
+    public const RETIRED_ROLES = ['Facilities'];
 
     /** The role the office runs the registry with. */
-    public const ASSET_OFFICE_ROLES = ['Admin', 'Facilities'];
+    public const ASSET_OFFICE_ROLES = ['Admin'];
 
     public const STATUS_ACTIVE   = 'Active';
     public const STATUS_INACTIVE = 'Inactive';
@@ -59,10 +78,24 @@ class Access
         return self::role($user) === 'Department Head';
     }
 
-    /** A role value that can actually be stored. */
+    /**
+     * May this role be handed to an account?
+     *
+     * A retired role is not "known" here: it still reads correctly on the
+     * account that holds it, but it is refused by the role endpoints, so it
+     * cannot spread to anybody else.
+     */
     public static function isKnownRole(?string $role): bool
     {
         return in_array(trim((string) $role), self::ROLES, true);
+    }
+
+    /** A role that exists in the table but may no longer be assigned. */
+    public static function isRetiredRole(?string $role): bool
+    {
+        $role = trim((string) $role);
+
+        return $role !== '' && in_array($role, self::RETIRED_ROLES, true);
     }
 
     /* ──────────────────────── account status ─────────────────────── */
@@ -96,10 +129,9 @@ class Access
      * Employee and account management, and the import/export that feeds it.
      *
      * Administrators only - narrower than the admin area itself. This is a
-     * capability that did not exist before, so handing it to the Facilities
-     * accounts would be granting authority they have never had (requirement
-     * 3.4 says not to). Facilities keeps the registry and the repair work it
-     * already ran, and can still decide requests.
+     * capability that did not exist before the employee page was written, and
+     * it is not shared with any other role: reading the masterlist is not the
+     * same job as running the registry.
      */
     public static function canManageEmployees(?User $user): bool
     {

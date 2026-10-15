@@ -40,7 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: \App\Http\Middleware\EnforceActiveAccount::class);
 
         // Role-based access control: /admin/* belongs to the Asset Management
-        // Office (Admin and Facilities). Matched on the path, so every existing
+        // Office (the Administrator role). Matched on the path, so every existing
         // and future admin route is covered without being listed.
         $middleware->web(append: \App\Http\Middleware\RequireAdminArea::class);
 

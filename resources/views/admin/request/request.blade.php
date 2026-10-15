@@ -251,7 +251,7 @@
                                         <td class="py-3 px-3 whitespace-nowrap">
                                             <div class="flex items-center space-x-2" onclick="event.stopPropagation()">
                                                 @if($request->status == 'pending')
-                                                <button onclick="approveRequest({{ $request->id }})" class="p-1.5 rounded transition" style="color:var(--forest);" onmouseover="this.style.background='var(--forest-tint)'" onmouseout="this.style.background='transparent'" title="{{ $request->type === 'disposal' ? 'Approve / Record Disposal' : 'Approve' }}">
+                                                <button onclick="approveRequest({{ $request->id }})" class="p-1.5 rounded transition" style="color:var(--forest);" onmouseover="this.style.background='var(--forest-tint)'" onmouseout="this.style.background='transparent'" title="{{ $request->type === 'disposal' ? 'Approve disposal request' : 'Approve' }}">
                                                     <i class="ri-checkbox-circle-line text-lg"></i>
                                                 </button>
                                                 <button onclick="rejectRequest({{ $request->id }})" class="p-1.5 rounded transition" style="color:var(--brick);" onmouseover="this.style.background='var(--brick-tint)'" onmouseout="this.style.background='transparent'" title="Reject">
@@ -370,7 +370,9 @@
                                     <p class="eyebrow mb-1">Disposal Reason</p>
                                     <p class="text-sm font-semibold detail-value" style="color:var(--navy-900);" id="detail-disposal-reason">—</p>
                                     <p class="text-xs mt-1" style="color:var(--ink-400);">
-                                        Taken from the requester's note. Approving records the disposal with this reason.
+                                        Taken from the requester's note. Approving authorises the official disposal form
+                                        with this reason — nothing is disposed of until the signed form is filed and the
+                                        disposal is finalized.
                                     </p>
                                 </div>
 
@@ -443,12 +445,14 @@
         </div>
     </div>
 
-    <!-- Approve / Record Disposal modal: the approval IS the disposal record, so
-         the reason and date travel with it. -->
+    <!-- Approve disposal request modal: approval authorises preparation of the
+         official NU Lipa disposal form, so the reason and date travel with it.
+         Approving disposes of nothing — the asset keeps its status until the
+         signed form is recorded and the disposal is finalized. -->
     <div id="approveModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4"
          style="background:rgba(10,24,48,.6);" onclick="closeApproveModal()">
         <div class="panel rounded-xl w-full max-w-md p-6" onclick="event.stopPropagation();">
-            <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Approve / Record Disposal</h3>
+            <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Approve Disposal Request</h3>
             <p class="text-sm mt-1 mb-4 detail-value" id="approve-modal-subtitle" style="color:var(--ink-400);">-</p>
 
             <div class="rounded-lg p-3 mb-4" style="background:var(--paper-2);">
@@ -472,8 +476,10 @@
                    style="border:1px solid var(--line); color:var(--ink-900);">
 
             <p class="text-xs mt-3" style="color:var(--ink-600);">
-                Approving marks the asset <strong>Disposed</strong>, creates the disposal record and
-                notifies the requester. The asset itself is never deleted — its history is kept.
+                Approving authorises preparation of the <strong>official NU Lipa Disposal Form</strong> and
+                notifies the requester. It does <strong>not</strong> dispose of anything: the asset keeps its
+                current status until the signed form has been received and the disposal is finalized
+                on the Disposal page.
             </p>
 
             <p class="text-xs mt-2 hidden" id="approve-modal-status"></p>
@@ -487,7 +493,7 @@
                 <button type="button" id="approve-modal-confirm" onclick="confirmApprove()"
                         class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
                         style="background:var(--forest);">
-                    <i class="ri-checkbox-circle-line mr-1.5"></i>Approve / Record Disposal
+                    <i class="ri-checkbox-circle-line mr-1.5"></i>Approve request
                 </button>
             </div>
         </div>
@@ -590,7 +596,7 @@
 
                 const approveLabel = document.getElementById('detail-approve-label');
                 if (approveLabel) {
-                    approveLabel.textContent = isDisposal ? 'Approve / Record Disposal' : 'Approve';
+                    approveLabel.textContent = isDisposal ? 'Approve disposal request' : 'Approve';
                 }
 
                 // ─── Assets list (supports bulk) ───────────────────────

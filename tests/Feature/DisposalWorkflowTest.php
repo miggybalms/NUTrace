@@ -15,12 +15,19 @@ use Tests\TestCase;
  * The whole chain, end to end:
  *
  *   user submits a Disposal request
- *     -> Admin approves it on the Requests page
+ *     -> Admin approves it on the Requests page (the asset is NOT disposed of)
+ *     -> the official NU Lipa disposal form is prepared from the request
+ *     -> the form is printed and the signed copy is filed
+ *     -> the Admin finalizes the disposal: the asset becomes Disposed
  *     -> a disposal record is created from the request (never re-typed)
- *     -> the asset becomes Disposed but stays in the inventory
  *     -> the record appears on the Disposal page
  *     -> the Admin archives it
  *     -> it moves to Archived Disposal Assets, history intact
+ *
+ * The stages of the form itself are covered by DisposalFormWorkflowTest; this
+ * suite is about what a finalized disposal means for the records that follow
+ * it, so it walks the whole chain through approveDisposalRequest() and then
+ * works on the finished disposal record.
  *
  * The regression this locks down hardest is the one that hit production: the
  * Disposal page's delete action issued `delete from assets`, which PostgreSQL
@@ -88,7 +95,7 @@ class DisposalWorkflowTest extends TestCase
         return $requestId;
     }
 
-    public function test_approving_a_disposal_request_creates_the_record_and_retires_the_asset(): void
+    public function test_approving_a_disposal_request_prepares_the_form_and_disposes_of_nothing(): void
     {
         $requestId = $this->submitDisposalRequest();
 
@@ -99,40 +106,54 @@ class DisposalWorkflowTest extends TestCase
         $request = DB::table('requests')->where('id', $requestId)->first();
         $this->assertSame('Approved', $request->status);
 
-        $disposal = DB::table('disposals')->where('Request_id', $requestId)->first();
-        $this->assertNotNull($disposal, 'approving must create the disposal record');
-        $this->assertSame($this->assetId, (int) $disposal->Asset_id);
-        $this->assertSame($this->admin->email, $disposal->Approve_by);
-        // The reason travels with the requester's note — the Admin does not retype it.
-        $this->assertSame('Beyond Repair', $disposal->disposal_reason);
-        $this->assertSame($request->Note, $disposal->notes);
-        $this->assertSame(now()->toDateString(), (string) $disposal->disposal_date);
-        $this->assertFalse((bool) $disposal->is_archived);
+        // The critical business rule: approval authorizes preparation of the
+        // official form. It writes no disposal record and retires nothing.
+        $this->assertSame(0, DB::table('disposals')->where('Request_id', $requestId)->count());
 
-        // Retired, not deleted.
         $asset = DB::table('assets')->where('id', $this->assetId)->first();
-        $this->assertNotNull($asset, 'a disposed asset must never be deleted');
-        $this->assertSame(Disposals::DISPOSED_STATUS, $asset->Lifecycle_Status);
+        $this->assertNotNull($asset);
+        $this->assertSame('Active', $asset->Lifecycle_Status, 'approving must not mark the asset disposed of');
+        $this->assertNull($asset->inventory_removed_at, 'approving must not take the asset out of the inventory');
 
-        // Audit + notification, in the existing systems.
+        // What approval does produce: the official form, prefilled from the
+        // request and the asset records (never re-typed by the Admin).
+        $form = DB::table('disposal_forms')->where('request_id', $requestId)->first();
+        $this->assertNotNull($form, 'approving must generate the official disposal form');
+        $this->assertSame('draft', $form->status);
+        $this->assertSame('Facilities', $form->office_department);
+        $this->assertSame($this->admin->id, (int) $form->prepared_by);
+
+        $item = DB::table('disposal_form_items')->where('form_id', $form->id)->first();
+        $this->assertNotNull($item);
+        $this->assertSame($this->assetId, (int) $item->asset_id);
+        $this->assertSame('AST-0001', $item->tag_no);
+        $this->assertSame('Laptop', $item->description);
+        $this->assertSame(1, (int) $item->quantity);
+        // 'Fair' is on the official legend; 'damaged beyond repair' is the
+        // reason the requester's note already gives.
+        $this->assertSame('F', $item->condition_code);
+        $this->assertSame('B', $item->reason_code);
+        // Nothing invents a method of disposal: that decision has not been made.
+        $this->assertNull($form->method_key);
+
+        // Audit + notification, in the existing systems — and both say the asset
+        // is not disposed of yet.
         $audit = DB::table('audit_logs')->where('request_id', $requestId)->where('action_type', 'DISPOSAL')->first();
         $this->assertNotNull($audit);
-        $this->assertSame(
-            "Disposal request #{$requestId} was approved and a disposal record was created for asset AST-0001.",
-            $audit->action_description
-        );
+        $this->assertStringContainsString('official disposal form #' . $form->id, $audit->action_description);
+        $this->assertStringContainsString('is not disposed of yet', $audit->action_description);
 
         $notification = DB::table('notifications')->where('user_id', $this->employee->id)->first();
         $this->assertNotNull($notification);
         $this->assertSame('Disposal Request Approved', $notification->title);
         $this->assertSame(
-            'Your disposal request for asset AST-0001 has been approved and recorded as disposed.',
+            'Your disposal request for asset AST-0001 has been approved. The Asset Management Office is preparing the official disposal form.',
             $notification->message
         );
         $this->assertSame('DISPOSAL', $notification->type);
     }
 
-    public function test_approving_twice_does_not_create_a_second_disposal_record(): void
+    public function test_approving_twice_does_not_create_a_second_form_or_record(): void
     {
         $requestId = $this->submitDisposalRequest();
 
@@ -143,7 +164,9 @@ class DisposalWorkflowTest extends TestCase
             ->postJson("/admin/requests/{$requestId}/approve")
             ->assertStatus(422);
 
-        $this->assertSame(1, DB::table('disposals')->where('Request_id', $requestId)->count());
+        $this->assertSame(1, DB::table('disposal_forms')->where('request_id', $requestId)->count());
+        $this->assertSame(1, DB::table('disposal_form_items')->count());
+        $this->assertSame(0, DB::table('disposals')->count());
         $this->assertSame(1, DB::table('notifications')->where('user_id', $this->employee->id)->count());
     }
 
@@ -172,6 +195,7 @@ class DisposalWorkflowTest extends TestCase
         $response->assertStatus(422);
         $this->assertStringContainsString('No assets found', $response->json('message'));
         $this->assertSame(0, DB::table('disposals')->count());
+        $this->assertSame(0, DB::table('disposal_forms')->count(), 'and no form to prepare either');
         $this->assertSame('Pending', DB::table('requests')->where('id', $requestId)->value('status'));
 
         // Nothing changed for the asset either.
@@ -200,12 +224,15 @@ class DisposalWorkflowTest extends TestCase
             ->assertStatus(403);
 
         $this->assertSame(0, DB::table('disposals')->count());
+        $this->assertSame(0, DB::table('disposal_forms')->count());
     }
 
     public function test_archiving_moves_the_record_out_of_the_main_list_without_deleting_it(): void
     {
         $requestId = $this->submitDisposalRequest();
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        $this->finalizeDisposalFor($requestId);
 
         $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
 
@@ -268,6 +295,8 @@ class DisposalWorkflowTest extends TestCase
         $requestId = $this->submitDisposalRequest();
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
 
+        $this->finalizeDisposalFor($requestId);
+
         $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
 
         $this->actingAs($this->admin)
@@ -289,6 +318,8 @@ class DisposalWorkflowTest extends TestCase
         $requestId = $this->submitDisposalRequest();
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
 
+        $this->finalizeDisposalFor($requestId);
+
         $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
 
         // The employee cannot reach the admin area at all now: RequireAdminArea
@@ -308,6 +339,8 @@ class DisposalWorkflowTest extends TestCase
         $requestId = $this->submitDisposalRequest();
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
 
+        $this->finalizeDisposalFor($requestId);
+
         $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
 
         $this->actingAs($this->admin)->postJson("/admin/disposal/{$disposalId}/archive")->assertOk();
@@ -322,6 +355,8 @@ class DisposalWorkflowTest extends TestCase
     {
         $requestId = $this->submitDisposalRequest();
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        $this->finalizeDisposalFor($requestId);
 
         DB::table('asset_accountability')->insert([
             'asset_id' => $this->assetId, 'user_id' => $this->employee->id,
@@ -366,11 +401,79 @@ class DisposalWorkflowTest extends TestCase
         $this->assertSame('Disposal', Disposals::DISPOSED_STATUS);
     }
 
-    /** Approve a disposal request and return the resulting Disposal_ID. */
+    /**
+     * Walk the whole disposal chain for a request that has just been approved:
+     * prepare the official form, print it, file the signed copy, finalize.
+     *
+     * This is the only way a disposal record is created now, so the tests below
+     * keep testing what they are about (archiving, deleting, inventory, history)
+     * against a disposal that really happened.
+     */
+    private function finalizeDisposalFor(int $requestId): int
+    {
+        $formId = (int) DB::table('disposal_forms')->where('request_id', $requestId)->value('id');
+
+        $this->assertGreaterThan(0, $formId, 'approving must have generated the official disposal form');
+
+        $this->actingAs($this->admin)->post("/admin/disposal/forms/{$formId}/save", [
+            'office_department'      => 'Facilities',
+            'expected_disposal_date' => now()->toDateString(),
+            'method_key'             => 'scrap',
+            'items'                  => $this->itemPayload($formId),
+        ])->assertRedirect("/admin/disposal/forms/{$formId}");
+
+        $this->assertSame('ready', DB::table('disposal_forms')->where('id', $formId)->value('status'),
+            'a completed form must be ready to print');
+
+        $this->actingAs($this->admin)
+            ->post('/admin/disposal/forms/print', ['ids' => [$formId]])
+            ->assertOk();
+
+        $this->actingAs($this->admin)
+            ->post("/admin/disposal/forms/{$formId}/signed", ['received_date' => now()->toDateString()])
+            ->assertRedirect("/admin/disposal/forms/{$formId}");
+
+        $this->actingAs($this->admin)
+            ->post("/admin/disposal/forms/{$formId}/finalize", [
+                'actual_disposal_date' => now()->toDateString(),
+                'confirm'              => '1',
+            ])
+            ->assertRedirect('/admin/disposal?tab=forms');
+
+        return $formId;
+    }
+
+    /**
+     * The item payload the preparation form posts: every required field filled
+     * in, one entry per line on the form.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<int, array<string, mixed>>
+     */
+    private function itemPayload(int $formId, array $overrides = []): array
+    {
+        $payload = [];
+
+        foreach (DB::table('disposal_form_items')->where('form_id', $formId)->orderBy('id')->get() as $item) {
+            $payload[(int) $item->id] = array_merge([
+                'tag_no'         => $item->tag_no ?: ('TAG-' . $item->id),
+                'quantity'       => 1,
+                'description'    => $item->description ?: ('Item ' . $item->id),
+                'condition_code' => 'F',
+                'reason_code'    => 'B',
+            ], $overrides);
+        }
+
+        return $payload;
+    }
+
+    /** Approve a disposal request, finalize it, and return the Disposal_ID. */
     private function approveDisposalRequest(): int
     {
         $requestId = $this->submitDisposalRequest();
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        $this->finalizeDisposalFor($requestId);
 
         return (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
     }
@@ -445,8 +548,8 @@ class DisposalWorkflowTest extends TestCase
         // institution's inventory export still carry the asset.
         $this->assertTrue($listedOnAdminAssets());
 
-        // The disposal request is already approved, so the asset is Disposed, and
-        // a disposed asset has always been off the holder's list. That rule now
+        // The disposal has been finalized, so the asset is Disposed, and a
+        // disposed asset has always been off the holder's list. That rule now
         // lives in the query — the holder's listing is filtered and paged in the
         // database rather than hiding cards in the browser — so it holds before
         // the record is archived as well as after.

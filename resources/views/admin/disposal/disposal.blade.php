@@ -118,6 +118,56 @@
                     </div>
                 @endif
 
+                {{-- The Disposal page is two views of one workflow: the records
+                     below (disposals that have been finalized) and the official
+                     NU Lipa disposal forms being prepared, printed and filed. --}}
+                @include('admin.disposal.partials.tabs')
+
+                @php
+                    $formsWaiting = ($formCounts['draft'] ?? 0) + ($formCounts['ready'] ?? 0);
+                    $printedWaiting = ($formCounts['printed'] ?? 0);
+                    $signedWaiting = ($formCounts['signed'] ?? 0);
+                    $awaitingFormCount = $awaitingFormCount ?? 0;
+                @endphp
+
+                @if(! ($formsReady ?? true))
+                    <div class="mb-6 p-4 rounded-xl text-sm flex items-start" style="background:var(--bronze-tint); border-left:4px solid var(--bronze); color:var(--bronze-dark);">
+                        <i class="ri-database-2-line text-xl mr-3 mt-0.5"></i>
+                        <p>
+                            The official disposal form tables are not in the database yet — run
+                            <span class="font-mono text-xs">php artisan migrate</span>. Until then a disposal request
+                            cannot be approved (approval would dispose of the asset without its form).
+                        </p>
+                    </div>
+                @elseif($formsWaiting > 0 || $printedWaiting > 0 || $signedWaiting > 0 || $awaitingFormCount > 0)
+                    <div class="mb-6 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                         style="background:#fff; border:1px solid var(--line); border-left:4px solid var(--gold-500);">
+                        <div class="flex items-start">
+                            <i class="ri-file-list-3-line text-2xl mr-3 mt-0.5" style="color:var(--gold-ink);"></i>
+                            <div>
+                                <p class="text-sm font-semibold" style="color:var(--navy-900);">Official disposal forms waiting</p>
+                                <p class="text-xs mt-1" style="color:var(--ink-600);">
+                                    @if($formsWaiting > 0)
+                                        {{ $formsWaiting }} form{{ $formsWaiting === 1 ? '' : 's' }} still being prepared or ready to print.
+                                    @endif
+                                    @if($printedWaiting > 0)
+                                        {{ $printedWaiting }} printed, waiting for the signed copy to come back from Accountancy.
+                                    @endif
+                                    @if($signedWaiting > 0)
+                                        {{ $signedWaiting }} with a signed form received, waiting to be finalized.
+                                    @endif
+                                    @if($awaitingFormCount > 0)
+                                        {{ $awaitingFormCount }} approved request{{ $awaitingFormCount === 1 ? '' : 's' }} with no form yet.
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                        <a href="{{ url('/admin/disposal') }}?tab=forms" class="btn-ghost whitespace-nowrap">
+                            <i class="ri-arrow-right-line mr-1.5"></i>Open the form queue
+                        </a>
+                    </div>
+                @endif
+
                 <!-- Stats Card -->
                 <div class="hero-card p-6 mb-6 text-white">
                     <div class="flex items-center justify-between">

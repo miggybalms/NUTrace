@@ -53,6 +53,13 @@ class EmployeeManagementTest extends TestCase
         ]);
     }
 
+    /**
+     * The form's own fields.
+     *
+     * The Add Employee form does not carry an official email any more, but the
+     * address is still accepted when a caller does send one (the import records
+     * addresses too), so it stays in the payload the tests post.
+     */
     private function employeePayload(array $overrides = []): array
     {
         return array_merge([
@@ -121,6 +128,59 @@ class EmployeeManagementTest extends TestCase
         // Adding an employee is not creating an account: no login, no role.
         $this->assertSame(0, DB::table('users')->where('employee_numbers_id', $row->id)->count());
         $this->assertSame(2, DB::table('users')->count());
+    }
+
+    public function test_the_add_employee_form_asks_for_no_official_email(): void
+    {
+        $this->actingAs($this->admin)
+            ->get('/admin/employees')
+            ->assertOk()
+            // Anchored first: the form really is on the page, so the two
+            // assertions below are not passing on an empty response.
+            ->assertSee('name="employee_number"', false)
+            ->assertDontSee('Official email')
+            ->assertDontSee('name="email"', false);
+    }
+
+    public function test_an_employee_can_be_added_without_an_official_email(): void
+    {
+        $payload = $this->employeePayload();
+        unset($payload['email']);
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees', $payload)
+            ->assertRedirect('/admin/employees');
+
+        $row = DB::table('employee_numbers')->where('Employee_number', 'EMP-3')->first();
+
+        $this->assertNotNull($row, 'an employee record must be written with no email in the form');
+        $this->assertNull($row->Email);
+        $this->assertSame('Juan Dela Cruz', $row->Full_Name);
+        $this->assertSame(2, (int) $row->Department_id);
+        $this->assertSame('Active', $row->status);
+    }
+
+    public function test_editing_a_record_leaves_a_stored_official_email_alone(): void
+    {
+        // An address on the record - recorded by an import, or before the field
+        // was taken off the form. An edit that says nothing about it must not
+        // erase it.
+        DB::table('employee_numbers')->where('id', 2)->update(['Email' => 'nena@nu-lipa.edu.ph']);
+
+        $payload = $this->employeePayload([
+            'employee_number' => 'EMP-2',
+            'full_name'       => 'Nena S. Santos',
+        ]);
+        unset($payload['email']);
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees/2', $payload)
+            ->assertRedirect('/admin/employees');
+
+        $row = DB::table('employee_numbers')->where('id', 2)->first();
+
+        $this->assertSame('Nena S. Santos', $row->Full_Name);
+        $this->assertSame('nena@nu-lipa.edu.ph', $row->Email, 'a field the form does not send must not be erased');
     }
 
     public function test_adding_an_employee_is_recorded_in_the_audit_log(): void
@@ -438,6 +498,26 @@ class EmployeeManagementTest extends TestCase
         $this->assertSame('Employee', User::find($this->employee->id)->role);
     }
 
+    public function test_the_accounts_tab_does_not_offer_the_facilities_role(): void
+    {
+        // Nothing on the page offers the retired role, so there is nothing to
+        // pick. (The word "Facilities" is still on the page as a department
+        // name; the role options carry it as a value, which is what is checked
+        // here.)
+        $this->actingAs($this->admin)
+            ->get('/admin/employees?tab=accounts')
+            ->assertOk()
+            // The three roles that can still be assigned are offered, and the
+            // retired one is not.
+            ->assertSee('value="Admin"', false)
+            ->assertSee('value="Department Head"', false)
+            ->assertDontSee('value="Facilities"', false);
+
+        // A crafted filter cannot ask for it either: the filter is validated
+        // against the same list of assignable roles.
+        $this->assertSame('', \App\Support\AccountAdmin::filters(['role' => 'Facilities'])['role']);
+    }
+
     public function test_the_last_active_administrator_cannot_be_demoted(): void
     {
         $this->actingAs($this->admin)
@@ -486,7 +566,7 @@ class EmployeeManagementTest extends TestCase
     public function test_the_account_history_comes_from_the_audit_log(): void
     {
         $this->actingAs($this->admin)
-            ->postJson("/admin/accounts/{$this->employee->id}/role", ['role' => 'Facilities'])
+            ->postJson("/admin/accounts/{$this->employee->id}/role", ['role' => 'Department Head'])
             ->assertOk();
 
         $response = $this->actingAs($this->admin)->getJson("/admin/accounts/{$this->employee->id}/history");
@@ -520,6 +600,33 @@ class EmployeeManagementTest extends TestCase
         $this->assertSame(5, (int) $account->employee_numbers_id);
         $this->assertSame('Employee', $account->role, 'registration grants no role beyond Employee');
         $this->assertSame('Active', $account->status);
+    }
+
+    public function test_a_record_without_an_official_email_can_still_register(): void
+    {
+        // Added the way the form now does it: no email on the masterlist record.
+        $payload = $this->employeePayload();
+        unset($payload['email']);
+
+        $this->actingAs($this->admin)->post('/admin/employees', $payload)->assertRedirect('/admin/employees');
+
+        // The employee supplies their own address at registration and the
+        // account attaches to the record exactly as before.
+        $this->post('/register', [
+            'unit_heads_number'   => 'EMP-3',
+            'email'               => 'juan@nu-lipa.edu.ph',
+            'password'            => 'Correct-Horse-Battery-9',
+            'password_confirmation' => 'Correct-Horse-Battery-9',
+        ])->assertRedirect('/login');
+
+        $account = User::where('email', 'juan@nu-lipa.edu.ph')->first();
+
+        $this->assertNotNull($account, 'a record with no official email must still be usable');
+        $this->assertSame(
+            (int) DB::table('employee_numbers')->where('Employee_number', 'EMP-3')->value('id'),
+            (int) $account->employee_numbers_id
+        );
+        $this->assertSame('Employee', $account->role, 'registration grants no role beyond Employee');
     }
 
     public function test_registration_never_promotes_the_first_person_in_a_department(): void

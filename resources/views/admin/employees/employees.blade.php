@@ -83,7 +83,7 @@
                 <i class="ri-alert-line mr-1.5"></i>
                 <strong>{{ $orphanedPending }} pending request(s)</strong> are waiting, and there is currently no
                 <em>active</em> Asset Management Office account that can decide them. The requests are preserved and
-                unchanged. Give an account the Administrator or Facilities role, or reactivate one, to clear this.
+                unchanged. Give an account the Administrator role, or reactivate one, to clear this.
             </p>
         </div>
     @endif
@@ -254,7 +254,6 @@
                                             data-id="{{ $employee->id }}"
                                             data-employee-number="{{ $employee->Employee_number }}"
                                             data-full-name="{{ $employee->Full_Name }}"
-                                            data-email="{{ $employee->Email }}"
                                             data-department-id="{{ $employee->department_id }}"
                                             data-status="{{ $employee->status }}"
                                             onclick="openEmployeeModal(this)">
@@ -361,10 +360,21 @@
                                     </select>
                                 </td>
                                 <td class="px-5 py-3.5">
+                                    {{-- The list is the roles that can be assigned. An account
+                                         still holding a retired one (Facilities) shows it
+                                         rather than being displayed as a role it does not
+                                         have; picking one of the current roles replaces it,
+                                         and the retired value can never be chosen for
+                                         anybody else. --}}
+                                    @php
+                                        $accountRoles = \App\Support\Access::isRetiredRole($account->role)
+                                            ? array_merge([$account->role], $roles)
+                                            : $roles;
+                                    @endphp
                                     <select class="field py-1.5 text-xs" onchange="changeRole({{ $account->id }}, this)"
                                             aria-label="Role for {{ $account->email }}">
-                                        @foreach($roles as $role)
-                                            <option value="{{ $role }}" @selected($account->role === $role)>{{ $role }}</option>
+                                        @foreach($accountRoles as $role)
+                                            <option value="{{ $role }}" @selected($account->role === $role)>{{ $role }}@if(\App\Support\Access::isRetiredRole($role)) (retired)@endif</option>
                                         @endforeach
                                     </select>
                                 </td>
@@ -469,15 +479,6 @@
             </div>
 
             <div>
-                <label class="eyebrow block mb-1.5" for="email">Official email</label>
-                <input id="email" name="email" type="email" maxlength="100"
-                       value="{{ old('email') }}" class="field w-full" placeholder="name@nu-lipa.edu.ph">
-                <p class="text-xs text-[#5C6474] mt-1">
-                    When this is filled in, the account can only be activated with this address.
-                </p>
-            </div>
-
-            <div>
                 <label class="eyebrow block mb-1.5" for="department_id">Department <span class="text-[#A23B32]">*</span></label>
                 <select id="department_id" name="department_id" required class="field w-full">
                     <option value="">— choose a department —</option>
@@ -542,7 +543,6 @@
 
         document.getElementById('employee_number').value = isEdit ? record.employeeNumber : '';
         document.getElementById('full_name').value = isEdit ? record.fullName : '';
-        document.getElementById('email').value = isEdit ? (record.email || '') : '';
         document.getElementById('department_id').value = isEdit && record.departmentId ? record.departmentId : '';
         document.getElementById('record_status').value = isEdit ? record.status : 'Active';
 

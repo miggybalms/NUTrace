@@ -235,7 +235,7 @@ class QrVerification
 
         $role = (string) ($viewer->role ?? '');
 
-        if ($role === 'Admin' || $role === 'Facilities') {
+        if (Access::isAssetOffice($viewer)) {
             return true;
         }
 

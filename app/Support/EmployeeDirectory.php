@@ -273,15 +273,24 @@ class EmployeeDirectory
         }
 
         try {
-            DB::transaction(function () use ($id, $record, $data, $actor) {
-            DB::table('employee_numbers')->where('id', $id)->update([
+            DB::transaction(function () use ($id, $record, $data, $input, $actor) {
+            $fields = [
                 'Employee_number' => $data['employee_number'],
                 'Full_Name'       => $data['full_name'],
-                'Email'           => $data['email'] !== '' ? $data['email'] : null,
                 'Department_id'   => (int) $data['department_id'],
                 'status'          => $data['status'],
                 'updated_at'      => now(),
-            ]);
+            ];
+
+            // The employee form no longer carries an official email, and a
+            // field the form does not send is not a field to erase: an edit
+            // that says nothing about the address leaves the stored one alone.
+            // (It can still be corrected by a caller that does send one.)
+            if (array_key_exists('email', $input)) {
+                $fields['Email'] = $data['email'] !== '' ? $data['email'] : null;
+            }
+
+            DB::table('employee_numbers')->where('id', $id)->update($fields);
 
             self::audit($actor, 'UPDATE',
                 'Updated employee record ' . $record->Employee_number . ' (' . $record->Full_Name . ') in the masterlist.',
