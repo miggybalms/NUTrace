@@ -90,6 +90,24 @@
                     @case('dashboard')
                         @break
 
+                    {{-- Employee Management: the export follows the filter that is
+                         open on the page, and is generated on the server. --}}
+                    @case('employees')
+                        <a href="{{ url('/admin/employees/export') }}?{{ http_build_query(array_filter([
+                                'q' => request()->query('q', ''),
+                                'department' => request()->query('department', ''),
+                                'status' => request()->query('status', ''),
+                                'account' => request()->query('account', ''),
+                            ], fn ($value) => $value !== '' && $value !== null)) }}" class="btn-ghost" download>
+                            <i class="ri-download-line mr-1.5"></i>
+                            <span class="whitespace-nowrap">Export CSV</span>
+                        </a>
+                        <a href="{{ url('/admin/employees') }}?tab=import" class="btn-gold">
+                            <i class="ri-upload-2-line mr-1.5"></i>
+                            <span class="whitespace-nowrap">Import Masterlist</span>
+                        </a>
+                        @break
+
                     {{-- Requests: export every request in the open tab, not just this page --}}
                     @case('requests')
                         <a href="{{ url('/admin/requests/export') }}?tab={{ request()->query('tab', 'all') }}" class="btn-gold" download>

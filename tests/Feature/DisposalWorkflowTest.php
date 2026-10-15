@@ -291,10 +291,14 @@ class DisposalWorkflowTest extends TestCase
 
         $disposalId = (int) DB::table('disposals')->where('Request_id', $requestId)->value('Disposal_ID');
 
+        // The employee cannot reach the admin area at all now: RequireAdminArea
+        // refuses the whole /admin prefix for an account that is not the Asset
+        // Management Office, before this route's own guard is consulted. The
+        // route keeps its own check as well, and the point of this test is
+        // unchanged - nothing was archived.
         $this->actingAs($this->employee)
             ->post("/admin/disposal/{$disposalId}/archive")
-            ->assertRedirect('/admin/disposal')
-            ->assertSessionHas('error', 'Only the Asset Management Office can archive a disposal record.');
+            ->assertStatus(403);
 
         $this->assertFalse((bool) DB::table('disposals')->where('Disposal_ID', $disposalId)->value('is_archived'));
     }
@@ -702,10 +706,12 @@ class DisposalWorkflowTest extends TestCase
     {
         $disposalId = $this->archivedDisposal();
 
+        // Deleting, the impact report and the bulk delete are all refused the
+        // same way for this account: RequireAdminArea closes the admin area
+        // before any of them run, and each route still carries its own check.
         $this->actingAs($this->employee)
             ->post("/admin/disposal/{$disposalId}/delete-archived")
-            ->assertRedirect('/admin/disposal/archived')
-            ->assertSessionHas('error', 'Only the Asset Management Office can permanently delete an archived disposal record.');
+            ->assertStatus(403);
 
         $this->actingAs($this->employee)
             ->getJson("/admin/disposal/{$disposalId}/delete-impact")
@@ -713,8 +719,7 @@ class DisposalWorkflowTest extends TestCase
 
         $this->actingAs($this->employee)
             ->post('/admin/disposal/archived/delete-all')
-            ->assertRedirect('/admin/disposal/archived')
-            ->assertSessionHas('error', 'Only the Asset Management Office can permanently delete archived disposal records.');
+            ->assertStatus(403);
 
         $this->assertSame(1, DB::table('disposals')->where('Disposal_ID', $disposalId)->count());
         $this->assertNotNull(DB::table('assets')->where('id', $this->assetId)->first());

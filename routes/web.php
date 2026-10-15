@@ -27,6 +27,11 @@ use App\Support\AssetTransfer;
 use App\Support\Disposals;
 use App\Support\DisposalReason;
 use App\Support\Inventory;
+use App\Support\Access;
+use App\Support\AccountAdmin;
+use App\Support\EmployeeDirectory;
+use App\Support\Reviewers;
+use App\Support\Approval;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -143,8 +148,23 @@ Route::post('/login', function (Request $request) {
     ]);
 
     if (Auth::attempt($credentials)) {
-        $request->session()->regenerate();
         $user = Auth::user();
+
+        // A deactivated account cannot sign in at all. Checked after the
+        // password is verified - not before - so a wrong password never reveals
+        // whether an account exists. (An account deactivated while it already
+        // had a session open is signed out by EnforceActiveAccount instead.)
+        if (Access::isInactive($user)) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors([
+                'email' => 'This account has been deactivated. Please contact the Asset Management Office.',
+            ])->withInput(['email' => $request->email]);
+        }
+
+        $request->session()->regenerate();
         // Admin or Facilities users go to admin area
         $facilitiesDeptId = DB::table('departments')->where('Name', 'Facilities')->value('id');
         $isAdmin = ($user->role === 'Admin' || $user->role === 'Facilities' || $user->department_id === $facilitiesDeptId);
@@ -195,13 +215,35 @@ Route::post('/register', function (Request $request) {
         'profile_photo' => 'nullable|image|max:2048',
     ]);
 
-    // Look up employee in employee_numbers table
+    // Look up the employee record on the masterlist.
+    //
+    // Matched case-insensitively and trimmed: the office writes the number in
+    // the masterlist and the applicant types it by hand, so 'emp-1' and
+    // 'EMP-1 ' are the same person and must not become two answers.
+    $employeeNumber = Str::upper(trim((string) $validated['unit_heads_number']));
+
     $employee = DB::table('employee_numbers')
-        ->where('Employee_number', $validated['unit_heads_number'])
+        ->whereRaw('UPPER(Employee_number) = ?', [$employeeNumber])
         ->first();
-    
+
     if (!$employee) {
         return back()->withErrors(['unit_heads_number' => 'Employee number not found in the system. Please contact the administrator.'])->withInput();
+    }
+
+    // An employee record the office has marked Inactive is not eligible: that
+    // person is no longer on the active masterlist (resigned, retired, long
+    // leave), so an account cannot be activated against their number.
+    if (($employee->status ?? 'Active') !== 'Active') {
+        return back()->withErrors(['unit_heads_number' => 'This employee number is not active in the employee masterlist, so an account cannot be activated for it. Please contact the administrator.'])->withInput();
+    }
+
+    // Knowing an employee number is not proof of identity. When the office has
+    // recorded an official address for this employee, the account has to be
+    // activated with that address and no other - which is also what makes the
+    // masterlist worth keeping.
+    $recordEmail = trim((string) ($employee->Email ?? ''));
+    if ($recordEmail !== '' && strcasecmp($recordEmail, trim((string) $validated['email'])) !== 0) {
+        return back()->withErrors(['email' => 'The email you entered does not match the official email on your employee record. Please use that address, or contact the administrator.'])->withInput();
     }
 
     // The password must not be built out of the employee's own details
@@ -231,16 +273,15 @@ Route::post('/register', function (Request $request) {
         $photoPath = Media::storeUploadedFile($request->file('profile_photo'), 'profile_photos');
     }
 
-    // Determine user role
-    $isFirstUser = User::count() === 0;
-    
-    if ($isFirstUser) {
-        $role = 'Admin';
-    } else {
-        // Check if department already has a Department Head
-        $hasDeptHead = User::where('department_id', $departmentId)->where('role', 'Department Head')->exists();
-        $role = $hasDeptHead ? 'Employee' : 'Department Head';
-    }
+    // Determine the role for the new account.
+    //
+    // Only the very first account - the one that has to exist before anybody
+    // can use the system at all - becomes an Administrator. Everyone else is an
+    // Employee. A role is granted deliberately, by the office, on the Employee
+    // Management page: registration used to make the first person to sign up in
+    // a department that department's Head, which quietly handed approval
+    // authority to whoever happened to register first.
+    $role = User::count() === 0 ? 'Admin' : 'Employee';
 
     try {
         $user = User::create([
@@ -5087,31 +5128,41 @@ Route::post('/admin/assets', function (Request $request) {
 })->name('admin.assets.store');
 
 Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
+    $actor        = Auth::user();
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
     if (!$requestRecord) {
         return response()->json(['message' => 'Request not found.'], 404);
     }
 
+    // ─── Who may decide a request ────────────────────────────────────────
+    // Approving is the Asset Management Office's job, for every request type.
+    // Before this, only a disposal was guarded: any signed-in account could
+    // approve a repair, transfer, replacement or pullout by posting to this
+    // URL. The check is here, on the server, for the whole route.
+    if (! Access::canDecideRequests($actor)) {
+        Approval::recordRefusal($actor, $requestRecord, 'approve');
+
+        return response()->json(['message' => Access::decideMessage()], 403);
+    }
+
+    // ─── Nobody decides their own request ────────────────────────────────
+    // Compared against requests.user_id - the submitter stored in the
+    // database - so no crafted form, changed URL or hidden field can pretend
+    // the request belongs to somebody else.
+    if (Access::isSubmitter($actor, $requestRecord)) {
+        Approval::recordRefusal($actor, $requestRecord, 'approve');
+
+        return response()->json(['message' => Access::selfApprovalMessage()], 403);
+    }
+
     if (strtolower((string) $requestRecord->status) !== 'pending') {
         return response()->json(['message' => 'Only pending requests can be approved.'], 422);
     }
 
-    $approvedBy  = Auth::user()?->email ?? Auth::user()?->full_name ?? 'Admin';
+    $approvedBy  = $actor?->email ?? $actor?->display_name ?? 'Admin';
     $requestType = strtolower((string) $requestRecord->request_type);
     $isDisposal  = $requestType === 'disposal';
-
-    // Approving a disposal retires an asset and creates a permanent record, so
-    // it belongs to the Asset Management Office alone. The other request types
-    // keep the behaviour they already had.
-    if ($isDisposal) {
-        $admin = Auth::user();
-        if (!$admin || !in_array(($admin->role ?? ''), ['Admin', 'Facilities'], true)) {
-            return response()->json([
-                'message' => 'Only the Asset Management Office can approve a disposal request.',
-            ], 403);
-        }
-    }
 
     // ─── A disposal approval records a real disposal ─────────────────
     // The reason and date are read from the request (a disposal request carries
@@ -5452,14 +5503,32 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
 
 Route::post('/admin/requests/{id}/reject', function (Request $request, $id) {
     $admin = Auth::user();
-    if (!$admin || ($admin->role ?? '') !== 'Admin') {
-        return response()->json(['message' => 'Only the Asset Management Office can reject a request.'], 403);
+
+    // Rejecting follows the same authority as approving: the Asset Management
+    // Office decides, and the Facilities accounts that run the office are part
+    // of it. (This used to be Admin-only, which left Facilities able to approve
+    // a disposal but not to refuse one.)
+    if (! Access::canDecideRequests($admin)) {
+        $existing = DB::table('requests')->where('id', $id)->first();
+
+        if ($existing) {
+            Approval::recordRefusal($admin, $existing, 'reject');
+        }
+
+        return response()->json(['message' => Access::decideMessage()], 403);
     }
 
     $requestRecord = DB::table('requests')->where('id', $id)->first();
 
     if (!$requestRecord) {
         return response()->json(['message' => 'Request not found.'], 404);
+    }
+
+    // Same rule as approving: your own request is not yours to refuse either.
+    if (Access::isSubmitter($admin, $requestRecord)) {
+        Approval::recordRefusal($admin, $requestRecord, 'reject');
+
+        return response()->json(['message' => Access::selfApprovalMessage()], 403);
     }
 
     if (strtolower((string) $requestRecord->status) !== 'pending') {
@@ -6644,5 +6713,216 @@ if ($search !== '') {
 
     // Department Head: submit request (reuse controller)
     Route::post('/department-head/requests/store', [UserRequestController::class, 'store'])->name('department_head.requests.store');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Employee & Account Management  (panel recommendation 2)
+//
+// One page holds two different things, and says so: the employee masterlist
+// (who works here) and the NU Trace accounts (who may sign in). They are kept
+// apart deliberately - importing the official list does not create logins and
+// never grants a role.
+//
+// Every endpoint below re-checks Access::canManageEmployees() on the server.
+// The menu entry and the buttons are convenience; this is the control.
+// ════════════════════════════════════════════════════════════════════════════
+Route::middleware(['auth'])->group(function () {
+
+    Route::get('/admin/employees', function (Request $request) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            abort(403, Access::manageEmployeesMessage());
+        }
+
+        $tabRaw = $request->query('tab', 'directory');
+        $tab    = is_string($tabRaw) && in_array($tabRaw, ['directory', 'accounts', 'import'], true)
+            ? $tabRaw
+            : 'directory';
+
+        $filters        = EmployeeDirectory::filters($request->query());
+        $accountFilters = AccountAdmin::filters($request->query());
+
+        return view('admin.employees.employees', [
+            'tab'             => $tab,
+            'employees'       => EmployeeDirectory::directory($filters),
+            'accounts'        => AccountAdmin::accounts($accountFilters),
+            'filters'         => $filters,
+            'accountFilters'  => $accountFilters,
+            'counts'          => EmployeeDirectory::counts(),
+            'accountCounts'   => AccountAdmin::counts(),
+            'departments'     => EmployeeDirectory::departments(),
+            'roles'           => Access::ROLES,
+            'statuses'        => EmployeeDirectory::STATUSES,
+            // Requests that are waiting with nobody left allowed to decide them.
+            // Shown, never reassigned: 3.6 asks for a flag, not a new policy.
+            'orphanedPending' => AccountAdmin::pendingWithoutReviewer(),
+        ]);
+    })->name('admin.employees');
+
+    // ─── The masterlist: add and edit one employee at a time ───
+
+    Route::post('/admin/employees', function (Request $request) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return back()->withErrors(['employee_number' => Access::manageEmployeesMessage()]);
+        }
+
+        $result = EmployeeDirectory::store($request->all(), Auth::user());
+
+        if (! $result['ok']) {
+            return back()->withErrors($result['errors'])->withInput();
+        }
+
+        return redirect('/admin/employees')
+            ->with('success', 'Employee record added to the masterlist. This does not create a NU Trace account - the employee still has to register with an active employee number.');
+    })->name('admin.employees.store');
+
+    Route::post('/admin/employees/{id}', function (Request $request, $id) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return back()->withErrors(['employee_number' => Access::manageEmployeesMessage()]);
+        }
+
+        $result = EmployeeDirectory::update((int) $id, $request->all(), Auth::user());
+
+        if (! $result['ok']) {
+            return back()->withErrors($result['errors'])->withInput();
+        }
+
+        return redirect('/admin/employees')->with('success', 'Employee record updated.');
+    })->where('id', '[0-9]+')->name('admin.employees.update');
+
+    // ─── The masterlist as a CSV ───
+
+    Route::get('/admin/employees/template', function () {
+        if (! Access::canManageEmployees(Auth::user())) {
+            abort(403, Access::manageEmployeesMessage());
+        }
+
+        return EmployeeDirectory::template();
+    })->name('admin.employees.template');
+
+    // Check the uploaded file and write NOTHING. The page shows the result and
+    // sends the same file again to import it, so the only thing that ever
+    // decides what lands in the database is the server, never the browser.
+    Route::post('/admin/employees/import/preview', function (Request $request) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return response()->json(['ok' => false, 'message' => Access::manageEmployeesMessage()], 403);
+        }
+
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:2048',
+        ], [
+            'file.mimes' => 'Only a CSV file can be imported. Download the template and fill that in.',
+            'file.max'   => 'That file is larger than 2 MB. Split the list and import it in parts.',
+        ]);
+
+        $preview = EmployeeDirectory::preview($validated['file']);
+
+        return response()->json($preview, $preview['ok'] ? 200 : 422);
+    })->name('admin.employees.import.preview');
+
+    Route::post('/admin/employees/import', function (Request $request) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return response()->json(['ok' => false, 'message' => Access::manageEmployeesMessage()], 403);
+        }
+
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:2048',
+        ], [
+            'file.mimes' => 'Only a CSV file can be imported. Download the template and fill that in.',
+            'file.max'   => 'That file is larger than 2 MB. Split the list and import it in parts.',
+        ]);
+
+        $result = EmployeeDirectory::commit($validated['file'], Auth::user());
+
+        return response()->json($result, $result['ok'] ? 200 : 422);
+    })->name('admin.employees.import');
+
+    // Export follows the filter that is on screen, and the server re-checks the
+    // permission before a single row is written. Password hashes are never
+    // part of this file.
+    Route::get('/admin/employees/export', function (Request $request) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            abort(403, Access::manageEmployeesMessage());
+        }
+
+        $filters = EmployeeDirectory::filters($request->query());
+        $stamp   = now()->format('Y-m-d');
+
+        EmployeeDirectory::audit(
+            Auth::user(),
+            'UPDATE',
+            'Exported the employee masterlist to CSV (' . count(EmployeeDirectory::exportRows($filters)) . ' record(s)).',
+            'Employee masterlist exported'
+        );
+
+        return \App\Support\Csv::download(
+            'employee-masterlist-' . $stamp . '.csv',
+            EmployeeDirectory::exportHeadings(),
+            EmployeeDirectory::exportRows($filters)
+        );
+    })->name('admin.employees.export');
+
+    // ─── Accounts: role, department and status ───
+
+    Route::post('/admin/accounts/{id}/role', function (Request $request, $id) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return response()->json(['success' => false, 'message' => Access::manageEmployeesMessage()], 403);
+        }
+
+        $result = AccountAdmin::changeRole((int) $id, (string) $request->input('role', ''), Auth::user());
+
+        return response()->json(['success' => $result['ok'], 'message' => $result['message']], $result['ok'] ? 200 : 422);
+    })->where('id', '[0-9]+')->name('admin.accounts.role');
+
+    Route::post('/admin/accounts/{id}/department', function (Request $request, $id) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return response()->json(['success' => false, 'message' => Access::manageEmployeesMessage()], 403);
+        }
+
+        $result = AccountAdmin::changeDepartment((int) $id, (int) $request->input('department_id', 0), Auth::user());
+
+        return response()->json(['success' => $result['ok'], 'message' => $result['message']], $result['ok'] ? 200 : 422);
+    })->where('id', '[0-9]+')->name('admin.accounts.department');
+
+    Route::post('/admin/accounts/{id}/status', function (Request $request, $id) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return response()->json(['success' => false, 'message' => Access::manageEmployeesMessage()], 403);
+        }
+
+        $result = AccountAdmin::changeStatus((int) $id, (string) $request->input('status', ''), Auth::user());
+
+        return response()->json(['success' => $result['ok'], 'message' => $result['message']], $result['ok'] ? 200 : 422);
+    })->where('id', '[0-9]+')->name('admin.accounts.status');
+
+    // The account's history, read from the audit log that already exists.
+    Route::get('/admin/accounts/{id}/history', function ($id) {
+        if (! Access::canManageEmployees(Auth::user())) {
+            return response()->json(['success' => false, 'message' => Access::manageEmployeesMessage()], 403);
+        }
+
+        $account = AccountAdmin::find((int) $id);
+
+        if (! $account) {
+            return response()->json(['success' => false, 'message' => 'That account no longer exists.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'account' => [
+                'name'       => AccountAdmin::displayName($account),
+                'email'      => $account->email,
+                'role'       => $account->role,
+                'status'     => $account->status,
+                'employee'   => $account->Employee_number,
+            ],
+            'history' => collect(AccountAdmin::history((int) $id))->map(fn ($entry) => [
+                'action'      => $entry->action_type,
+                'notes'       => \App\Support\AuditLogText::redact($entry->notes),
+                'description' => \App\Support\AuditLogText::redact($entry->action_description),
+                'at'          => $entry->created_at
+                    ? \Illuminate\Support\Carbon::parse($entry->created_at)->format('M d, Y h:i A')
+                    : '',
+            ]),
+        ]);
+    })->where('id', '[0-9]+')->name('admin.accounts.history');
 });
 

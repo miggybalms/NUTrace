@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Support\Media;
+use App\Support\Reviewers;
 
 class UserRequestController extends Controller
 {
@@ -212,6 +213,26 @@ public function store(HttpRequest $request)
                 'created_at'         => $now,
                 'updated_at'         => $now,
             ]);
+
+            // Tell the accounts that can decide it that something is waiting on
+            // them. Written inside the same transaction as the request, so a
+            // notice can never describe a request that was rolled back, and a
+            // rolled-back request never rings anybody's bell.
+            $assetNames = DB::table('assets')
+                ->whereIn('id', $assetIds)
+                ->orderBy('Asset_name')
+                ->pluck('Asset_name')
+                ->filter()
+                ->values()
+                ->all();
+
+            $assetLabel = count($assetNames) === 0
+                ? 'an asset'
+                : (count($assetNames) === 1
+                    ? $assetNames[0]
+                    : $assetNames[0] . ' and ' . (count($assetNames) - 1) . ' more');
+
+            Reviewers::notifyNewRequest($requestId, $user, $requestType, $assetLabel);
 
             return $requestId;
         });

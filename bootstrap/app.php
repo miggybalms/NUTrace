@@ -34,6 +34,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // Log user login events
         $middleware->web(append: \App\Http\Middleware\LogUserLogin::class);
 
+        // A deactivated account stops working on its next click, not at its
+        // next sign-in. Runs before the area checks below so a locked account
+        // is signed out rather than told its role is wrong.
+        $middleware->web(append: \App\Http\Middleware\EnforceActiveAccount::class);
+
+        // Role-based access control: /admin/* belongs to the Asset Management
+        // Office (Admin and Facilities). Matched on the path, so every existing
+        // and future admin route is covered without being listed.
+        $middleware->web(append: \App\Http\Middleware\RequireAdminArea::class);
+
         // Security response headers (HSTS, CSP, X-Frame-Options, nosniff,
         // Referrer-Policy, Permissions-Policy) on every response the app
         // produces. Global, not part of the web group, so downloads and JSON

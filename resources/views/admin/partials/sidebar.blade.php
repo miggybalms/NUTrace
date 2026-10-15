@@ -94,6 +94,17 @@
                 <i class="ri-swap-line text-lg"></i>
                 <span>Transfer</span>
             </a>
+            {{-- Employee masterlist and NU Trace accounts. Sits right after
+                 Transfer, where the office looks for people rather than
+                 things. --}}
+            <a href="/admin/employees"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      {{ request()->is('admin/employees*')
+                          ? 'border-l-[3px] border-[#C9A227] rounded-l-none bg-[#C9A227]/10 text-[#E9C766] font-medium pl-[9px]'
+                          : 'text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]' }}">
+                <i class="ri-group-line text-lg"></i>
+                <span>Employee Management</span>
+            </a>
         </div>
     </nav>
 
