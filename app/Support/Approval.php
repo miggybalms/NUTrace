@@ -26,7 +26,7 @@ class Approval
     public static function recordRefusal(?User $actor, $requestRecord, string $decision): void
     {
         $verb = $decision === 'reject' ? 'reject' : 'approve';
-        $past = $verb === 'reject' ? 'reject' : 'approve';
+        $past = $verb === 'reject' ? 'rejected' : 'approved';
 
         $who = $actor
             ? (trim((string) ($actor->display_name ?? '')) ?: (string) $actor->email)
@@ -42,7 +42,7 @@ class Approval
             : 'Denied: ' . $who . ' (role: ' . (Access::role($actor) ?: 'unknown') . ') tried to '
                 . $verb . ' request #' . $requestId . ' without the authority to decide requests.';
 
-        $description = 'Request #' . $requestId . ' was not ' . $past . 'ed: '
+        $description = 'Request #' . $requestId . ' was not ' . $past . ': '
             . (Access::isSubmitter($actor, $requestRecord)
                 ? 'nobody may decide their own request.'
                 : 'only the Asset Management Office may decide requests.');
