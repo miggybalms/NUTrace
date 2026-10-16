@@ -4530,14 +4530,18 @@ Route::post('/admin/replacements/{id}/status', function ($id, \Illuminate\Http\R
                 'updated_at' => now(),
             ]);
             
-            // If marking as Complete, transition old asset to Disposed and create disposal record
+            // If marking as Complete, retire the old asset and create the disposal record
             if ($newStatus === 'Complete' && $replacement->old_assets_id) {
                 $oldAsset = DB::table('assets')->where('id', $replacement->old_assets_id)->first();
                 
                 if ($oldAsset) {
-                    // Transition old asset to Disposed
+                    // Retire the old asset. Disposals::DISPOSED_STATUS is the one
+                    // value assets.Lifecycle_Status accepts for a retired asset:
+                    // writing the UI's "Disposed" is refused by PostgreSQL's CHECK
+                    // constraint, which rolled the whole transaction back and left
+                    // the replacement un-completable.
                     DB::table('assets')->where('id', $replacement->old_assets_id)->update([
-                        'Lifecycle_Status' => 'Disposed',
+                        'Lifecycle_Status' => Disposals::DISPOSED_STATUS,
                         'updated_at' => now(),
                     ]);
                     
@@ -5616,6 +5620,23 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
         $existingAssetIds[]        = (int) $row->id;
     }
 
+    // ─── Assets the receiving employee already holds ──────────────────────
+    // Approving a transfer executes it, and for an asset the receiving employee
+    // already has there is nothing to execute. Named here so the answer the
+    // office reads says what really happened — "nothing changed hands" — rather
+    // than a blanket "approved successfully" over a handover that never took
+    // place and a request the Executive Director would be asked about for nothing.
+    $assigneeId = (int) ($requestRecord->assign_to_user_id ?? 0);
+    $assignee   = $assigneeId > 0
+        ? (AssetTransfer::userLabels()[$assigneeId]['name'] ?? ('user #' . $assigneeId))
+        : 'the receiving employee';
+
+    $alreadyHeld = ($requestType === 'transfer' && $assigneeId > 0)
+        ? DB::table('assets')->whereIn('id', $assetIds)->where('user_id', $assigneeId)->pluck('Asset_code', 'id')->all()
+        : [];
+
+    $alreadyHeldIds = array_map('intval', array_keys($alreadyHeld));
+
     // ─── Disposal requests must be approvable ───────────────────────
     if ($isDisposal) {
         $missing = array_values(array_diff($assetIds, $existingAssetIds));
@@ -5901,13 +5922,51 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
         if ($forwardForReview) {
             $invitation = TransferReviews::invite((int) $requestRecord->id, $actor, false, $reviewRecipient);
 
+            // An asset the receiving employee already holds will not change
+            // hands however the Executive Director decides. Saying so when the
+            // invitation goes out is the difference between an office that knows
+            // and one that finds out from an "out of date" page.
+            $heldNote = $alreadyHeld
+                ? ' Note: ' . implode(', ', array_values($alreadyHeld))
+                    . (count($alreadyHeld) === 1 ? ' is' : ' are') . ' already held by ' . $assignee
+                    . ', so nothing will change hands for ' . (count($alreadyHeld) === 1 ? 'it' : 'them') . '.'
+                : '';
+
             return response()->json([
-                'message' => $invitation['ok']
+                'message' => ($invitation['ok']
                     ? 'Transfer request approved. ' . $invitation['message']
-                    : 'The transfer request was approved, but the review invitation could not be sent. ' . $invitation['message'],
+                    : 'The transfer request was approved, but the review invitation could not be sent. ' . $invitation['message']) . $heldNote,
                 'forwarded' => $invitation['ok'],
                 'delivered' => (bool) ($invitation['delivered'] ?? false),
             ], 200);
+        }
+
+        // A transfer the office releases itself: say which assets moved, and
+        // which were already the receiving employee's to begin with.
+        if ($requestType === 'transfer') {
+            $movedCodes = [];
+
+            foreach ($assetIds as $assetId) {
+                if (! in_array((int) $assetId, $alreadyHeldIds, true)) {
+                    $movedCodes[] = $assetCodes[(int) $assetId] ?? ('asset #' . $assetId);
+                }
+            }
+
+            $heldCodes = array_values($alreadyHeld);
+
+            if ($heldCodes && ! $movedCodes) {
+                return response()->json(['message' =>
+                    'Request approved. Nothing changed hands: ' . implode(', ', $heldCodes)
+                    . (count($heldCodes) === 1 ? ' is' : ' are') . ' already held by ' . $assignee . ', the employee this request transfers to.',
+                ]);
+            }
+
+            if ($heldCodes) {
+                return response()->json(['message' =>
+                    'Request approved. ' . implode(', ', $movedCodes) . ' moved to ' . $assignee . '; '
+                    . implode(', ', $heldCodes) . (count($heldCodes) === 1 ? ' was' : ' were') . ' already held by ' . $assignee . '.',
+                ]);
+            }
         }
 
         return response()->json(['message' => 'Request approved successfully.']);

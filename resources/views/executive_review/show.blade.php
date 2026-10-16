@@ -48,6 +48,16 @@
                 </div>
             @endif
 
+            {{--
+                An asset that has gone to a third employee since the office asked
+                cannot be decided on. Better said here, before anything is
+                pressed, than after a decision is refused with "nothing was
+                changed" and no explanation of what changed.
+            --}}
+            @if (! empty($summary['handover']['warning']))
+                <div class="error-msg">{{ $summary['handover']['warning'] }}</div>
+            @endif
+
             <div class="review-head">
                 <div>
                     <h2 class="step-title">Transfer Review {{ $summary['reference'] }}</h2>
@@ -173,6 +183,11 @@
                                 <td>{{ $asset->asset_location ?: '—' }}</td>
                                 <td>
                                     {{ $asset->holder_name ?: ($asset->holder_email ?: 'Not recorded') }}
+                                    @if (($asset->handover_state ?? 'giver') === 'recipient')
+                                        <div class="muted">Already with the receiving employee — nothing to move</div>
+                                    @elseif (($asset->handover_state ?? 'giver') === 'elsewhere')
+                                        <div class="muted">No longer held by the employee it came from</div>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -186,13 +201,16 @@
                 </table>
             </div>
 
+            @if (! empty($summary['handover']['note']))
+                <div class="note">{{ $summary['handover']['note'] }}</div>
+            @endif
+
             @if ($canDecide)
                 <div class="note">
                     Each row above is one asset record. <strong>Approving does not complete anything by itself</strong>:
                     it records your decision, and an approved asset is reassigned to
-                    {{ $summary['to']['name'] ?? 'the intended recipient' }}. Any asset you do not approve stays with
-                    {{ $summary['from']['name'] ?? 'the employee who requested the transfer' }}, and rejecting the
-                    transfer changes no asset at all.
+                    {{ $summary['to']['name'] ?? 'the intended recipient' }}. Any asset you do not approve stays where it
+                    is now, and rejecting the transfer changes no asset at all.
                 </div>
 
                 <h3 class="section-title">Your decision</h3>

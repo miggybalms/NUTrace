@@ -55,9 +55,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | The link lives long enough to survive a weekend post, the way paper would.
-    | The verification code is short-lived: it is typed minutes after it arrives,
-    | and it is the second factor that stands between a forwarded link and the
-    | transfer details.
+    | The verification code is short-lived: it travels in the invitation email
+    | and is typed minutes after it arrives, and it is what keeps the review
+    | closed until whoever holds the link can also read that mailbox.
     |
     */
 
@@ -81,7 +81,11 @@ return [
     /** How many wrong codes may be tried before the code is thrown away. */
     'code_attempts' => (int) env('TRANSFER_REVIEW_CODE_ATTEMPTS', 5),
 
-    /** How many codes may be requested inside one window. */
+    /**
+     * How many codes one invitation may carry inside one window. The code that
+     * travels with the invitation email counts as one of them, so the invitation
+     * is not a way around the limit the page obeys.
+     */
     'code_requests_per_window' => (int) env('TRANSFER_REVIEW_CODE_REQUESTS', 3),
 
     /** The window the code-request limit is counted over, in minutes. */

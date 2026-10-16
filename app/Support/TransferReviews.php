@@ -538,7 +538,14 @@ class TransferReviews
         $request = DB::table('requests')->where('id', $review->request_id)->first();
 
         if (! $request) {
-            return ['reference' => null, 'request' => null, 'assets' => new Collection(), 'from' => null, 'to' => null];
+            return [
+                'reference' => null,
+                'request'   => null,
+                'assets'    => new Collection(),
+                'from'      => null,
+                'to'        => null,
+                'handover'  => ['warning' => null, 'note' => null],
+            ];
         }
 
         $names = AssetTransfer::userLabels();
@@ -565,6 +572,21 @@ class TransferReviews
             $approvedBy = $names[(int) $approval->user_id] ?? null;
         }
 
+        $assets = self::transferAssets((int) $request->id);
+
+        // Where each asset stands now, so the page can say what is really going
+        // to happen instead of showing a custodian column that contradicts the
+        // request. Read here, in the one place the page takes its facts from.
+        $states = self::handoverStates($review, $request, $assets);
+
+        foreach ($assets as $asset) {
+            $state = $states[(int) $asset->id] ?? ['state' => 'giver', 'holder' => null, 'holder_name' => null];
+
+            $asset->handover_state       = $state['state'];
+            $asset->handover_holder      = $state['holder'];
+            $asset->handover_holder_name = $state['holder_name'];
+        }
+
         return [
             'reference'   => 'TR-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT),
             'request'     => $request,
@@ -572,11 +594,70 @@ class TransferReviews
             'to'          => $to,
             'approved_by' => $approvedBy,
             'approved_at' => $approval->created_at ?? null,
-            'assets'      => self::transferAssets((int) $request->id),
+            'assets'      => $assets,
+            'handover'    => self::handoverBriefing($request, $assets, $states),
             'attachment'  => (! empty($request->url) && str_starts_with((string) $request->url, 'http'))
                 ? (string) $request->url
                 : null,
         ];
+    }
+
+    /**
+     * What the person deciding should be told about the handover before they
+     * press anything.
+     *
+     * Two different things, said differently, because they mean opposite things:
+     * an asset the receiving employee already holds is not a problem (there is
+     * nothing left to move for it), while an asset that has gone to a *third*
+     * employee makes the decision unanswerable — and the person reading the page
+     * deserves to know that before they choose, not after.
+     *
+     * @param  Collection<int, object>  $assets
+     * @param  array<int, array{state: string, holder: int|null, holder_name: string|null}>  $states
+     * @return array{warning: string|null, note: string|null}
+     */
+    public static function handoverBriefing(object $request, Collection $assets, array $states): array
+    {
+        $codes = [];
+
+        foreach ($assets as $asset) {
+            $codes[(int) $asset->id] = $asset->Asset_code ?: ('asset #' . $asset->id);
+        }
+
+        $toName    = self::userName((int) ($request->assign_to_user_id ?? 0));
+        $already   = [];
+        $elsewhere = [];
+
+        foreach ($states as $assetId => $state) {
+            $label = $codes[(int) $assetId] ?? ('asset #' . $assetId);
+
+            if ($state['state'] === 'recipient') {
+                $already[] = $label;
+            }
+
+            if ($state['state'] === 'elsewhere') {
+                $elsewhere[] = $label . ' is now held by ' . ($state['holder_name'] ?? 'another employee');
+            }
+        }
+
+        $note = null;
+
+        if ($already) {
+            $them = count($already) === 1 ? 'it' : 'them';
+
+            $note = self::nameList($already) . (count($already) === 1 ? ' is' : ' are')
+                . ' already held by ' . $toName . ', so approving ' . $them . ' changes nothing for ' . $them . '.';
+        }
+
+        $warning = null;
+
+        if ($elsewhere) {
+            $warning = 'Somebody else has taken custody since this invitation was sent: ' . self::nameList($elsewhere)
+                . '. A decision cannot be recorded on ' . (count($elsewhere) === 1 ? 'that asset' : 'those assets')
+                . ' — approving would move an asset this transfer is no longer about. Ask the Asset Management Office to issue a new invitation.';
+        }
+
+        return ['warning' => $warning, 'note' => $note];
     }
 
     /* ──────────────────────── eligibility ──────────────────────── */
@@ -724,6 +805,196 @@ class TransferReviews
         return $hold;
     }
 
+    /* ────────── the handover this review describes ────────── */
+
+    private static ?bool $hasHandover = null;
+
+    /**
+     * Does this installation have the column that records the handover?
+     *
+     * Asked rather than assumed, for the same reason tablesReady() is: the code
+     * ships before `php artisan migrate` runs on the server, and a missing
+     * column must not turn a transfer into a 500.
+     */
+    public static function hasHandover(): bool
+    {
+        if (self::$hasHandover === null) {
+            self::$hasHandover = self::tablesReady() && Schema::hasColumn('transfer_reviews', 'handover');
+        }
+
+        return self::$hasHandover;
+    }
+
+    /**
+     * Who is holding each of these assets right now, keyed by asset id.
+     *
+     * A null holder is an asset still in the inventory — nobody's custody —
+     * which is a legitimate thing for a transfer to take and hand to somebody.
+     *
+     * @param  array<int, int>  $assetIds
+     * @return array<int, int|null>
+     */
+    public static function currentHolders(array $assetIds): array
+    {
+        $assetIds = array_values(array_unique(array_filter(array_map('intval', $assetIds))));
+
+        if (! $assetIds) {
+            return [];
+        }
+
+        $holders = [];
+
+        foreach (DB::table('assets')->whereIn('id', $assetIds)->get(['id', 'user_id']) as $row) {
+            $holders[(int) $row->id] = $row->user_id === null ? null : (int) $row->user_id;
+        }
+
+        return $holders;
+    }
+
+    /**
+     * The handover this invitation describes, as it was written down when the
+     * invitation was issued: {asset id: the user holding it then}.
+     *
+     * This is what makes a decision answerable. Judged against the employee who
+     * *requested* the transfer it would be wrong about every Department Head
+     * request — a head requests on behalf of their department, so the assets are
+     * held by the department's employees and never by the head — and it could
+     * not tell "the asset has since gone to somebody else" from "the request was
+     * never about the requester's own asset".
+     *
+     * An invitation issued before this column existed has no record: the
+     * decision then falls back to the requester, which is the rule that was
+     * always true for an employee requesting their own asset.
+     *
+     * @return array<int, int|null>
+     */
+    public static function handedOverBy(?object $review): array
+    {
+        if (! $review || empty($review->handover)) {
+            return [];
+        }
+
+        $decoded = is_array($review->handover)
+            ? $review->handover
+            : json_decode((string) $review->handover, true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $recorded = [];
+
+        foreach ($decoded as $assetId => $userId) {
+            $recorded[(int) $assetId] = $userId === null ? null : (int) $userId;
+        }
+
+        return $recorded;
+    }
+
+    /**
+     * Write down who holds each asset right now — the handover an invitation
+     * about to be sent describes. Null when the column is not there yet.
+     */
+    public static function handoverSnapshot(int $requestId): ?string
+    {
+        if (! self::hasHandover()) {
+            return null;
+        }
+
+        $holders = self::currentHolders(self::transferAssets($requestId)->pluck('id')->all());
+
+        return $holders ? json_encode($holders) : null;
+    }
+
+    /**
+     * What each asset of the transfer looks like now, against the request and
+     * against the invitation that describes it.
+     *
+     * One of three answers per asset, and each one means something different to
+     * the person deciding:
+     *
+     *   giver      Held by somebody this transfer may take it from — the
+     *              employee who held it when the office asked, the employee who
+     *              requested the transfer, or the inventory. It will move.
+     *   recipient  Already held by the receiving employee. Nothing to move for
+     *              it: approving it does not take it from anybody.
+     *   elsewhere  In a third employee's hands now. Approving would take an asset
+     *              from somebody this transfer was never about, so the decision
+     *              is refused and says who holds it.
+     *
+     * @param  Collection<int, object>  $assets
+     * @return array<int, array{state: string, holder: int|null, holder_name: string|null}>
+     */
+    public static function handoverStates(?object $review, object $request, Collection $assets): array
+    {
+        $holders   = self::currentHolders($assets->pluck('id')->all());
+        $recorded  = self::handedOverBy($review);
+        $requester = (int) ($request->user_id ?? 0);
+        $recipient = (int) ($request->assign_to_user_id ?? 0);
+        $names     = AssetTransfer::userLabels();
+
+        $states = [];
+
+        foreach ($assets as $asset) {
+            $assetId = (int) $asset->id;
+            $holder  = $holders[$assetId] ?? null;
+
+            if ($recipient > 0 && $holder === $recipient) {
+                $state = 'recipient';
+            } elseif ($holder === null || $holder === $requester || $holder === ($recorded[$assetId] ?? null)) {
+                $state = 'giver';
+            } else {
+                $state = 'elsewhere';
+            }
+
+            $states[$assetId] = [
+                'state'       => $state,
+                'holder'      => $holder,
+                'holder_name' => $holder === null ? null : ($names[$holder]['name'] ?? ('user #' . $holder)),
+            ];
+        }
+
+        return $states;
+    }
+
+    /**
+     * Why a decision cannot be applied: the assets it would move are in a third
+     * employee's hands now, and names who has them.
+     *
+     * Only the assets the decision actually covers are named. An asset the
+     * Executive Director is not approving cannot make their decision stale.
+     *
+     * @param  Collection<int, object>  $assets
+     * @param  array<int, array{state: string, holder: int|null, holder_name: string|null}>  $states
+     * @param  array<int, int>  $deciding
+     */
+    public static function handoverRefusal(Collection $assets, array $states, array $deciding): string
+    {
+        $codes = [];
+
+        foreach ($assets as $asset) {
+            $codes[(int) $asset->id] = $asset->Asset_code ?: ('asset #' . $asset->id);
+        }
+
+        $labels = [];
+
+        foreach ($deciding as $assetId) {
+            if (($states[(int) $assetId]['state'] ?? null) !== 'elsewhere') {
+                continue;
+            }
+
+            $labels[] = ($codes[(int) $assetId] ?? ('asset #' . $assetId))
+                . ' is now held by ' . ($states[(int) $assetId]['holder_name'] ?? 'another employee');
+        }
+
+        if (! $labels) {
+            return 'This review is out of date. Nothing was changed. Ask the Asset Management Office to issue a new invitation if the transfer still needs a decision.';
+        }
+
+        return 'This review is out of date: ' . self::nameList($labels)
+            . '. Somebody else took custody while this invitation was open, so approving it would move an asset this transfer is no longer about. Nothing was changed. Ask the Asset Management Office to issue a new invitation if the transfer still needs a decision.';
+    }
+
     /**
      * Why these assets cannot be moved yet — one sentence naming the assets and
      * the request that is holding each of them, and what to do about it.
@@ -833,7 +1104,7 @@ class TransferReviews
             : (self::suggestedRecipient($requestId) ?: self::defaultRecipientEmail());
 
         if (! self::validEmail($to)) {
-            $message = 'Enter the email address the Executive Director actually reads — that mailbox is where the link goes, and it is the only place the verification code can be sent.';
+            $message = 'Enter the email address the Executive Director actually reads — that mailbox is where the link and its verification code go, and nowhere else.';
 
             return ['ok' => false, 'message' => $message, 'errors' => ['review' => $message]];
         }
@@ -849,15 +1120,23 @@ class TransferReviews
         $token   = Str::random(64);
         $expires = now()->addHours(self::linkTtlHours());
 
+        // The code travels with the invitation, so the recipient opens one email
+        // and can act on it. Nothing about the mailbox proof is given up: the
+        // link and the code go to the same address, and only that address can
+        // use either. Where the code is written down, and what it allows, is the
+        // same as a code asked for from the page — including the allowance, so
+        // the invitation's own code counts as one of them.
+        $fresh = self::freshCode(null);
+
         try {
-            $reviewId = DB::transaction(function () use ($requestId, $token, $expires, $actor, $to) {
+            $reviewId = DB::transaction(function () use ($requestId, $token, $expires, $actor, $to, $fresh) {
                 // One invitation at a time per request: the lock is what makes
                 // that true even when two requests arrive together.
                 DB::table('requests')->where('id', $requestId)->lockForUpdate()->first();
 
                 self::withdrawOutstanding($requestId, 'Replaced by a newer invitation.', $actor);
 
-                return (int) DB::table('transfer_reviews')->insertGetId([
+                $row = [
                     'request_id'      => $requestId,
                     'token_hash'      => hash('sha256', $token),
                     'recipient_email' => $to,
@@ -868,7 +1147,21 @@ class TransferReviews
                     'created_by'      => $actor?->id,
                     'created_at'      => now(),
                     'updated_at'      => now(),
-                ]);
+                ];
+
+                // Who is holding each asset at the moment the office asks. The
+                // decision is read back against this, not against the employee
+                // who requested the transfer: a Department Head requests on
+                // behalf of their department, and those assets are never the
+                // head's own.
+                if (($handover = self::handoverSnapshot($requestId)) !== null) {
+                    $row['handover'] = $handover;
+                }
+
+                // The verification code the invitation email is about to carry.
+                $row = array_merge($row, $fresh['columns']);
+
+                return (int) DB::table('transfer_reviews')->insertGetId($row);
             });
         } catch (Throwable $e) {
             Log::error('Issuing a transfer review invitation for request #' . $requestId . ' failed: ' . $e->getMessage());
@@ -881,7 +1174,7 @@ class TransferReviews
         // The email goes out after the row is committed: a transport that hangs
         // must not hold a database transaction open, and a failure here leaves a
         // usable invitation that can simply be sent again.
-        $delivery = self::sendInvitation($review, $token);
+        $delivery = self::sendInvitation($review, $token, $fresh['code']);
 
         self::audit(
             actor: $actor,
@@ -900,7 +1193,7 @@ class TransferReviews
             'review_id' => $reviewId,
             'delivered' => $delivery['ok'],
             'message'   => $delivery['ok']
-                ? 'Invitation sent to ' . $to . '. It expires on ' . $expires->format('F j, Y') . '.'
+                ? 'Invitation sent to ' . $to . '. The email carries the review link and the verification code the Executive Director needs. It expires on ' . $expires->format('F j, Y') . '.'
                 : 'The invitation was created, but the email could not be delivered. ' . $delivery['error']
                     . ' Fix the mail settings and send it again.',
         ];
@@ -1017,31 +1310,17 @@ class TransferReviews
         }
 
         // The window is kept on the row, so the limit survives a restart and
-        // does not depend on a cache store being configured.
-        $windowStart = $review->code_window_started_at
-            ? \Illuminate\Support\Carbon::parse($review->code_window_started_at)
-            : null;
-
-        $windowExpired = $windowStart === null
-            || $windowStart->diffInMinutes(now()) >= self::codeWindowMinutes();
-
-        $sentInWindow = $windowExpired ? 0 : (int) $review->code_sent_count;
-
-        if ($sentInWindow >= self::maxCodeRequests()) {
+        // does not depend on a cache store being configured. The code the
+        // invitation email itself carried counts as one of the allowance — the
+        // email is not a way around the limit.
+        if (self::codesSentInWindow($review) >= self::maxCodeRequests()) {
             return ['ok' => false, 'message' => 'This invitation has already been sent ' . self::maxCodeRequests() . ' verification codes in the last ' . self::codeWindowMinutes() . ' minutes. Please try again later, or ask the Asset Management Office to issue a new invitation.'];
         }
 
-        $code = (string) random_int(100000, 999999);
+        $fresh = self::freshCode($review);
+        $code  = $fresh['code'];
 
-        DB::table('transfer_reviews')->where('id', $review->id)->update([
-            'code_hash'              => Hash::make($code),
-            'code_expires_at'        => now()->addMinutes(self::codeTtlMinutes()),
-            'code_sent_at'           => now(),
-            'code_attempts'          => 0,
-            'code_sent_count'        => $sentInWindow + 1,
-            'code_window_started_at' => $windowExpired ? now() : $review->code_window_started_at,
-            'updated_at'             => now(),
-        ]);
+        DB::table('transfer_reviews')->where('id', $review->id)->update($fresh['columns'] + ['updated_at' => now()]);
 
         // The code goes to the address this invitation was sent to — the one the
         // office typed when it issued it — never to an address the person
@@ -1067,6 +1346,62 @@ class TransferReviews
         }
 
         return $result;
+    }
+
+    /**
+     * How many codes this invitation has been sent inside the current window.
+     *
+     * A window that has run out starts again, so the allowance is "per window",
+     * not "per lifetime": an invitation that expires in a week is not silenced
+     * by three codes sent on its first afternoon.
+     */
+    private static function codesSentInWindow(object $review): int
+    {
+        if (empty($review->code_window_started_at)) {
+            return 0;
+        }
+
+        $started = \Illuminate\Support\Carbon::parse($review->code_window_started_at);
+
+        return $started->diffInMinutes(now()) >= self::codeWindowMinutes()
+            ? 0
+            : (int) $review->code_sent_count;
+    }
+
+    /**
+     * A fresh verification code, and the columns that record it.
+     *
+     * One place, so the code that travels with the invitation and the code a
+     * replacement email carries are the same object: hashed the same way, with
+     * the same deadline, counted in the same allowance, and never written down
+     * in a usable form.
+     *
+     * @return array{code: string, columns: array<string, mixed>}
+     */
+    private static function freshCode(?object $review): array
+    {
+        $windowStart = $review && ! empty($review->code_window_started_at)
+            ? \Illuminate\Support\Carbon::parse($review->code_window_started_at)
+            : null;
+
+        $windowExpired = $windowStart === null
+            || $windowStart->diffInMinutes(now()) >= self::codeWindowMinutes();
+
+        $sentInWindow = ($review === null || $windowExpired) ? 0 : (int) $review->code_sent_count;
+
+        $code = (string) random_int(100000, 999999);
+
+        return [
+            'code'    => $code,
+            'columns' => [
+                'code_hash'              => Hash::make($code),
+                'code_expires_at'        => now()->addMinutes(self::codeTtlMinutes()),
+                'code_sent_at'           => now(),
+                'code_attempts'          => 0,
+                'code_sent_count'        => $sentInWindow + 1,
+                'code_window_started_at' => $windowExpired ? now() : $review->code_window_started_at,
+            ],
+        ];
     }
 
     /**
@@ -1223,29 +1558,13 @@ class TransferReviews
                     return ['ok' => false, 'message' => 'This transfer request has no assets linked to it, so there is nothing to decide.'];
                 }
 
-                // Assets must still be the sender's to give. Anything that moved
-                // while the link was open makes the decision stale: applying it
-                // would take somebody else's asset away from them.
-                $unavailable = [];
-
-                foreach ($assets as $asset) {
-                    $currentHolder = DB::table('assets')->where('id', $asset->id)->value('user_id');
-
-                    if ((int) $currentHolder !== (int) $request->user_id) {
-                        $unavailable[] = $asset->Asset_code ?: ('asset #' . $asset->id);
-                    }
-                }
-
-                if ($unavailable) {
-                    return [
-                        'ok'      => false,
-                        'message' => 'This review is out of date: these assets are no longer held by the employee who requested the transfer ('
-                            . implode(', ', $unavailable) . '). Nothing was changed. Ask the Asset Management Office to issue a new invitation.',
-                    ];
-                }
-
                 $allIds = $assets->pluck('id')->map(fn ($id) => (int) $id)->all();
 
+                // A rejection changes nothing, so it stays recordable however
+                // the assets have moved on since. Refusing it would leave the
+                // office waiting on a decision that cannot be submitted at all —
+                // the request stays Approved for ever and the assets stay on
+                // hold for a review nobody can close.
                 if ($choice === 'reject') {
                     return self::recordRejection($fresh, $request, $allIds, $reason, $actor);
                 }
@@ -1261,7 +1580,36 @@ class TransferReviews
                     $selected = $allIds;
                 }
 
-                return self::recordApproval($fresh, $request, $assets, $selected, $allIds, $actor);
+                // Where each asset stands, read against the handover the office
+                // asked about rather than against whoever typed the request: a
+                // Department Head requests on behalf of their department, so the
+                // assets are held by the department's employees and never by the
+                // head. Two of the three answers are decidable — the asset is
+                // still held by somebody this transfer may take it from, or the
+                // receiving employee already holds it (nothing to move for it).
+                // Only an asset that has passed into a *third* employee's hands
+                // since the office asked makes a decision unanswerable, and only
+                // when it is one the Executive Director is deciding on.
+                $states = self::handoverStates($fresh, $request, $assets);
+
+                // An asset that has left the employee's custody since the office
+                // asked is out of date for this review the same way a third
+                // employee's hands are: it is retired or pulled out, it is kept
+                // out of every listing on purpose, and the disposal record that
+                // removed it still names it. Named here rather than left to the
+                // execution, so the Executive Director reads why.
+                if ($custodyProblem = AssetTransfer::custodyProblem($selected, (int) ($request->assign_to_user_id ?? 0))) {
+                    return ['ok' => false, 'message' => 'This review is out of date. ' . $custodyProblem
+                        . ' Ask the Asset Management Office to issue a new invitation if the transfer still needs a decision.'];
+                }
+
+                foreach ($selected as $assetId) {
+                    if (($states[(int) $assetId]['state'] ?? 'giver') === 'elsewhere') {
+                        return ['ok' => false, 'message' => self::handoverRefusal($assets, $states, $selected)];
+                    }
+                }
+
+                return self::recordApproval($fresh, $request, $assets, $selected, $allIds, $actor, $states);
             });
         } catch (Throwable $e) {
             Log::error('Recording the Executive Director decision on invitation #' . $review->id . ' failed: ' . $e->getMessage());
@@ -1271,14 +1619,20 @@ class TransferReviews
     }
 
     /**
-     * Approve everything or a selection: the approved assets change hands, the
-     * rest stay where they are.
+     * Approve everything or a selection: the assets change hands, the rest stay
+     * where they are.
+     *
+     * "Change hands" is read from the handover as it stands, never assumed: an
+     * approved asset the receiving employee already holds has nothing to move,
+     * and telling the employee it was transferred would be a claim the history
+     * (and the accountability record) would contradict.
      *
      * @param  Collection<int, object>  $assets
      * @param  array<int, int>  $selected
      * @param  array<int, int>  $allIds
+     * @param  array<int, array{state: string, holder: int|null, holder_name: string|null}>  $states
      */
-    private static function recordApproval(object $review, object $request, Collection $assets, array $selected, array $allIds, ?User $actor): array
+    private static function recordApproval(object $review, object $request, Collection $assets, array $selected, array $allIds, ?User $actor, array $states = []): array
     {
         $declined = array_values(array_diff($allIds, $selected));
 
@@ -1290,12 +1644,26 @@ class TransferReviews
             $names[(int) $asset->id] = $asset->Asset_name ?: ($asset->Asset_code ?: ('asset #' . $asset->id));
         }
 
+        // Which of the approved assets actually have to move, and which the
+        // receiving employee already holds.
+        $givers  = [];
+        $already = [];
+
+        foreach ($selected as $assetId) {
+            if (($states[(int) $assetId]['state'] ?? 'giver') === 'recipient') {
+                $already[] = (int) $assetId;
+            } else {
+                $givers[] = (int) $assetId;
+            }
+        }
+
         // The same execution the office's own approval runs: the assets move to
         // the receiving employee, one TRANSFER entry per asset, nothing else
-        // about them changes.
+        // about them changes. Only the assets somebody else is holding are
+        // handed over — for one already with them there is nothing to do.
         $applied = AssetTransfer::applyRequestTransfer(
             $request,
-            $selected,
+            $givers,
             $actor?->id,
             'Executive Director approval via review invitation #' . $review->id
         );
@@ -1305,10 +1673,41 @@ class TransferReviews
             $approvedCodes[] = $codes[$assetId] ?? ('asset #' . $assetId);
         }
 
+        $movedCodes = [];
+        foreach ($givers as $assetId) {
+            $movedCodes[] = $codes[$assetId] ?? ('asset #' . $assetId);
+        }
+
+        $alreadyCodes = [];
+        foreach ($already as $assetId) {
+            $alreadyCodes[] = $codes[$assetId] ?? ('asset #' . $assetId);
+        }
+
         $declinedCodes = [];
         foreach ($declined as $assetId) {
             $declinedCodes[] = $codes[$assetId] ?? ('asset #' . $assetId);
         }
+
+        $toName = self::userName((int) $request->assign_to_user_id);
+
+        // What actually happened, in the order the reader needs it: what moved,
+        // what was already there, and what was not approved.
+        $outcome = [];
+
+        if ($movedCodes) {
+            $outcome[] = self::nameList($movedCodes) . ' ' . (count($movedCodes) === 1 ? 'is' : 'are') . ' now assigned to ' . $toName;
+        }
+
+        if ($alreadyCodes) {
+            $outcome[] = self::nameList($alreadyCodes) . ' ' . (count($alreadyCodes) === 1 ? 'was' : 'were')
+                . ' already held by ' . $toName . ', so nothing had to move for ' . (count($alreadyCodes) === 1 ? 'it' : 'them');
+        }
+
+        if ($declinedCodes) {
+            $outcome[] = 'not approved: ' . self::nameList($declinedCodes) . ', which stay where they are';
+        }
+
+        $outcomeText = ucfirst(implode('; ', $outcome)) . '.';
 
         $decision = $declined ? self::DECISION_PARTIAL : self::DECISION_APPROVED;
 
@@ -1341,24 +1740,16 @@ class TransferReviews
             notes: 'Executive Director ' . ($declined ? 'partially approved' : 'approved') . ' transfer request #' . $request->id
                 . ' (invitation #' . $review->id . ')',
             description: 'The Executive Director ' . ($declined ? 'approved part of' : 'approved') . ' transfer request #' . $request->id
-                . ' through invitation #' . $review->id . ': '
-                . ($approvedCodes ? implode(', ', $approvedCodes) . ' transferred' : 'nothing transferred')
-                . ($declinedCodes ? '; not approved: ' . implode(', ', $declinedCodes) : '')
-                . '. The decision was recorded and the invitation can no longer be used.',
+                . ' through invitation #' . $review->id . ': ' . $outcomeText
+                . ' The decision was recorded and the invitation can no longer be used.',
         );
 
-        $toName = self::userName((int) $request->assign_to_user_id);
         $reference = 'TR-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT);
-
-        $summary = implode(', ', $approvedCodes);
 
         Notifications::create(
             (int) $request->user_id,
             $declined ? 'Transfer Partially Approved' : 'Transfer Approved',
-            $declined
-                ? 'The Executive Director approved ' . count($selected) . ' of ' . count($allIds) . ' asset(s) on your transfer request ' . $reference
-                    . ' (' . $summary . '). The rest stay with you. The approved assets are now assigned to ' . $toName . '.'
-                : 'The Executive Director approved your transfer request ' . $reference . '. ' . $summary . ' ' . (count($selected) === 1 ? 'is' : 'are') . ' now assigned to ' . $toName . '.',
+            'The Executive Director ' . ($declined ? 'partially approved' : 'approved') . ' your transfer request ' . $reference . '. ' . $outcomeText,
             'TRANSFER',
             (int) $request->id,
             'request'
@@ -1367,22 +1758,21 @@ class TransferReviews
         self::notifyOffice(
             (int) $request->id,
             $declined ? 'Transfer Partially Approved by the Executive Director' : 'Transfer Approved by the Executive Director',
-            $declined
-                ? 'Transfer request ' . $reference . ' was partially approved: ' . $summary . ' transferred to ' . $toName
-                    . '; not approved: ' . implode(', ', $declinedCodes) . '.'
-                : 'Transfer request ' . $reference . ' was approved: ' . $summary . ' transferred to ' . $toName . '.',
+            'Transfer request ' . $reference . ': ' . $outcomeText,
             $actor
         );
 
         return [
-            'ok'       => true,
-            'decision' => $decision,
-            'approved' => $approvedCodes,
-            'declined' => $declinedCodes,
-            'message'  => $declined
-                ? 'Recorded. ' . count($selected) . ' of ' . count($allIds) . ' assets are now assigned to ' . $toName
-                    . '. The assets you did not approve stay with the employee who requested the transfer.'
-                : 'Recorded. ' . $summary . ' ' . (count($selected) === 1 ? 'is' : 'are') . ' now assigned to ' . $toName . '.',
+            'ok'            => true,
+            'decision'      => $decision,
+            // Every asset the decision covered, and — among those — the ones
+            // that actually had to move and the ones the receiving employee
+            // already held. The closing page says what happened; this is what
+            // happened.
+            'approved'      => $approvedCodes,
+            'already_there' => $alreadyCodes,
+            'declined'      => $declinedCodes,
+            'message'       => 'Recorded. ' . $outcomeText,
         ];
     }
 
@@ -1466,15 +1856,18 @@ class TransferReviews
     /* ──────────────────────────── email ──────────────────────────── */
 
     /**
-     * The invitation email: the link, when it dies, and nothing else.
+     * The invitation email: the link, the verification code it needs, and nothing
+     * else.
      *
-     * No asset list, no custodian names, no request note. The link is the only
-     * thing this email has to carry, and an email is not a safe place to put
-     * inventory details.
+     * No asset list, no custodian names, no request note: an email is not a safe
+     * place to put inventory details. The code is here rather than in a second
+     * message the recipient has to ask for — the link and the code go to the
+     * same mailbox, so one email opens the review without weakening what the
+     * code proves.
      *
      * @return array{ok: bool, error: string}
      */
-    private static function sendInvitation(object $review, string $token): array
+    private static function sendInvitation(object $review, string $token, string $code): array
     {
         $url      = url('/executive-review/' . $token);
         $expires  = \Illuminate\Support\Carbon::parse($review->expires_at)->format('F j, Y g:i A');
@@ -1484,8 +1877,10 @@ class TransferReviews
             . "The NU Lipa Asset Management Office has asked you to review an asset transfer request.\n\n"
             . "Transfer request: " . $reference . "\n"
             . "Open the review: " . $url . "\n\n"
-            . "The link opens only this transfer request. Before any details are shown you will be asked for a\n"
-            . "6-digit code, sent to this mailbox, to confirm that this message reached you.\n\n"
+            . "Your verification code is: " . $code . "\n\n"
+            . "Enter that code on the page the link opens. It confirms this message reached this mailbox, and it\n"
+            . "is valid for " . self::codeTtlMinutes() . " minutes. If it has expired, the same page can send a new\n"
+            . "one to this address.\n\n"
             . "This link is personal and single-use. It expires on " . $expires . ".\n"
             . "Nothing is approved, and no asset changes hands, until you submit a decision through it.\n\n"
             . "If you were not expecting this, please contact the NU Lipa Asset Management Office.\n\n"

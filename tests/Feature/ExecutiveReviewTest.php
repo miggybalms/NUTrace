@@ -188,23 +188,55 @@ class ExecutiveReviewTest extends TestCase
         return $matches[1][count($matches[1]) - 1];
     }
 
-    /** The verification code the most recent code email carried. */
+    /** The verification code the most recent email carried. */
     private function latestCode(): string
     {
-        preg_match_all('/code is: (\d{6})/', $this->allEmails(), $matches);
+        preg_match_all('/verification code is: (\d{6})/', $this->allEmails(), $matches);
 
         $this->assertNotEmpty($matches[1], 'No verification code was found in the emails that were sent.');
 
         return $matches[1][count($matches[1]) - 1];
     }
 
-    /** Ask for a code and use it, the way the recipient would. */
+    /**
+     * The code the invitation email for this link carried.
+     *
+     * Read out of the message a person would read, not assumed: the invitation
+     * is the email that carries it, and a resend sends another one, so the newest
+     * message holding this link wins.
+     */
+    private function invitationCode(string $token): string
+    {
+        $code = null;
+
+        foreach ($this->sentEmails() as $body) {
+            if (str_contains($body, $token) && preg_match('/verification code is: (\d{6})/', $body, $matches)) {
+                $code = $matches[1];
+            }
+        }
+
+        $this->assertNotNull($code, 'The invitation email carried no verification code.');
+
+        return $code;
+    }
+
+    /** The To: addresses of the newest email that was sent. */
+    private function lastEmailRecipients(): array
+    {
+        $message = Mail::mailer()->getSymfonyTransport()->messages()->last();
+
+        $this->assertNotNull($message, 'No email was sent.');
+
+        return array_map(fn ($address) => $address->getAddress(), $message->getOriginalMessage()->getTo());
+    }
+
+    /**
+     * Verify the mailbox the way the recipient does: with the code the
+     * invitation email carried, in one step, without asking for another one.
+     */
     private function verifyMailbox(string $token): string
     {
-        $this->post("/executive-review/{$token}/code")
-            ->assertRedirect("/executive-review/{$token}");
-
-        $code = $this->latestCode();
+        $code = $this->invitationCode($token);
 
         $this->post("/executive-review/{$token}/verify", ['code' => $code])
             ->assertRedirect("/executive-review/{$token}");
@@ -377,22 +409,98 @@ class ExecutiveReviewTest extends TestCase
             ->assertSee('Transfer Review');
     }
 
-    public function test_the_code_is_emailed_only_to_the_mailbox_the_office_typed(): void
+    public function test_every_code_goes_only_to_the_mailbox_the_office_typed(): void
     {
         $requestId = $this->submitTransfer([$this->assetA]);
         $this->forwardForReview($requestId, 'new.director@nu-lipa.edu.ph');
 
-        $this->post('/executive-review/' . $this->latestToken() . '/code')->assertRedirect();
+        $token = $this->latestToken();
 
-        $messages = Mail::mailer()->getSymfonyTransport()->messages();
-        $codeMail = $messages->last()->getOriginalMessage();
+        // The invitation email carries the code, and it went to the one address
+        // the office entered — not the deployment's usual address, and not
+        // anything a reader of the link could type in.
+        $this->assertStringContainsString('verification code is:', $this->allEmails());
+        $this->assertSame(['new.director@nu-lipa.edu.ph'], $this->lastEmailRecipients());
 
-        $recipients = array_map(fn ($address) => $address->getAddress(), $codeMail->getTo());
+        // A replacement code goes to the same place and nowhere else. The
+        // cooldown is moved on rather than waited out, so the send really happens.
+        DB::table('transfer_reviews')->where('request_id', $requestId)->update(['code_sent_at' => now()->subHour()]);
 
-        // The one address the office entered for this invitation — not the
-        // deployment's usual address, and not anything a reader of the link
-        // could type in.
-        $this->assertSame(['new.director@nu-lipa.edu.ph'], $recipients);
+        $this->post("/executive-review/{$token}/code")->assertRedirect("/executive-review/{$token}");
+
+        $this->assertNotSame($this->invitationCode($token), $this->latestCode());
+        $this->assertSame(['new.director@nu-lipa.edu.ph'], $this->lastEmailRecipients());
+    }
+
+    /**
+     * The invitation email is the whole flow: the link and the code the link
+     * needs, in one message. Before this the recipient had to open the page and
+     * ask for a code before they could do anything with what they had been sent.
+     */
+    public function test_the_invitation_email_carries_the_code_that_opens_the_review(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        $token = $this->latestToken();
+
+        // One message, and no second request needed to act on it.
+        $this->assertCount(1, $this->sentEmails(), 'The invitation should not need a second email to be usable.');
+
+        $code = $this->invitationCode($token);
+
+        // Written down hashed, never in a usable form — the same treatment a
+        // code asked for from the page gets.
+        $row = $this->reviewRow($requestId);
+
+        $this->assertNotSame($code, (string) $row->code_hash);
+        $this->assertTrue(Hash::check($code, (string) $row->code_hash));
+        $this->assertNotNull($row->code_expires_at);
+
+        $this->post("/executive-review/{$token}/verify", ['code' => $code])
+            ->assertRedirect("/executive-review/{$token}");
+
+        $this->get("/executive-review/{$token}")->assertOk()->assertSee('AST-0001');
+
+        // And using it spends it: nothing usable is left behind.
+        $this->assertNull($this->reviewRow($requestId)->code_hash);
+    }
+
+    /**
+     * The code in the invitation can be lost or expired, so the page can send a
+     * replacement — and that replacement really is a new code, not the same one
+     * sent twice.
+     */
+    public function test_a_replacement_code_arrives_by_email_and_works(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        $token = $this->latestToken();
+        $first = $this->invitationCode($token);
+
+        // The invitation's code has expired, and the cooldown left by its own
+        // send is behind us, so the page really sends a new one.
+        DB::table('transfer_reviews')->where('request_id', $requestId)->update([
+            'code_expires_at' => now()->subMinute(),
+            'code_sent_at'    => now()->subHour(),
+        ]);
+
+        $this->post("/executive-review/{$token}/code")->assertRedirect("/executive-review/{$token}");
+
+        $this->assertCount(2, $this->sentEmails());
+
+        $replacement = $this->latestCode();
+
+        $this->assertNotSame($first, $replacement);
+
+        // The code the invitation carried is not a way in any more...
+        $this->post("/executive-review/{$token}/verify", ['code' => $first])->assertRedirect("/executive-review/{$token}");
+        $this->assertSame(TransferReviews::STATUS_AWAITING, $this->reviewRow($requestId)->status);
+
+        // ...and the replacement is.
+        $this->post("/executive-review/{$token}/verify", ['code' => $replacement])->assertRedirect("/executive-review/{$token}");
+        $this->get("/executive-review/{$token}")->assertOk()->assertSee('AST-0001');
     }
 
     public function test_a_code_cannot_be_guessed_within_the_allowance(): void
@@ -931,19 +1039,15 @@ class ExecutiveReviewTest extends TestCase
         $this->assertNotSame($oldLink, $newLink);
         $this->assertSame('dr.cruz@nu-lipa.edu.ph', $this->reviewRow($requestId)->recipient_email);
 
-        // The old link is dead, and the code goes to the new mailbox only.
+        // The old link is dead, and everything that opens the new one — the
+        // invitation email that carries its code included — goes to the new
+        // mailbox only.
         $this->get("/executive-review/{$oldLink}")->assertStatus(404);
-
-        $this->post("/executive-review/{$newLink}/code")->assertRedirect();
-
-        $codeMail   = Mail::mailer()->getSymfonyTransport()->messages()->last()->getOriginalMessage();
-        $recipients = array_map(fn ($address) => $address->getAddress(), $codeMail->getTo());
-
-        $this->assertSame(['dr.cruz@nu-lipa.edu.ph'], $recipients);
+        $this->assertSame(['dr.cruz@nu-lipa.edu.ph'], $this->lastEmailRecipients());
 
         // The code works on the new link, so the new director can really read
         // the transfer — the flow was not merely pointed somewhere new.
-        $this->post("/executive-review/{$newLink}/verify", ['code' => $this->latestCode()])
+        $this->post("/executive-review/{$newLink}/verify", ['code' => $this->invitationCode($newLink)])
             ->assertRedirect("/executive-review/{$newLink}");
 
         $this->get("/executive-review/{$newLink}")->assertOk()->assertSee('AST-0001');
@@ -1241,5 +1345,213 @@ class ExecutiveReviewTest extends TestCase
         // A link that can no longer take a decision cannot keep an asset out of
         // everybody else's hands either.
         $this->assertSame([], TransferReviews::assetsOnHold([$this->assetA]));
+    }
+
+    /* ═══════ Whose asset is this, and who decides ═══════ */
+
+    /**
+     * A Department Head requests on behalf of their department: the employee who
+     * typed the request is not the employee holding the assets, and never was.
+     * Read against the requester alone every one of those requests is "out of
+     * date" from the moment it is submitted, and the transfer can never be
+     * decided at all — which is what the office met on the live system.
+     */
+    public function test_a_department_head_request_can_be_decided_though_the_head_never_held_the_asset(): void
+    {
+        DB::table('employee_numbers')->insert([
+            'id'              => 9,
+            'Employee_number' => 'EMP-9',
+            'Full_Name'       => 'Ada Reyes',
+            'Department_id'   => 1,
+            'created_at'      => now(),
+            'updated_at'      => now(),
+        ]);
+
+        $head = $this->account(9, 1, 'head@nu-lipa.edu.ph', 'Department Head');
+
+        // The asset is held by another employee of the head's department.
+        $this->actingAs($head)->post('/user/requests/store', [
+            'request_type'      => 'Transfer',
+            'asset_ids'         => [$this->assetA],
+            'assign_to_user_id' => $this->recipient->id,
+            'notes'             => 'The projector should move to the new custodian.',
+        ])->assertRedirect();
+
+        $requestId = (int) DB::table('requests')->max('id');
+
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        // What the invitation describes is where the asset really was when the
+        // office asked — the department's employee, not the head who asked.
+        $recorded = TransferReviews::handedOverBy($this->reviewRow($requestId));
+        $this->assertSame($this->employee->id, $recorded[$this->assetA] ?? null);
+
+        $token = $this->latestToken();
+        $this->verifyMailbox($token);
+
+        $this->post("/executive-review/{$token}/decide", ['decision' => 'approve_all'])
+            ->assertRedirect("/executive-review/{$token}");
+
+        $this->assertSame(
+            TransferReviews::STATUS_DECIDED,
+            $this->reviewRow($requestId)->status,
+            'The decision was refused with: ' . session('executive_review_error')
+        );
+
+        $this->assertSame($this->recipient->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+
+        // Written down like any other handover, and the head is told because the
+        // head is who asked.
+        $this->assertSame($this->recipient->id, (int) DB::table('asset_accountability')
+            ->where('asset_id', $this->assetA)->where('Is_Current', 1)->value('user_id'));
+
+        $this->assertSame('Transfer Approved',
+            DB::table('notifications')->where('user_id', $head->id)->orderByDesc('id')->value('title'));
+    }
+
+    /**
+     * The office is told which assets will not move, at the moment it asks: an
+     * invitation it sends for an asset the receiving employee already holds
+     * changes nothing for that asset, and the answer to the approval says so.
+     */
+    public function test_the_office_is_told_which_assets_will_not_change_hands(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA, $this->assetB]);
+
+        // One of the two reaches the receiving employee before the office acts.
+        DB::table('assets')->where('id', $this->assetB)->update(['user_id' => $this->recipient->id]);
+
+        $response = $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve", [
+            'forward_for_review' => true,
+            'recipient_email'    => 'executive.director@nu-lipa.edu.ph',
+        ])->assertOk();
+
+        $this->assertTrue((bool) $response->json('forwarded'));
+
+        $message = (string) $response->json('message');
+
+        $this->assertStringContainsString('AST-0002', $message);
+        $this->assertStringContainsString('already held by Rico Bautista', $message);
+        $this->assertStringNotContainsString('AST-0001', $message, 'The asset that will really move is not part of the note.');
+
+        // The invitation itself describes where the assets were when it went out.
+        $recorded = TransferReviews::handedOverBy($this->reviewRow($requestId));
+        $this->assertSame($this->employee->id, $recorded[$this->assetA] ?? null);
+        $this->assertSame($this->recipient->id, $recorded[$this->assetB] ?? null);
+    }
+
+    /**
+     * An asset the receiving employee already holds is not a stale review: there
+     * is simply nothing left to move for it. The office can still ask for the
+     * request to be closed, and the decision says plainly that nothing had to
+     * move — instead of refusing with "out of date" and leaving the request
+     * Approved for ever with a link nobody can spend.
+     */
+    public function test_an_asset_already_held_by_the_recipient_is_decided_with_nothing_to_move(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        // The asset reaches the receiving employee through some other door while
+        // the invitation is open.
+        DB::table('assets')->where('id', $this->assetA)->update(['user_id' => $this->recipient->id]);
+
+        $token = $this->latestToken();
+        $this->verifyMailbox($token);
+
+        // The page says it before anything is pressed, so nobody has to learn it
+        // from a refused decision.
+        $this->get("/executive-review/{$token}")
+            ->assertOk()
+            ->assertSee('Already with the receiving employee')
+            ->assertSee('already held by Rico Bautista');
+
+        $this->post("/executive-review/{$token}/decide", ['decision' => 'approve_all'])
+            ->assertRedirect("/executive-review/{$token}");
+
+        $row = $this->reviewRow($requestId);
+
+        $this->assertSame(
+            TransferReviews::STATUS_DECIDED,
+            $row->status,
+            'The decision was refused with: ' . session('executive_review_error')
+        );
+        $this->assertSame(TransferReviews::DECISION_APPROVED, $row->decision);
+        $this->assertNull($row->executed_at, 'Nothing changed hands, so nothing was executed.');
+
+        // The asset is where the transfer wanted it, and no second transfer is
+        // claimed on its history.
+        $this->assertSame($this->recipient->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+        $this->assertSame(0, DB::table('audit_logs')->where('request_id', $requestId)->where('action_type', 'TRANSFER')->count());
+
+        // The person who decided is told what happened, not what was asked.
+        $this->assertStringContainsString('already held by', (string) session('executive_review_notice'));
+    }
+
+    /**
+     * A rejection changes nothing, so it stays recordable however the assets
+     * have moved on since. Refusing it leaves the office with a request that can
+     * never be closed and a link that can never be spent.
+     */
+    public function test_a_transfer_whose_assets_have_moved_on_can_still_be_rejected(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        DB::table('assets')->where('id', $this->assetA)->update(['user_id' => $this->admin->id]);
+
+        $token = $this->latestToken();
+        $this->verifyMailbox($token);
+
+        $this->post("/executive-review/{$token}/decide", [
+            'decision'         => 'reject',
+            'rejection_reason' => 'The asset is no longer with the employee who offered to hand it over.',
+        ])->assertRedirect("/executive-review/{$token}");
+
+        $this->assertSame(
+            TransferReviews::STATUS_DECIDED,
+            $this->reviewRow($requestId)->status,
+            'The rejection was refused with: ' . session('executive_review_error')
+        );
+        $this->assertSame('Rejected', DB::table('requests')->where('id', $requestId)->value('status'));
+
+        // Nobody was moved: whoever holds it now keeps it.
+        $this->assertSame($this->admin->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+    }
+
+    /**
+     * The one case an approval must still refuse: an asset that has passed into
+     * a *third* employee's hands — neither the employee who held it when the
+     * office asked nor the one it was going to. Approving would take custody
+     * from somebody this transfer is not about, so the refusal says who has it.
+     */
+    public function test_an_approval_is_refused_when_a_third_employee_has_taken_the_asset(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        DB::table('assets')->where('id', $this->assetA)->update(['user_id' => $this->admin->id]);
+
+        $token = $this->latestToken();
+        $this->verifyMailbox($token);
+
+        // Said on the page as well, before the decision is attempted.
+        $this->get("/executive-review/{$token}")
+            ->assertOk()
+            ->assertSee('Somebody else has taken custody')
+            ->assertSee('Lito Uy');
+
+        $this->post("/executive-review/{$token}/decide", ['decision' => 'approve_all'])
+            ->assertRedirect("/executive-review/{$token}");
+
+        $message = (string) session('executive_review_error');
+
+        $this->assertStringContainsString('out of date', $message);
+        $this->assertStringContainsString('AST-0001', $message);
+        $this->assertStringContainsString('Lito Uy', $message, 'The refusal does not name who holds the asset now.');
+
+        // Nothing was recorded and nothing moved.
+        $this->assertSame(TransferReviews::STATUS_VERIFIED, $this->reviewRow($requestId)->status);
+        $this->assertSame($this->admin->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
     }
 }

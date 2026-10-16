@@ -55,6 +55,61 @@ class AssetTransfer
             ->groupBy('user_id');
     }
 
+    /**
+     * Why these assets cannot be handed over, or null when they all can.
+     *
+     * A transfer changes who is accountable for an asset that is still in
+     * service. One that has left the employee's custody has no custody left to
+     * hand over: it is retired ('Disposal') or pulled out ('Pullout'), it is
+     * kept out of every Assets listing on purpose, and the disposal or pullout
+     * record that removed it still names it. Handing it over would write it
+     * back to 'Active' — undoing the disposal — so the handover stops before it
+     * starts and says which assets stopped it.
+     *
+     * One implementation for every door that executes a transfer: the Transfer
+     * page, the office approving a Transfer request and the Executive Director
+     * approving a forwarded one. A request is only ever submitted for assets
+     * that were in custody at the time, so the assets it names can have been
+     * retired by another approved request while it waited.
+     *
+     * Only the assets that would really move count: one the receiving employee
+     * already holds has nothing to change hands for.
+     *
+     * @param  array<int, int>  $assetIds
+     */
+    public static function custodyProblem(array $assetIds, int $targetUserId): ?string
+    {
+        $assetIds = array_values(array_unique(array_filter(array_map('intval', $assetIds))));
+
+        if (! $assetIds) {
+            return null;
+        }
+
+        $blocked = DB::table('assets')
+            ->whereIn('id', $assetIds)
+            ->whereIn('Lifecycle_Status', self::NOT_CUSTODY)
+            ->where(function ($query) use ($targetUserId) {
+                // An asset nobody holds has even less custody to hand over than
+                // one held by somebody, and `user_id != ?` never matches NULL.
+                $query->whereNull('user_id')->orWhere('user_id', '!=', $targetUserId);
+            })
+            ->orderBy('Asset_code')
+            ->get(['id', 'Asset_code', 'Lifecycle_Status']);
+
+        if ($blocked->isEmpty()) {
+            return null;
+        }
+
+        $labels = $blocked
+            ->map(fn ($asset) => ($asset->Asset_code ?: ('asset #' . $asset->id))
+                . ' (' . $asset->Lifecycle_Status . ')')
+            ->all();
+
+        return 'These assets have left the employee’s custody and cannot be transferred: '
+            . implode(', ', $labels)
+            . '. A transfer hands over an asset that is still in service, so nothing was changed.';
+    }
+
     /** How many assets each employee holds, including the ones that can't move. */
     public static function heldCounts(): Collection
     {
@@ -364,13 +419,8 @@ class AssetTransfer
                 throw new RuntimeException(TransferReviews::holdRefusal($hold));
             }
 
-            $blocked = $assets->whereIn('Lifecycle_Status', self::NOT_CUSTODY);
-
-            if ($blocked->isNotEmpty()) {
-                throw new RuntimeException(
-                    'These assets have left the employee’s custody and cannot be transferred: '
-                    . $blocked->pluck('Asset_code')->implode(', ') . '.'
-                );
+            if ($problem = self::custodyProblem($assetIds, $toUserId)) {
+                throw new RuntimeException($problem);
             }
 
             $names = self::userLabels();
@@ -485,6 +535,8 @@ class AssetTransfer
      *
      * @param  array<int, int>  $assetIds
      * @return int  how many assets actually moved
+     *
+     * @throws RuntimeException when one of the assets has left the employee's custody
      */
     public static function applyRequestTransfer(
         object $requestRecord,
@@ -508,6 +560,15 @@ class AssetTransfer
 
         if ($reason === '') {
             $reason = 'Transfer request #' . $requestRecord->id;
+        }
+
+        // An asset that has left the employee's custody is not part of a
+        // handover, however the request reads by now: it is retired or pulled
+        // out, and moving it would write it back into service under the
+        // receiving employee while the disposal record still names it. Refused
+        // before anything moves, so the batch cannot half-happen around it.
+        if ($problem = self::custodyProblem($assetIds, $targetUserId)) {
+            throw new RuntimeException($problem);
         }
 
         $moved = 0;

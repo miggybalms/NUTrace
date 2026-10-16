@@ -485,7 +485,7 @@
                    style="border:1px solid var(--line); color:var(--ink-900);"
                    placeholder="name@nu-lipa.edu.ph" autocomplete="off">
             <p class="text-xs mt-1" style="color:var(--ink-400);">
-                The link is emailed here, and the verification code can only be sent to this mailbox.
+                The link and its verification code are emailed here, and nowhere else.
             </p>
 
             <p class="text-xs mt-3" style="color:var(--ink-600);" id="review-send-note"></p>
@@ -540,7 +540,7 @@
                        style="border:1px solid var(--line); color:var(--ink-900);"
                        placeholder="name@nu-lipa.edu.ph" autocomplete="off">
                 <p class="text-xs mt-1" style="color:var(--ink-400);">
-                    The review link is emailed here, and this is the only mailbox the 6-digit verification code can be sent to.
+                    The review link and its 6-digit verification code are emailed here, and nowhere else.
                 </p>
             </div>
 

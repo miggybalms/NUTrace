@@ -227,6 +227,67 @@ class DisposalWorkflowTest extends TestCase
         $this->assertSame(0, DB::table('disposal_forms')->count());
     }
 
+    /**
+     * A replacement retires the old asset the moment the Admin marks the
+     * replacement Complete: the completed asset leaves service and a disposal
+     * record is written, so the Disposal page can see where it went.
+     */
+    public function test_completing_a_replacement_retires_the_old_asset_and_writes_its_disposal_record(): void
+    {
+        $newAssetId = $this->secondAsset();
+
+        $requestId = (int) DB::table('requests')->insertGetId([
+            'user_id' => $this->employee->id, 'asset_id' => $this->assetId, 'request_type' => 'Replacement',
+            'status' => 'Approved', 'Note' => 'Beyond repair.',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('request_items')->insert([
+            'request_id' => $requestId, 'asset_id' => $this->assetId,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('assets')->where('id', $this->assetId)->update(['Lifecycle_Status' => 'For Replacement']);
+
+        $replacementId = (int) DB::table('replacements')->insertGetId([
+            'Request_id' => $requestId, 'old_assets_id' => $this->assetId, 'new_assets_id' => $newAssetId,
+            'reason' => 'Beyond repair', 'replacement_reason' => 'Beyond Repair',
+            'Replacement_Date' => now(), 'Approve_by' => 'amo@nu-lipa.edu.ph',
+            'created_at' => now(), 'updated_at' => now(),
+        ], 'Replacement_id');
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/replacements/{$replacementId}/status", ['status' => 'Complete'])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        // The replacement itself moved on …
+        $this->assertSame(
+            'Complete',
+            DB::table('replacements')->where('Replacement_id', $replacementId)->value('status')
+        );
+
+        // … the retired asset left service, using the one value the CHECK
+        // constraint on assets.Lifecycle_Status accepts. Writing the UI's
+        // "Disposed" here is refused by PostgreSQL, and the refusal takes the
+        // whole transaction with it: the replacement never completes and no
+        // disposal record is ever written.
+        $this->assertSame(
+            Disposals::DISPOSED_STATUS,
+            DB::table('assets')->where('id', $this->assetId)->value('Lifecycle_Status'),
+            'completing a replacement must retire the old asset'
+        );
+
+        // … and the record the Disposal page reads exists, once, naming the
+        // replacement it came from.
+        $disposal = DB::table('disposals')->where('Asset_id', $this->assetId)->first();
+        $this->assertNotNull($disposal, 'completing a replacement must leave a disposal record');
+        $this->assertSame($requestId, (int) $disposal->Request_id);
+        $this->assertSame('Replace', $disposal->disposal_reason);
+        $this->assertSame(1, DB::table('disposals')->where('Asset_id', $this->assetId)->count());
+
+        // The replacement asset is untouched: it is the one still in service.
+        $this->assertSame('Active', DB::table('assets')->where('id', $newAssetId)->value('Lifecycle_Status'));
+    }
+
     public function test_archiving_moves_the_record_out_of_the_main_list_without_deleting_it(): void
     {
         $requestId = $this->submitDisposalRequest();

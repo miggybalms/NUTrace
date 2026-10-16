@@ -50,7 +50,8 @@
 
             <p class="step-desc">
                 This link opens <strong>one asset transfer review</strong>. Before any transfer details are shown,
-                we need to know the message reached the mailbox the Asset Management Office sent it to:
+                enter the 6-digit code from the email that carried this link — that is how the system knows the
+                message reached the mailbox the Asset Management Office sent it to:
                 <strong>{{ $review->recipient_email ?: 'the Executive Director’s mailbox' }}</strong>.
             </p>
 
@@ -74,7 +75,8 @@
                         required
                     />
                     <span class="hint">
-                        The code is valid for {{ \App\Support\TransferReviews::codeTtlMinutes() }} minutes and can be used once.
+                        The code is in the invitation email, is valid for
+                        {{ \App\Support\TransferReviews::codeTtlMinutes() }} minutes and can be used once.
                     </span>
                 </div>
 
