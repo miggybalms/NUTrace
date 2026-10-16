@@ -5594,6 +5594,20 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
         return response()->json(['message' => 'No assets found for this request.'], 422);
     }
 
+    // ─── Assets the Executive Director is already deciding on ────────────
+    // A forwarded transfer is on hold: the office approved the request but
+    // nothing has changed hands, and until that decision comes back no other
+    // request may take those assets out of the employee's custody. Without this
+    // the second door would quietly do what the first review is still weighing
+    // up — and, once the assets had moved, the invitation would open onto an
+    // "out of date" page while the transfer it asked about was already done.
+    // Refused before anything is recorded, so the approval never half-exists.
+    if (in_array($requestType, ['transfer', 'pullout'], true)) {
+        if ($hold = TransferReviews::assetsOnHold($assetIds)) {
+            return response()->json(['message' => TransferReviews::holdRefusal($hold)], 422);
+        }
+    }
+
     // Everything the audit entry and the notification below need to name.
     $assetCodes = [];
     $existingAssetIds = [];
@@ -6409,6 +6423,15 @@ Route::post('/admin/pullout/{id}/resolve', function (Request $request, $id) {
 
     if (empty($assetIds)) {
         return response()->json(['success' => false, 'message' => 'No valid assets selected'], 422);
+    }
+
+    // Assigning a pulled-out asset to somebody is a handover like any other: an
+    // asset the Executive Director is deciding on stays where it is until that
+    // decision is recorded.
+    if ($action === 'assign') {
+        if ($hold = TransferReviews::assetsOnHold($assetIds)) {
+            return response()->json(['success' => false, 'message' => TransferReviews::holdRefusal($hold)], 422);
+        }
     }
 
     try {

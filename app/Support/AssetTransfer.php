@@ -356,6 +356,14 @@ class AssetTransfer
                 );
             }
 
+            // Assets the Executive Director is already deciding on are on hold.
+            // They are still the sending employee's, and this door must not do
+            // what that review is still weighing up: moving them here would turn
+            // the invitation into a link to assets that had already gone.
+            if ($hold = TransferReviews::assetsOnHold($assetIds)) {
+                throw new RuntimeException(TransferReviews::holdRefusal($hold));
+            }
+
             $blocked = $assets->whereIn('Lifecycle_Status', self::NOT_CUSTODY);
 
             if ($blocked->isNotEmpty()) {
@@ -460,11 +468,20 @@ class AssetTransfer
      * implementation, so an approved transfer is recorded identically whoever
      * released it, and the audit trail cannot drift between the two doors.
      *
-     * Only the custodian changes (and, as before, the lifecycle status is put
-     * back to Active, which is what an approved transfer has always meant). The
-     * asset's identity, code, QR sticker, acquisition data and history stay with
-     * it. Assets that already sit with the receiving employee are left alone, so
-     * a replayed decision cannot write a second set of entries.
+     * Whoever releases the transfer, the handover is recorded the same way:
+     * the assets' custodian changes, the previous holder's accountability is
+     * closed and the receiving employee's is opened, one TRANSFER entry lands in
+     * the asset's own history, and the receiving employee is told they now hold
+     * it. The asset's identity, code, QR sticker, acquisition data and history
+     * stay with it. Assets that already sit with the receiving employee are left
+     * alone, so a replayed decision cannot write a second set of entries.
+     *
+     * The accountability rows are the point of this method. `assets.user_id`
+     * alone says who is supposed to have the asset; `asset_accountability` is
+     * what the official disposal form, the asset's lifecycle history and the
+     * "who held what, when" question all read. A transfer that moved the first
+     * without the second left the employee who gave the asset away as its
+     * current accountable holder for good.
      *
      * @param  array<int, int>  $assetIds
      * @return int  how many assets actually moved
@@ -484,6 +501,15 @@ class AssetTransfer
         $names = self::userLabels();
         $assigneeName = $names[$targetUserId]['name'] ?? ('User #' . $targetUserId);
 
+        // Why the handover happened, as the accountability history records it:
+        // the requester's own words where there are any, and the request itself
+        // otherwise.
+        $reason = trim((string) ($requestRecord->Note ?? ''));
+
+        if ($reason === '') {
+            $reason = 'Transfer request #' . $requestRecord->id;
+        }
+
         $moved = 0;
 
         foreach (array_values(array_unique(array_map('intval', $assetIds))) as $assetId) {
@@ -496,6 +522,21 @@ class AssetTransfer
             if (! $asset || (int) $asset->user_id === $targetUserId) {
                 continue;
             }
+
+            // The handover itself, recorded one asset at a time so the closing
+            // row names whoever really held *this* asset — a department head may
+            // request a transfer for a colleague's asset, and the history must
+            // not credit the requester with holding it.
+            self::applyAccountability(
+                (int) $requestRecord->id,
+                (int) $asset->user_id,
+                $targetUserId,
+                [$assetId],
+                $reason,
+                $context !== null && trim($context) !== ''
+                    ? 'Recorded when ' . trim($context) . '.'
+                    : null
+            );
 
             DB::table('assets')->where('id', $assetId)->update([
                 'user_id'          => $targetUserId,
@@ -521,6 +562,21 @@ class AssetTransfer
             ]);
 
             $moved++;
+        }
+
+        // The receiving employee is told, once, what they are now accountable
+        // for. A handover nobody hears about is how an asset ends up in the
+        // "who is responsible for this?" conversation with no answer.
+        if ($moved > 0) {
+            Notifications::create(
+                $targetUserId,
+                'Assets Transferred To You',
+                $moved . ' asset' . ($moved === 1 ? '' : 's') . ' from transfer request #' . $requestRecord->id
+                    . ' ' . ($moved === 1 ? 'is' : 'are') . ' now assigned to you and recorded as yours to account for.',
+                'TRANSFER',
+                (int) $requestRecord->id,
+                'request'
+            );
         }
 
         return $moved;

@@ -1071,4 +1071,175 @@ class ExecutiveReviewTest extends TestCase
         auth()->logout();
         $this->get('/admin/requests')->assertRedirect('/');
     }
+
+    /* ═══════ The handover: who is accountable, and what is on hold ═══════ */
+
+    /**
+     * The whole point of a transfer is the handover, and a handover that is not
+     * written down is not one. `assets.user_id` says who is supposed to have the
+     * asset; `asset_accountability` is what the official disposal form, the
+     * asset's lifecycle history and the "who held this, when" question all read.
+     */
+    public function test_the_receiving_employee_becomes_accountable_for_the_assets(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA, $this->assetB]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        // While the review is open nothing has changed hands: the assets are
+        // still the sending employee's, to account for and to hand over.
+        $this->assertSame($this->employee->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+
+        $token = $this->latestToken();
+        $this->verifyMailbox($token);
+
+        $this->post("/executive-review/{$token}/decide", ['decision' => 'approve_all'])->assertRedirect();
+
+        foreach ([$this->assetA, $this->assetB] as $assetId) {
+            $this->assertSame($this->recipient->id, (int) DB::table('assets')->where('id', $assetId)->value('user_id'));
+
+            $rows = DB::table('asset_accountability')->where('asset_id', $assetId)->orderBy('id')->get();
+
+            $this->assertCount(2, $rows, 'The handover never reached the accountability history.');
+
+            // The employee who gave it away is closed out…
+            $this->assertSame($this->employee->id, (int) $rows[0]->user_id);
+            $this->assertSame(0, (int) $rows[0]->Is_Current);
+
+            // …and the receiving employee is the one accountable for it now.
+            $this->assertSame($this->recipient->id, (int) $rows[1]->user_id);
+            $this->assertSame(1, (int) $rows[1]->Is_Current);
+            $this->assertSame($requestId, (int) $rows[1]->request_id);
+            $this->assertSame('These should move to the new custodian.', $rows[1]->transfer_reason);
+        }
+
+        // And the receiving employee is told, because a handover nobody hears
+        // about is how "who is responsible for this?" ends without an answer.
+        $this->assertSame(1, DB::table('notifications')
+            ->where('user_id', $this->recipient->id)
+            ->where('title', 'Assets Transferred To You')
+            ->count());
+    }
+
+    public function test_an_ordinary_approval_writes_the_same_handover(): void
+    {
+        // The office releases a transfer itself, with no review involved. The
+        // assets change hands through the same code, so the paperwork must come
+        // out identical — this is the path that used to move `assets.user_id`
+        // and stop there.
+        $requestId = $this->submitTransfer([$this->assetA]);
+
+        $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
+
+        $this->assertSame($this->recipient->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+
+        $current = DB::table('asset_accountability')
+            ->where('asset_id', $this->assetA)
+            ->where('Is_Current', 1)
+            ->get();
+
+        $this->assertCount(1, $current, 'The asset has no, or more than one, current accountable holder.');
+        $this->assertSame($this->recipient->id, (int) $current->first()->user_id);
+
+        $this->assertSame(0, DB::table('asset_accountability')
+            ->where('asset_id', $this->assetA)
+            ->where('user_id', $this->employee->id)
+            ->where('Is_Current', 1)
+            ->count());
+    }
+
+    public function test_the_transfer_page_cannot_move_assets_the_review_is_holding(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        // Settling the same relocation by hand from the Transfer page is another
+        // door to the same assets. It must refuse while the decision is open,
+        // or the review would be answering a question that had already moved on.
+        $response = $this->actingAs($this->admin)->post('/admin/transfer', [
+            'from_user_id' => $this->employee->id,
+            'to_user_id'   => $this->admin2->id,
+            'asset_ids'    => [$this->assetA],
+            'reason'       => 'Employee Relocation',
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('transfer');
+
+        $this->assertStringContainsString('on hold', (string) session('errors')->first('transfer'));
+        $this->assertSame($this->employee->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+
+        // Nothing was recorded: no second transfer, and the review still stands.
+        $this->assertSame(1, DB::table('requests')->where('request_type', 'Transfer')->count());
+        $this->assertSame(TransferReviews::STATUS_AWAITING, $this->reviewRow($requestId)->status);
+    }
+
+    public function test_another_approval_cannot_take_the_assets_the_review_is_holding(): void
+    {
+        $first = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($first, 'executive.director@nu-lipa.edu.ph');
+
+        // A second transfer request for the same asset, to somebody else.
+        $second = $this->submitTransfer([$this->assetA], $this->admin2, $this->employee);
+
+        $refused = $this->actingAs($this->admin)->postJson("/admin/requests/{$second}/approve");
+
+        $refused->assertStatus(422);
+        $this->assertStringContainsString('on hold', (string) $refused->json('message'));
+
+        // Forwarding the second request is refused too: one decision per asset,
+        // and the first review has to finish.
+        $forwarded = $this->actingAs($this->admin)->postJson("/admin/requests/{$second}/approve", [
+            'forward_for_review' => true,
+            'recipient_email'    => 'executive.director@nu-lipa.edu.ph',
+        ]);
+
+        $forwarded->assertStatus(422);
+        $this->assertStringContainsString('on hold', (string) $forwarded->json('message'));
+
+        // Refused before anything was written, on both attempts.
+        $this->assertSame('Pending', DB::table('requests')->where('id', $second)->value('status'));
+        $this->assertSame(1, DB::table('transfer_reviews')->count());
+        $this->assertSame($this->employee->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+    }
+
+    public function test_the_hold_ends_when_the_decision_is_recorded(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        $token = $this->latestToken();
+        $this->verifyMailbox($token);
+
+        $this->post("/executive-review/{$token}/decide", [
+            'decision'         => 'reject',
+            'rejection_reason' => 'Not needed this year.',
+        ])->assertRedirect();
+
+        // A decided review holds nothing: the assets are the employee's own
+        // again, unreviewed but nobody else's to keep.
+        $this->assertSame([], TransferReviews::assetsOnHold([$this->assetA]));
+        $this->assertSame($this->employee->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+
+        // And the office can settle it by hand now.
+        $this->actingAs($this->admin)->post('/admin/transfer', [
+            'from_user_id' => $this->employee->id,
+            'to_user_id'   => $this->recipient->id,
+            'asset_ids'    => [$this->assetA],
+            'reason'       => 'Employee Relocation',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame($this->recipient->id, (int) DB::table('assets')->where('id', $this->assetA)->value('user_id'));
+    }
+
+    public function test_an_expired_invitation_holds_nothing(): void
+    {
+        $requestId = $this->submitTransfer([$this->assetA]);
+        $this->forwardForReview($requestId, 'executive.director@nu-lipa.edu.ph');
+
+        DB::table('transfer_reviews')->where('request_id', $requestId)->update(['expires_at' => now()->subHour()]);
+
+        // A link that can no longer take a decision cannot keep an asset out of
+        // everybody else's hands either.
+        $this->assertSame([], TransferReviews::assetsOnHold([$this->assetA]));
+    }
 }

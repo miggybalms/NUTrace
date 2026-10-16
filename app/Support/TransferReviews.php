@@ -627,6 +627,14 @@ class TransferReviews
             return 'This transfer has already been carried out — in full, or for the assets that were approved — so there is nothing left for the Executive Director to review.';
         }
 
+        // One decision per asset. An asset another review is holding cannot be
+        // put into a second one: the transfer waiting on it would have to be
+        // decided first, and two invitations for the same asset would let the
+        // Executive Director answer a question that has already moved on.
+        if ($held = self::assetsOnHold(self::transferAssets((int) $request->id)->pluck('id')->all(), (int) $request->id)) {
+            return self::holdRefusal($held);
+        }
+
         return null;
     }
 
@@ -647,6 +655,121 @@ class TransferReviews
             ->where('action_type', 'TRANSFER')
             ->whereNotNull('asset_id')
             ->exists();
+    }
+
+    /**
+     * Assets whose transfer is waiting on the Executive Director, and the
+     * request each one is held for.
+     *
+     * While an invitation is live the assets are on hold. They are still the
+     * sending employee's, they are still listed in that employee's custody, and
+     * no other door may move them — not the Transfer page, not a pullout being
+     * settled, not an approval of some later request. Without this the promise
+     * the review page makes ("nothing changes hands until the decision comes
+     * back") would hold only for the one route that remembers to ask, and a
+     * transfer recorded elsewhere would leave the Executive Director holding a
+     * link to assets that had already moved.
+     *
+     * An invitation that has expired is not a hold: it can no longer take a
+     * decision, so it cannot keep an asset out of everybody else's hands.
+     *
+     * $exceptRequestId leaves one request's own invitation out of the answer.
+     * The review of a request is asked this question while deciding on exactly
+     * that request, and its own invitation must not read as somebody else
+     * holding the assets.
+     *
+     * @param  array<int, int>  $assetIds
+     * @return array<int, array{request_id: int, reference: string}>  keyed by asset id
+     */
+    public static function assetsOnHold(array $assetIds, ?int $exceptRequestId = null): array
+    {
+        $assetIds = array_values(array_unique(array_filter(array_map('intval', $assetIds))));
+
+        if (! $assetIds || ! self::tablesReady()) {
+            return [];
+        }
+
+        $rows = DB::table('transfer_reviews')
+            ->join('request_items', 'request_items.request_id', '=', 'transfer_reviews.request_id')
+            ->whereIn('request_items.asset_id', $assetIds)
+            ->whereIn('transfer_reviews.status', [self::STATUS_AWAITING, self::STATUS_VERIFIED])
+            ->whereNull('transfer_reviews.executed_at')
+            ->where(function ($query) {
+                $query->whereNull('transfer_reviews.expires_at')
+                    ->orWhere('transfer_reviews.expires_at', '>', now());
+            })
+            ->when($exceptRequestId, function ($query) use ($exceptRequestId) {
+                $query->where('transfer_reviews.request_id', '!=', $exceptRequestId);
+            })
+            ->orderByDesc('transfer_reviews.id')
+            ->get(['request_items.asset_id', 'transfer_reviews.request_id']);
+
+        $hold = [];
+
+        foreach ($rows as $row) {
+            $assetId = (int) $row->asset_id;
+
+            // Newest invitation first, and the newest one is the one holding
+            // the asset: an older invitation for the same asset is superseded.
+            if (isset($hold[$assetId])) {
+                continue;
+            }
+
+            $hold[$assetId] = [
+                'request_id' => (int) $row->request_id,
+                'reference'  => 'TR-' . str_pad((string) $row->request_id, 4, '0', STR_PAD_LEFT),
+            ];
+        }
+
+        return $hold;
+    }
+
+    /**
+     * Why these assets cannot be moved yet — one sentence naming the assets and
+     * the request that is holding each of them, and what to do about it.
+     *
+     * @param  array<int, array{request_id: int, reference: string}>  $hold
+     */
+    public static function holdRefusal(array $hold): string
+    {
+        if (! $hold) {
+            return '';
+        }
+
+        $codes = DB::table('assets')->whereIn('id', array_keys($hold))->pluck('Asset_code', 'id');
+
+        $labels = [];
+        $references = [];
+
+        foreach ($hold as $assetId => $waitingOn) {
+            $code = $codes[$assetId] ?? null;
+
+            $labels[] = $code ?: ('asset #' . $assetId);
+            $references[$waitingOn['reference']] = true;
+        }
+
+        $references = array_keys($references);
+
+        return self::nameList($labels)
+            . (count($labels) === 1 ? ' is' : ' are')
+            . ' on hold: the Executive Director has been asked to decide '
+            . (count($references) === 1 ? 'transfer request ' : 'transfer requests ')
+            . self::nameList($references)
+            . ', and nothing can move until that decision is recorded. Withdraw the invitation if the transfer must not wait.';
+    }
+
+    /** "A", "A and B", "A, B and C" — so the refusal reads as a sentence. */
+    private static function nameList(array $names): string
+    {
+        $names = array_values($names);
+
+        if (count($names) < 2) {
+            return (string) ($names[0] ?? '');
+        }
+
+        $last = array_pop($names);
+
+        return implode(', ', $names) . ' and ' . $last;
     }
 
     /**
