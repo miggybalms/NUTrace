@@ -5,6 +5,7 @@ namespace App\Support;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
@@ -79,9 +80,23 @@ class AssetTransfer
             ->where('request_type', 'Transfer')
             ->pluck('id');
 
+        // A request that was forwarded to the Executive Director is Approved
+        // while the assets are still where they were: the office approved the
+        // request, nobody has handed anything over yet. Counting it here would
+        // announce a relocation that has not happened, so requests with an
+        // invitation that has not been applied are left out until the decision
+        // lands.
         $fromRequests = DB::table('requests')
             ->where('request_type', 'Transfer')
             ->where('status', 'Approved')
+            ->when(Schema::hasTable('transfer_reviews'), function ($query) {
+                $query->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('transfer_reviews')
+                        ->whereColumn('transfer_reviews.request_id', 'requests.id')
+                        ->whereNull('transfer_reviews.executed_at');
+                });
+            })
             ->pluck('user_id');
 
         $fromAccountability = DB::table('asset_accountability')
@@ -434,6 +449,81 @@ class AssetTransfer
 
             return ['id' => (int) $requestId, 'replayed' => false];
         });
+    }
+
+    /**
+     * Apply an approved Transfer *request*: the assets change hands.
+     *
+     * This is the step the Requests page used to run inline when an Admin
+     * approved a transfer request, and it is the same step the Executive
+     * Director's approval runs when a request was forwarded for review — one
+     * implementation, so an approved transfer is recorded identically whoever
+     * released it, and the audit trail cannot drift between the two doors.
+     *
+     * Only the custodian changes (and, as before, the lifecycle status is put
+     * back to Active, which is what an approved transfer has always meant). The
+     * asset's identity, code, QR sticker, acquisition data and history stay with
+     * it. Assets that already sit with the receiving employee are left alone, so
+     * a replayed decision cannot write a second set of entries.
+     *
+     * @param  array<int, int>  $assetIds
+     * @return int  how many assets actually moved
+     */
+    public static function applyRequestTransfer(
+        object $requestRecord,
+        array $assetIds,
+        ?int $actorId = null,
+        ?string $context = null
+    ): int {
+        $targetUserId = (int) ($requestRecord->assign_to_user_id ?? 0);
+
+        if ($targetUserId <= 0 || ! $assetIds) {
+            return 0;
+        }
+
+        $names = self::userLabels();
+        $assigneeName = $names[$targetUserId]['name'] ?? ('User #' . $targetUserId);
+
+        $moved = 0;
+
+        foreach (array_values(array_unique(array_map('intval', $assetIds))) as $assetId) {
+            if ($assetId <= 0) {
+                continue;
+            }
+
+            $asset = DB::table('assets')->where('id', $assetId)->first(['id', 'user_id', 'Asset_code', 'Asset_name']);
+
+            if (! $asset || (int) $asset->user_id === $targetUserId) {
+                continue;
+            }
+
+            DB::table('assets')->where('id', $assetId)->update([
+                'user_id'          => $targetUserId,
+                'Lifecycle_Status' => 'Active',
+                'updated_at'       => now(),
+            ]);
+
+            $notes = 'Transferred asset to ' . $assigneeName;
+
+            if ($context) {
+                $notes .= ' (' . $context . ')';
+            }
+
+            DB::table('audit_logs')->insert([
+                'user_id'            => $actorId,
+                'request_id'         => $requestRecord->id,
+                'asset_id'           => $assetId,
+                'action_type'        => 'TRANSFER',
+                'notes'              => $notes,
+                'action_description' => 'Asset ownership transferred via approved bulk transfer request #' . $requestRecord->id,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+
+            $moved++;
+        }
+
+        return $moved;
     }
 
     /**

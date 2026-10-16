@@ -1,0 +1,1513 @@
+<?php
+
+namespace App\Support;
+
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Throwable;
+
+/**
+ * The Executive Director's review of a transfer request.
+ *
+ * The Executive Director holds no NU Trace account and must never get one: they
+ * receive one temporary link, prove they hold the mailbox it was sent to, decide
+ * on exactly that transfer, and the link is spent. Nothing in this class ever
+ * signs anybody in, so a forwarded link cannot become a session on the rest of
+ * the system — the review page it opens knows one request and nothing else.
+ *
+ * What the review does NOT do is decide for the office. Before this feature an
+ * Admin approving a Transfer request moved the assets immediately. A request
+ * that is forwarded for review is approved by the office and then *waits*: the
+ * Executive Director's decision is what applies the transfer for the assets they
+ * approved, and a rejection applies nothing at all. Both paths run the same
+ * execution code (AssetTransfer::applyRequestTransfer), so an approved transfer
+ * is recorded identically whoever released it.
+ *
+ * Stages (transfer_reviews.status):
+ *
+ *   awaiting_verification  Invitation sent; the recipient has not proved the mailbox yet
+ *   verified               The recipient proved it; the decision is open
+ *   decided                A decision was recorded (approved / partially / rejected)
+ *   revoked                Withdrawn by the office, or replaced by a newer invitation
+ *
+ * Expiry is a date, not a stage: `expires_at` passes and an outstanding
+ * invitation stops working, whether or not anybody acted on it. A decided
+ * invitation is never re-openable.
+ *
+ * The code ships before `php artisan migrate` runs on the server, so every read
+ * and write checks tablesReady() first instead of failing on a missing table.
+ */
+class TransferReviews
+{
+    public const STATUS_AWAITING = 'awaiting_verification';
+    public const STATUS_VERIFIED = 'verified';
+    public const STATUS_DECIDED  = 'decided';
+    public const STATUS_REVOKED  = 'revoked';
+
+    /** The decision recorded on the review. */
+    public const DECISION_APPROVED = 'approved';
+    public const DECISION_PARTIAL  = 'partially_approved';
+    public const DECISION_REJECTED = 'rejected';
+
+    /** The decision recorded against one asset of the transfer. */
+    public const ITEM_APPROVED = 'approved';
+    public const ITEM_DECLINED = 'declined';
+
+    private static ?bool $tablesReady = null;
+
+    /* ───────────────────────── configuration ───────────────────────── */
+
+    public static function tablesReady(): bool
+    {
+        if (self::$tablesReady === null) {
+            self::$tablesReady = Schema::hasTable('transfer_reviews')
+                && Schema::hasTable('transfer_review_items');
+        }
+
+        return self::$tablesReady;
+    }
+
+    /**
+     * The mailbox the office usually sends to, if the deployment names one.
+     *
+     * This is a *default*, not a rule. The Executive Director is a person, and
+     * people change: the office types the address on each invitation, so a new
+     * director needs no deployment, no environment variable and no developer.
+     * What this setting does is save the office from re-typing the usual address
+     * and give the dialog something sensible to start with.
+     */
+    public static function defaultRecipientEmail(): string
+    {
+        return trim((string) config('transfer_review.email'));
+    }
+
+    /** How the recipient is addressed when no name has been configured. */
+    public static function recipientName(): string
+    {
+        $name = trim((string) config('transfer_review.name'));
+
+        return $name !== '' ? $name : 'Executive Director';
+    }
+
+    /** Is this something a message can be sent to? */
+    public static function validEmail(?string $email): bool
+    {
+        $email = trim((string) $email);
+
+        return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    /**
+     * Where an invitation for this request should be sent by default.
+     *
+     * The address used last for this request comes first, then the deployment's
+     * usual address. Re-sending therefore goes back to the same person unless
+     * the office deliberately types somebody else — which is exactly what has to
+     * happen when the director changes.
+     */
+    public static function suggestedRecipient(int $requestId): string
+    {
+        $last = self::latestForRequest($requestId);
+
+        if ($last && self::validEmail($last->recipient_email ?? null)) {
+            return (string) $last->recipient_email;
+        }
+
+        return self::defaultRecipientEmail();
+    }
+
+    /**
+     * Who the office should be told to contact.
+     *
+     * A page that cannot open a review has to point the reader somewhere, and
+     * the Asset Management Office is the somebody. Falls back to the app's own
+     * sending address, and to nothing at all when neither is set — a wrong
+     * address on that page would be worse than no address.
+     */
+    public static function officeContactEmail(): string
+    {
+        foreach ([config('transfer_review.office_email'), self::defaultRecipientEmail(), config('mail.from.address')] as $candidate) {
+            if (self::validEmail($candidate)) {
+                return trim((string) $candidate);
+            }
+        }
+
+        return '';
+    }
+
+    public static function forwardByDefault(): bool
+    {
+        return (bool) config('transfer_review.forward_by_default', true);
+    }
+
+    public static function linkTtlHours(): int
+    {
+        return max(1, (int) config('transfer_review.link_ttl_hours', 168));
+    }
+
+    public static function codeTtlMinutes(): int
+    {
+        return max(1, (int) config('transfer_review.code_ttl_minutes', 15));
+    }
+
+    public static function maxCodeAttempts(): int
+    {
+        return max(1, (int) config('transfer_review.code_attempts', 5));
+    }
+
+    public static function maxCodeRequests(): int
+    {
+        return max(1, (int) config('transfer_review.code_requests_per_window', 3));
+    }
+
+    public static function codeWindowMinutes(): int
+    {
+        return max(1, (int) config('transfer_review.code_window_minutes', 60));
+    }
+
+    public static function codeResendCooldown(): int
+    {
+        return max(0, (int) config('transfer_review.code_resend_cooldown', 60));
+    }
+
+    public static function verifiedSessionHours(): int
+    {
+        return max(1, (int) config('transfer_review.verified_session_hours', 4));
+    }
+
+    /* ──────────────────────────── stages ──────────────────────────── */
+
+    public static function label(?string $status): string
+    {
+        return match ($status) {
+            self::STATUS_AWAITING => 'Awaiting the Executive Director’s verification',
+            self::STATUS_VERIFIED => 'Verified — decision not submitted yet',
+            self::STATUS_DECIDED  => 'Reviewed — decision recorded',
+            self::STATUS_REVOKED  => 'Invitation withdrawn',
+            default               => 'Unknown',
+        };
+    }
+
+    public static function hint(?string $status): string
+    {
+        return match ($status) {
+            self::STATUS_AWAITING => 'The email was sent. Nothing is decided until the recipient verifies the mailbox and submits a decision.',
+            self::STATUS_VERIFIED => 'The recipient proved they hold the official mailbox. The transfer still waits for their decision.',
+            self::STATUS_DECIDED  => 'The decision has been recorded and the invitation cannot be used again.',
+            self::STATUS_REVOKED  => 'This invitation no longer works. Issue a new one to ask again.',
+            default               => '',
+        };
+    }
+
+    public static function decisionLabel(?string $decision): string
+    {
+        return match ($decision) {
+            self::DECISION_APPROVED => 'Approved in full',
+            self::DECISION_PARTIAL  => 'Approved in part',
+            self::DECISION_REJECTED => 'Rejected',
+            default                 => 'No decision yet',
+        };
+    }
+
+    public static function itemLabel(?string $decision): string
+    {
+        return match ($decision) {
+            self::ITEM_APPROVED => 'Approved',
+            self::ITEM_DECLINED => 'Not approved',
+            default             => 'Awaiting decision',
+        };
+    }
+
+    /** An invitation the office is still waiting on. */
+    public static function isOutstanding(?string $status): bool
+    {
+        return in_array($status, [self::STATUS_AWAITING, self::STATUS_VERIFIED], true);
+    }
+
+    public static function isExpired(?object $review): bool
+    {
+        if (! $review || empty($review->expires_at)) {
+            return false;
+        }
+
+        return \Illuminate\Support\Carbon::parse($review->expires_at)->isPast();
+    }
+
+    /** Can this invitation still take a decision? */
+    public static function canDecide(?object $review): bool
+    {
+        if (! $review) {
+            return false;
+        }
+
+        return $review->status === self::STATUS_VERIFIED && ! self::isExpired($review);
+    }
+
+    /* ──────────────────────────── reading ─────────────────────────── */
+
+    /** Every invitation ever issued for a request, newest first. */
+    public static function forRequest(int $requestId): Collection
+    {
+        if (! self::tablesReady() || $requestId <= 0) {
+            return new Collection();
+        }
+
+        return DB::table('transfer_reviews')
+            ->where('request_id', $requestId)
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn ($row) => self::present($row));
+    }
+
+    /** The invitation the office is currently waiting on, if any. */
+    public static function outstandingForRequest(int $requestId): ?object
+    {
+        if (! self::tablesReady() || $requestId <= 0) {
+            return null;
+        }
+
+        $row = DB::table('transfer_reviews')
+            ->where('request_id', $requestId)
+            ->whereIn('status', [self::STATUS_AWAITING, self::STATUS_VERIFIED])
+            ->orderByDesc('id')
+            ->first();
+
+        return $row ? self::present($row) : null;
+    }
+
+    /** The newest invitation for a request, whatever became of it. */
+    public static function latestForRequest(int $requestId): ?object
+    {
+        if (! self::tablesReady() || $requestId <= 0) {
+            return null;
+        }
+
+        $row = DB::table('transfer_reviews')
+            ->where('request_id', $requestId)
+            ->orderByDesc('id')
+            ->first();
+
+        return $row ? self::present($row) : null;
+    }
+
+    /**
+     * The invitation behind a link.
+     *
+     * The token is looked up by its hash: the raw value is never stored, so a
+     * dump of this table cannot be replayed as a link. The hash is a plain
+     * SHA-256 because the token is 64 random characters — there is nothing to
+     * guess, so there is nothing for a slow hash to protect.
+     */
+    public static function findByToken(string $token): ?object
+    {
+        $token = trim($token);
+
+        if (! self::tablesReady() || $token === '' || strlen($token) > 128) {
+            return null;
+        }
+
+        $row = DB::table('transfer_reviews')->where('token_hash', hash('sha256', $token))->first();
+
+        return $row ? self::present($row) : null;
+    }
+
+    /** Fill in the names and derived state the views read. */
+    public static function present(object $review): object
+    {
+        $review->status_label   = self::label($review->status);
+        $review->status_hint    = self::hint($review->status);
+        $review->decision_label = self::decisionLabel($review->decision ?? null);
+        $review->is_expired     = self::isExpired($review);
+        $review->is_revoked     = $review->status === self::STATUS_REVOKED;
+        $review->is_decided     = $review->status === self::STATUS_DECIDED;
+        $review->is_outstanding = self::isOutstanding($review->status);
+        $review->can_decide     = self::canDecide($review);
+        $review->request_id     = (int) ($review->request_id ?? 0);
+
+        return $review;
+    }
+
+    /**
+     * What the Admin's Requests page needs to know about one transfer request.
+     *
+     * Everything the review panel and the forward checkbox need, in the shape
+     * the page already speaks in (a plain array inside the requests payload),
+     * so no route has to be taught a second vocabulary. It never contains a
+     * token: the link exists only in the email that carried it.
+     *
+     * @return array<string, mixed>
+     */
+    public static function panel(int $requestId): array
+    {
+        // The page reads the same keys whatever the state of the server, so the
+        // answer to "can this be forwarded?" is a sentence either way rather
+        // than a missing field the dialog has to guess at.
+        $notMigrated = 'The transfer review tables have not been created on this server yet, so a transfer cannot be sent to the Executive Director. Run the database migration, then try again.';
+
+        $panel = [
+            'tables_ready'      => self::tablesReady(),
+            'recipient'         => self::recipientName(),
+            'default_recipient' => self::defaultRecipientEmail(),
+            'recipient_email'   => self::suggestedRecipient($requestId),
+            'forward_default'   => self::forwardByDefault(),
+            'outstanding'       => null,
+            'eligible'          => false,
+            'problem'           => null,
+            'can_send'          => false,
+            'can_forward'       => false,
+            'forward_problem'   => self::tablesReady() ? null : $notMigrated,
+            'can_revoke'        => false,
+            'history'           => [],
+        ];
+
+        if (! self::tablesReady()) {
+            $panel['problem'] = $notMigrated;
+
+            return $panel;
+        }
+
+        if ($requestId <= 0) {
+            return $panel;
+        }
+
+        $request = DB::table('requests')->where('id', $requestId)->first();
+        $problem = self::eligibilityProblem($request);
+        $outstanding = self::outstandingForRequest($requestId);
+
+        // Asking at all: this is the question the approve dialog's checkbox
+        // depends on, and it is asked with the approval still pending.
+        $forwardProblem = self::eligibilityProblem($request, false);
+
+        $panel['eligible']        = $problem === null;
+        $panel['problem']         = $problem;
+        // Forwarding no longer depends on a deployment variable: the office
+        // types the address, so the only question left is whether the request
+        // itself can be reviewed.
+        $panel['can_send']        = $problem === null;
+        $panel['can_forward']     = $forwardProblem === null;
+        $panel['forward_problem'] = $forwardProblem;
+        $panel['can_revoke']      = (bool) $outstanding;
+
+        // The address the dialog should start with: the one used for this request
+        // last time if there was one, otherwise the deployment's usual address,
+        // otherwise empty — and empty means the office has to type it.
+        $panel['recipient_email'] = self::suggestedRecipient($requestId);
+
+        if ($outstanding) {
+            $panel['outstanding'] = [
+                'id'              => (int) $outstanding->id,
+                'status'          => $outstanding->status,
+                'status_label'    => $outstanding->status_label,
+                'status_hint'     => $outstanding->status_hint,
+                'recipient_email' => $outstanding->recipient_email,
+                'sent_at'         => self::stamp($outstanding->last_sent_at),
+                'sent_count'      => (int) $outstanding->sent_count,
+                'expires_at'      => self::stamp($outstanding->expires_at),
+                'verified_at'     => self::stamp($outstanding->verified_at),
+            ];
+        }
+
+        foreach (self::forRequest($requestId)->take(5) as $past) {
+            $panel['history'][] = [
+                'id'              => (int) $past->id,
+                'status_label'    => $past->status_label,
+                'decision_label'  => $past->decision_label,
+                'recipient_email' => $past->recipient_email,
+                'sent_at'         => self::stamp($past->last_sent_at),
+                'decided_at'      => self::stamp($past->decided_at),
+                'revoked_reason'  => $past->revoked_reason,
+            ];
+        }
+
+        return $panel;
+    }
+
+    /** A stored timestamp, formatted for the pages that read it. */
+    public static function stamp($value, string $format = 'M j, Y g:i A'): ?string
+    {
+        return empty($value) ? null : \Illuminate\Support\Carbon::parse($value)->format($format);
+    }
+
+    /**
+     * The per-asset decisions recorded for a review.
+     *
+     * The asset's tag comes along so the page can name what was decided rather
+     * than showing a row id, and it is read with a left join: an asset deleted
+     * after the decision leaves the decision itself intact.
+     */
+    public static function items(int $reviewId): Collection
+    {
+        if (! self::tablesReady() || $reviewId <= 0) {
+            return new Collection();
+        }
+
+        return DB::table('transfer_review_items')
+            ->leftJoin('assets', 'transfer_review_items.asset_id', '=', 'assets.id')
+            ->where('transfer_review_items.review_id', $reviewId)
+            ->orderBy('transfer_review_items.id')
+            ->get([
+                'transfer_review_items.*',
+                'assets.Asset_code as asset_code',
+                'assets.Asset_name as asset_name',
+            ])
+            ->map(function ($item) {
+                $item->decision_label = self::itemLabel($item->decision ?? null);
+                $item->label = $item->asset_code ?: ($item->asset_id ? ('asset #' . $item->asset_id) : 'asset');
+
+                return $item;
+            });
+    }
+
+    /**
+     * The assets a transfer request covers, with everything the review page has
+     * to show about each one: the recorded detail, never an invented field.
+     *
+     * @return Collection<int, object>
+     */
+    public static function transferAssets(int $requestId): Collection
+    {
+        $items = DB::table('request_items')
+            ->where('request_id', $requestId)
+            ->orderBy('id')
+            ->pluck('asset_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->values()
+            ->all();
+
+        if (! $items) {
+            // Older single-asset requests keep the asset on the request row.
+            $assetId = DB::table('requests')->where('id', $requestId)->value('asset_id');
+
+            if ($assetId) {
+                $items = [(int) $assetId];
+            }
+        }
+
+        if (! $items) {
+            return new Collection();
+        }
+
+        $rows = DB::table('assets')
+            ->leftJoin('users as holder', 'assets.user_id', '=', 'holder.id')
+            ->leftJoin('employee_numbers as holder_emp', 'holder.employee_numbers_id', '=', 'holder_emp.id')
+            ->whereIn('assets.id', $items)
+            ->orderBy('assets.Asset_name')
+            ->get([
+                'assets.id',
+                'assets.Asset_code',
+                'assets.Asset_name',
+                'assets.Category',
+                'assets.Condition',
+                'assets.Lifecycle_Status',
+                'assets.serial_Number',
+                'assets.asset_location',
+                'assets.accusion_date',
+                DB::raw('holder.email as holder_email'),
+                DB::raw('holder_emp."Full_Name" as holder_name'),
+            ]);
+
+        $byId = $rows->keyBy('id');
+        $ordered = new Collection();
+
+        // Keep the request's own order, and keep an asset that has since been
+        // deleted: the request still lists it.
+        foreach ($items as $assetId) {
+            if (isset($byId[$assetId])) {
+                $ordered->push($byId[$assetId]);
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Everything the review page shows, in one place, so the view never has to
+     * guess which column means what.
+     *
+     * @return array<string, mixed>
+     */
+    public static function summary(object $review): array
+    {
+        $request = DB::table('requests')->where('id', $review->request_id)->first();
+
+        if (! $request) {
+            return ['reference' => null, 'request' => null, 'assets' => new Collection(), 'from' => null, 'to' => null];
+        }
+
+        $names = AssetTransfer::userLabels();
+
+        $fromId = (int) ($request->user_id ?? 0);
+        $toId   = (int) ($request->assign_to_user_id ?? 0);
+
+        $from = $names[$fromId] ?? null;
+        $to   = $names[$toId] ?? null;
+
+        // The office's approval is recorded as an APPROVAL entry in the audit
+        // log. Reading it back is how this page can say when the request was
+        // released for review, and by whom, without inventing a column the
+        // schema does not have.
+        $approval = DB::table('audit_logs')
+            ->where('request_id', $request->id)
+            ->where('action_type', 'APPROVAL')
+            ->orderByDesc('id')
+            ->first();
+
+        $approvedBy = null;
+
+        if ($approval && ! empty($approval->user_id)) {
+            $approvedBy = $names[(int) $approval->user_id] ?? null;
+        }
+
+        return [
+            'reference'   => 'TR-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT),
+            'request'     => $request,
+            'from'        => $from,
+            'to'          => $to,
+            'approved_by' => $approvedBy,
+            'approved_at' => $approval->created_at ?? null,
+            'assets'      => self::transferAssets((int) $request->id),
+            'attachment'  => (! empty($request->url) && str_starts_with((string) $request->url, 'http'))
+                ? (string) $request->url
+                : null,
+        ];
+    }
+
+    /* ──────────────────────── eligibility ──────────────────────── */
+
+    /**
+     * Why this request cannot be forwarded for review, or null when it can.
+     *
+     * Deliberately about the *request*, not the invitation: the same question is
+     * asked when the office issues a link and again when a decision arrives.
+     *
+     * $requireApproved is what separates the two moments. Issuing a link and
+     * deciding on one need the request to have passed the office already; the
+     * office's own approve dialog is asked *before* that approval is recorded,
+     * so it asks the same question with the approval still pending — otherwise
+     * the answer would be "not yet" at the only moment the office can choose.
+     */
+    public static function eligibilityProblem(?object $request, bool $requireApproved = true): ?string
+    {
+        if (! $request) {
+            return 'That transfer request no longer exists.';
+        }
+
+        if (strtolower((string) $request->request_type) !== 'transfer') {
+            return 'Only a transfer request can go to the Executive Director.';
+        }
+
+        if (! $requireApproved && strtolower((string) $request->status) === 'rejected') {
+            return 'This request has already been rejected, so there is nothing left to send.';
+        }
+
+        if ($requireApproved && strtolower((string) $request->status) !== 'approved') {
+            return 'Only an administratively approved transfer request can go to the Executive Director. This request is ' . $request->status . '.';
+        }
+
+        if (empty($request->assign_to_user_id)) {
+            return 'This transfer request does not name the employee who should receive the assets, so there is nothing for the Executive Director to approve — and the assets would have nowhere to go.';
+        }
+
+        if (! self::transferAssets((int) $request->id)->count()) {
+            return 'This transfer request has no assets linked to it, so there is nothing to review.';
+        }
+
+        // A request whose transfer already went through has nothing to review.
+        // "In full, or for the assets that were approved" because a partially
+        // approved transfer is executed too — only some of its assets moved, and
+        // saying they all did would be a lie.
+        if (self::alreadyExecuted((int) $request->id)) {
+            return 'This transfer has already been carried out — in full, or for the assets that were approved — so there is nothing left for the Executive Director to review.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Has this request's transfer already been applied?
+     *
+     * The execution writes one TRANSFER audit entry per asset — the same
+     * evidence the Transfer page reads — so the question asked here is whether
+     * such an entry exists for this request. The review never writes one: an
+     * invitation, a verification and a withdrawal are UPDATE entries on the
+     * request, which is what stops an invitation from making its own request
+     * look like a transfer that has already happened.
+     */
+    public static function alreadyExecuted(int $requestId): bool
+    {
+        return DB::table('audit_logs')
+            ->where('request_id', $requestId)
+            ->where('action_type', 'TRANSFER')
+            ->whereNotNull('asset_id')
+            ->exists();
+    }
+
+    /**
+     * Why the invitation behind a link can no longer take a decision.
+     *
+     * Every reason is named rather than collapsed into one "invalid link": the
+     * person reading it is the Executive Director, and the difference between
+     * "expired" (ask for a new one) and "already decided" (nothing to do) is the
+     * difference between an action and a dead end.
+     */
+    public static function unusableReason(object $review): ?string
+    {
+        if ($review->status === self::STATUS_REVOKED) {
+            return 'This invitation was withdrawn by the Asset Management Office'
+                . (! empty($review->revoked_reason) ? ' (' . $review->revoked_reason . ')' : '')
+                . '. Ask them for a new invitation if the transfer still needs a decision.';
+        }
+
+        if ($review->status === self::STATUS_DECIDED) {
+            return 'A decision has already been submitted on this invitation'
+                . (! empty($review->decided_at) ? ' (' . \Illuminate\Support\Carbon::parse($review->decided_at)->format('F j, Y g:i A') . ')' : '')
+                . '. It cannot be used again.';
+        }
+
+        if (self::isExpired($review)) {
+            return 'This invitation expired on '
+                . \Illuminate\Support\Carbon::parse($review->expires_at)->format('F j, Y g:i A')
+                . '. Ask the Asset Management Office for a new invitation.';
+        }
+
+        return null;
+    }
+
+    /* ─────────────────────── issuing invitations ─────────────────────── */
+
+    /**
+     * Issue an invitation for an approved transfer request and email the link.
+     *
+     * Idempotent in the way that matters: any outstanding invitation for the
+     * same request is withdrawn first, inside the same transaction and behind a
+     * lock on the request row, so two Admins clicking at once cannot leave two
+     * live links behind — and a resend cannot leave the previous one working.
+     *
+     * @return array{ok: bool, message: string, review_id?: int, delivered?: bool, errors?: array<string, string>}
+     */
+    public static function invite(
+        int $requestId,
+        ?User $actor = null,
+        bool $replacement = false,
+        ?string $recipientEmail = null
+    ): array {
+        if (! self::tablesReady()) {
+            return ['ok' => false, 'message' => 'The transfer review tables have not been created yet — run the database migration.', 'errors' => ['review' => 'The transfer review tables have not been created yet — run the database migration.']];
+        }
+
+        // The address the office typed wins. A send that arrived without one
+        // goes back to whoever the invitation went to last time, and failing
+        // that to the deployment's usual address — never somewhere arbitrary.
+        $to = trim((string) $recipientEmail) !== ''
+            ? trim((string) $recipientEmail)
+            : (self::suggestedRecipient($requestId) ?: self::defaultRecipientEmail());
+
+        if (! self::validEmail($to)) {
+            $message = 'Enter the email address the Executive Director actually reads — that mailbox is where the link goes, and it is the only place the verification code can be sent.';
+
+            return ['ok' => false, 'message' => $message, 'errors' => ['review' => $message]];
+        }
+
+        $request = DB::table('requests')->where('id', $requestId)->first();
+
+        if ($problem = self::eligibilityProblem($request)) {
+            return ['ok' => false, 'message' => $problem, 'errors' => ['review' => $problem]];
+        }
+
+        // The token exists here, in this variable, and in the email. Only its
+        // hash is written down.
+        $token   = Str::random(64);
+        $expires = now()->addHours(self::linkTtlHours());
+
+        try {
+            $reviewId = DB::transaction(function () use ($requestId, $token, $expires, $actor, $to) {
+                // One invitation at a time per request: the lock is what makes
+                // that true even when two requests arrive together.
+                DB::table('requests')->where('id', $requestId)->lockForUpdate()->first();
+
+                self::withdrawOutstanding($requestId, 'Replaced by a newer invitation.', $actor);
+
+                return (int) DB::table('transfer_reviews')->insertGetId([
+                    'request_id'      => $requestId,
+                    'token_hash'      => hash('sha256', $token),
+                    'recipient_email' => $to,
+                    'status'          => self::STATUS_AWAITING,
+                    'expires_at'      => $expires,
+                    'sent_count'      => 1,
+                    'last_sent_at'    => now(),
+                    'created_by'      => $actor?->id,
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ]);
+            });
+        } catch (Throwable $e) {
+            Log::error('Issuing a transfer review invitation for request #' . $requestId . ' failed: ' . $e->getMessage());
+
+            return ['ok' => false, 'message' => 'The invitation could not be created. Nothing was changed — please try again.', 'errors' => ['review' => 'The invitation could not be created. Nothing was changed — please try again.']];
+        }
+
+        $review = self::latestForRequest($requestId);
+
+        // The email goes out after the row is committed: a transport that hangs
+        // must not hold a database transaction open, and a failure here leaves a
+        // usable invitation that can simply be sent again.
+        $delivery = self::sendInvitation($review, $token);
+
+        self::audit(
+            actor: $actor,
+            requestId: $requestId,
+            actionType: 'UPDATE',
+            notes: ($replacement ? 'Executive Director review invitation re-issued (resend)' : 'Executive Director review invitation issued')
+                . ' for transfer request #' . $requestId,
+            description: 'Invitation #' . $reviewId . ' for the Executive Director to review transfer request #' . $requestId
+                . ' was created by ' . self::actorName($actor) . ' and sent to ' . $to . '.'
+                . ($delivery['ok'] ? '' : ' The email could not be delivered: ' . $delivery['error'])
+                . ' No decision has been recorded yet and no asset has changed hands.',
+        );
+
+        return [
+            'ok'        => true,
+            'review_id' => $reviewId,
+            'delivered' => $delivery['ok'],
+            'message'   => $delivery['ok']
+                ? 'Invitation sent to ' . $to . '. It expires on ' . $expires->format('F j, Y') . '.'
+                : 'The invitation was created, but the email could not be delivered. ' . $delivery['error']
+                    . ' Fix the mail settings and send it again.',
+        ];
+    }
+
+    /**
+     * Withdraw whatever the office is still waiting on and issue a fresh link.
+     *
+     * The address comes with it: re-sending after the director changes is the
+     * whole reason a resend exists, and the previous link stops working in the
+     * same breath.
+     */
+    public static function resend(int $requestId, ?User $actor = null, ?string $recipientEmail = null): array
+    {
+        return self::invite($requestId, $actor, true, $recipientEmail);
+    }
+
+    /** Take away the invitation the office is waiting on. */
+    public static function revoke(int $requestId, ?User $actor, string $reason): array
+    {
+        if (! self::tablesReady()) {
+            return ['ok' => false, 'message' => 'The transfer review tables have not been created yet — run the database migration.'];
+        }
+
+        $count = self::withdrawOutstanding($requestId, $reason !== '' ? $reason : 'Withdrawn by the Asset Management Office.', $actor);
+
+        if ($count === 0) {
+            return ['ok' => false, 'message' => 'There is no outstanding invitation for this request.'];
+        }
+
+        self::audit(
+            actor: $actor,
+            requestId: $requestId,
+            actionType: 'UPDATE',
+            notes: 'Executive Director review invitation withdrawn for transfer request #' . $requestId,
+            description: 'The invitation for the Executive Director to review transfer request #' . $requestId
+                . ' was withdrawn by ' . self::actorName($actor) . '. Reason: ' . $reason
+                . '. The link no longer works and no decision can be submitted through it.',
+        );
+
+        return ['ok' => true, 'message' => 'The invitation was withdrawn. The link no longer works.'];
+    }
+
+    /**
+     * Withdraw every outstanding invitation for a request.
+     *
+     * Shared by "resend", the explicit revoke action, and the hook that runs when
+     * an office rejects or withdraws the request the link points at — a link that
+     * outlives its request is exactly the stale decision this feature has to
+     * prevent.
+     */
+    public static function withdrawOutstanding(int $requestId, string $reason, ?User $actor = null): int
+    {
+        if (! self::tablesReady() || $requestId <= 0) {
+            return 0;
+        }
+
+        return DB::table('transfer_reviews')
+            ->where('request_id', $requestId)
+            ->whereIn('status', [self::STATUS_AWAITING, self::STATUS_VERIFIED])
+            ->update([
+                'status'         => self::STATUS_REVOKED,
+                'token_hash'     => null,
+                'code_hash'      => null,
+                'revoked_at'     => now(),
+                'revoked_by'     => $actor?->id,
+                'revoked_reason' => mb_substr($reason, 0, 255),
+                'updated_at'     => now(),
+            ]);
+    }
+
+    /* ──────────────────────── verification ──────────────────────── */
+
+    /**
+     * Email a one-time verification code to the official mailbox.
+     *
+     * The code proves the person holding the link can read that mailbox; typing
+     * an email address into a form proves nothing, which is why this step exists
+     * before a single asset is shown.
+     *
+     * @return array{ok: bool, message: string, delivered?: bool, dev_code?: string}
+     */
+    public static function sendCode(object $review): array
+    {
+        if (! self::tablesReady()) {
+            return ['ok' => false, 'message' => 'The transfer review tables have not been created yet.'];
+        }
+
+        if ($reason = self::unusableReason($review)) {
+            return ['ok' => false, 'message' => $reason];
+        }
+
+        if ($review->status === self::STATUS_VERIFIED) {
+            return ['ok' => true, 'message' => 'Verified already — no code is needed.'];
+        }
+
+        // Without an address on the invitation there is nowhere to send a code,
+        // and this step cannot fall back to a guess: say so and let the office
+        // re-issue the invitation.
+        if (! self::validEmail($review->recipient_email ?? null) && ! self::validEmail(self::defaultRecipientEmail())) {
+            return ['ok' => false, 'message' => 'This invitation has no email address recorded, so a code cannot be sent. Ask the Asset Management Office to send a new invitation.'];
+        }
+
+        $cooldown = self::codeResendCooldown();
+
+        if ($cooldown > 0 && ! empty($review->code_sent_at)) {
+            $waited = \Illuminate\Support\Carbon::parse($review->code_sent_at)->diffInSeconds(now());
+
+            if ($waited < $cooldown) {
+                $wait = max(1, $cooldown - (int) $waited);
+
+                return ['ok' => false, 'message' => 'A code was just sent. Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before asking for another one.'];
+            }
+        }
+
+        // The window is kept on the row, so the limit survives a restart and
+        // does not depend on a cache store being configured.
+        $windowStart = $review->code_window_started_at
+            ? \Illuminate\Support\Carbon::parse($review->code_window_started_at)
+            : null;
+
+        $windowExpired = $windowStart === null
+            || $windowStart->diffInMinutes(now()) >= self::codeWindowMinutes();
+
+        $sentInWindow = $windowExpired ? 0 : (int) $review->code_sent_count;
+
+        if ($sentInWindow >= self::maxCodeRequests()) {
+            return ['ok' => false, 'message' => 'This invitation has already been sent ' . self::maxCodeRequests() . ' verification codes in the last ' . self::codeWindowMinutes() . ' minutes. Please try again later, or ask the Asset Management Office to issue a new invitation.'];
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        DB::table('transfer_reviews')->where('id', $review->id)->update([
+            'code_hash'              => Hash::make($code),
+            'code_expires_at'        => now()->addMinutes(self::codeTtlMinutes()),
+            'code_sent_at'           => now(),
+            'code_attempts'          => 0,
+            'code_sent_count'        => $sentInWindow + 1,
+            'code_window_started_at' => $windowExpired ? now() : $review->code_window_started_at,
+            'updated_at'             => now(),
+        ]);
+
+        // The code goes to the address this invitation was sent to — the one the
+        // office typed when it issued it — never to an address the person
+        // holding the link happens to enter.
+        $to = (string) ($review->recipient_email ?: self::defaultRecipientEmail());
+
+        $delivery = self::sendCodeEmail($code, $to);
+
+        $result = [
+            'ok'      => $delivery['ok'],
+            'message' => $delivery['ok']
+                ? 'A 6-digit code has been sent to ' . $to
+                    . '. It expires in ' . self::codeTtlMinutes() . ' minutes.'
+                : 'The code could not be emailed: ' . $delivery['error'] . ' Ask the Asset Management Office to check the mail settings.',
+            'delivered' => $delivery['ok'],
+        ];
+
+        // Local development: without a reachable mail server the flow would be
+        // untestable, so the code is shown on the local environment only. It is
+        // never shown anywhere else.
+        if (app()->environment('local') && ! $delivery['ok']) {
+            $result['dev_code'] = $code;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check a verification code against the invitation.
+     *
+     * Wrong codes are counted and the code is thrown away once the allowance is
+     * spent, so guessing cannot continue indefinitely against one invitation.
+     * A correct code clears itself: it is never stored in a usable form again.
+     *
+     * @return array{ok: bool, message: string}
+     */
+    public static function verify(object $review, string $code): array
+    {
+        if (! self::tablesReady()) {
+            return ['ok' => false, 'message' => 'The transfer review tables have not been created yet.'];
+        }
+
+        if ($reason = self::unusableReason($review)) {
+            return ['ok' => false, 'message' => $reason];
+        }
+
+        $code = trim($code);
+
+        if ($code === '') {
+            return ['ok' => false, 'message' => 'Enter the 6-digit code from the email.'];
+        }
+
+        if (empty($review->code_hash) || empty($review->code_expires_at)) {
+            return ['ok' => false, 'message' => 'No code is waiting for this invitation. Ask for a new one.'];
+        }
+
+        if (\Illuminate\Support\Carbon::parse($review->code_expires_at)->isPast()) {
+            DB::table('transfer_reviews')->where('id', $review->id)->update([
+                'code_hash'  => null,
+                'updated_at' => now(),
+            ]);
+
+            return ['ok' => false, 'message' => 'That code has expired. Ask for a new one.'];
+        }
+
+        if ((int) $review->code_attempts >= self::maxCodeAttempts()) {
+            DB::table('transfer_reviews')->where('id', $review->id)->update([
+                'code_hash'  => null,
+                'updated_at' => now(),
+            ]);
+
+            return ['ok' => false, 'message' => 'Too many incorrect codes for this invitation. Ask for a new code.'];
+        }
+
+        if (! Hash::check($code, (string) $review->code_hash)) {
+            $attempts = (int) $review->code_attempts + 1;
+            $spent    = $attempts >= self::maxCodeAttempts();
+
+            DB::table('transfer_reviews')->where('id', $review->id)->update([
+                'code_attempts' => $attempts,
+                'code_hash'     => $spent ? null : $review->code_hash,
+                'updated_at'    => now(),
+            ]);
+
+            return [
+                'ok'      => false,
+                'message' => $spent
+                    ? 'That code is not correct, and this invitation has used up its attempts. Ask for a new code.'
+                    : 'That code is not correct. ' . (self::maxCodeAttempts() - $attempts) . ' attempt'
+                        . ((self::maxCodeAttempts() - $attempts) === 1 ? '' : 's') . ' left.',
+            ];
+        }
+
+        DB::table('transfer_reviews')->where('id', $review->id)->update([
+            'status'         => self::STATUS_VERIFIED,
+            'verified_at'    => now(),
+            'code_hash'      => null,
+            'code_expires_at' => null,
+            'code_attempts'  => 0,
+            'updated_at'     => now(),
+        ]);
+
+        self::audit(
+            actor: null,
+            requestId: (int) $review->request_id,
+            actionType: 'UPDATE',
+            notes: 'Executive Director verified the official mailbox for transfer request #' . $review->request_id,
+            description: 'The recipient of invitation #' . $review->id . ' verified control of '
+                . ($review->recipient_email ?: self::defaultRecipientEmail()) . '. The transfer details of request #'
+                . $review->request_id . ' were unlocked for review. No decision has been recorded and no asset has changed hands.',
+        );
+
+        return ['ok' => true, 'message' => 'Verified. You can now review the transfer.'];
+    }
+
+    /* ──────────────────────── the decision ──────────────────────── */
+
+    /**
+     * Record the Executive Director's decision and apply it.
+     *
+     * The whole thing is one transaction behind a lock on the invitation: two
+     * submissions of the same decision cannot both apply, and a decision that
+     * arrives after the request was withdrawn is refused rather than applied to
+     * a request that no longer means what it said.
+     *
+     * @param  array{decision?: string, asset_ids?: array<int, int>, rejection_reason?: string}  $input
+     * @return array{ok: bool, message: string, decision?: string, approved?: array<int, string>, declined?: array<int, string>}
+     */
+    public static function decide(object $review, array $input, ?User $actor = null): array
+    {
+        if (! self::tablesReady()) {
+            return ['ok' => false, 'message' => 'The transfer review tables have not been created yet.'];
+        }
+
+        $choice = (string) ($input['decision'] ?? '');
+
+        if (! in_array($choice, ['approve_all', 'approve_selected', 'reject'], true)) {
+            return ['ok' => false, 'message' => 'Choose whether to approve the transfer, approve selected assets, or reject it.'];
+        }
+
+        $reason = trim((string) ($input['rejection_reason'] ?? ''));
+
+        if ($choice === 'reject' && $reason === '') {
+            return ['ok' => false, 'message' => 'A rejection has to say why. Please give a reason.'];
+        }
+
+        try {
+            return DB::transaction(function () use ($review, $input, $choice, $reason, $actor) {
+                // Re-read behind a lock: this is the row every concurrent
+                // submission is fighting over.
+                $fresh = DB::table('transfer_reviews')->where('id', $review->id)->lockForUpdate()->first();
+
+                if (! $fresh) {
+                    return ['ok' => false, 'message' => 'That invitation no longer exists.'];
+                }
+
+                $fresh = self::present($fresh);
+
+                // Named apart from $reason on purpose: $reason is the rejection
+                // reason the decision arrived with, and it must not be
+                // overwritten by this check.
+                if ($blocked = self::unusableReason($fresh)) {
+                    return ['ok' => false, 'message' => $blocked . ' If the transfer still needs a decision, the Asset Management Office has to issue a new invitation.'];
+                }
+
+                if ($fresh->status !== self::STATUS_VERIFIED) {
+                    return ['ok' => false, 'message' => 'The recipient has not been verified yet, so no decision can be recorded.'];
+                }
+
+                $request = DB::table('requests')->where('id', $fresh->request_id)->first();
+
+                if ($problem = self::eligibilityProblem($request)) {
+                    return ['ok' => false, 'message' => 'This review is out of date. ' . $problem . ' Ask the Asset Management Office to issue a new invitation if the transfer still needs a decision.'];
+                }
+
+                $assets = self::transferAssets((int) $request->id);
+
+                if ($assets->isEmpty()) {
+                    return ['ok' => false, 'message' => 'This transfer request has no assets linked to it, so there is nothing to decide.'];
+                }
+
+                // Assets must still be the sender's to give. Anything that moved
+                // while the link was open makes the decision stale: applying it
+                // would take somebody else's asset away from them.
+                $unavailable = [];
+
+                foreach ($assets as $asset) {
+                    $currentHolder = DB::table('assets')->where('id', $asset->id)->value('user_id');
+
+                    if ((int) $currentHolder !== (int) $request->user_id) {
+                        $unavailable[] = $asset->Asset_code ?: ('asset #' . $asset->id);
+                    }
+                }
+
+                if ($unavailable) {
+                    return [
+                        'ok'      => false,
+                        'message' => 'This review is out of date: these assets are no longer held by the employee who requested the transfer ('
+                            . implode(', ', $unavailable) . '). Nothing was changed. Ask the Asset Management Office to issue a new invitation.',
+                    ];
+                }
+
+                $allIds = $assets->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+                if ($choice === 'reject') {
+                    return self::recordRejection($fresh, $request, $allIds, $reason, $actor);
+                }
+
+                if ($choice === 'approve_selected') {
+                    $selected = array_values(array_unique(array_map('intval', (array) ($input['asset_ids'] ?? []))));
+                    $selected = array_values(array_intersect($selected, $allIds));
+
+                    if (! $selected) {
+                        return ['ok' => false, 'message' => 'Select at least one asset to approve, or approve the whole transfer.'];
+                    }
+                } else {
+                    $selected = $allIds;
+                }
+
+                return self::recordApproval($fresh, $request, $assets, $selected, $allIds, $actor);
+            });
+        } catch (Throwable $e) {
+            Log::error('Recording the Executive Director decision on invitation #' . $review->id . ' failed: ' . $e->getMessage());
+
+            return ['ok' => false, 'message' => 'The decision could not be recorded. Nothing was changed — please try again, or ask the Asset Management Office to issue a new invitation.'];
+        }
+    }
+
+    /**
+     * Approve everything or a selection: the approved assets change hands, the
+     * rest stay where they are.
+     *
+     * @param  Collection<int, object>  $assets
+     * @param  array<int, int>  $selected
+     * @param  array<int, int>  $allIds
+     */
+    private static function recordApproval(object $review, object $request, Collection $assets, array $selected, array $allIds, ?User $actor): array
+    {
+        $declined = array_values(array_diff($allIds, $selected));
+
+        $codes = [];
+        $names = [];
+
+        foreach ($assets as $asset) {
+            $codes[(int) $asset->id] = $asset->Asset_code ?: ('asset #' . $asset->id);
+            $names[(int) $asset->id] = $asset->Asset_name ?: ($asset->Asset_code ?: ('asset #' . $asset->id));
+        }
+
+        // The same execution the office's own approval runs: the assets move to
+        // the receiving employee, one TRANSFER entry per asset, nothing else
+        // about them changes.
+        $applied = AssetTransfer::applyRequestTransfer(
+            $request,
+            $selected,
+            $actor?->id,
+            'Executive Director approval via review invitation #' . $review->id
+        );
+
+        $approvedCodes = [];
+        foreach ($selected as $assetId) {
+            $approvedCodes[] = $codes[$assetId] ?? ('asset #' . $assetId);
+        }
+
+        $declinedCodes = [];
+        foreach ($declined as $assetId) {
+            $declinedCodes[] = $codes[$assetId] ?? ('asset #' . $assetId);
+        }
+
+        $decision = $declined ? self::DECISION_PARTIAL : self::DECISION_APPROVED;
+
+        foreach ($allIds as $assetId) {
+            DB::table('transfer_review_items')->updateOrInsert(
+                ['review_id' => $review->id, 'asset_id' => $assetId],
+                [
+                    'decision'   => in_array($assetId, $selected, true) ? self::ITEM_APPROVED : self::ITEM_DECLINED,
+                    'decided_at' => now(),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
+
+        DB::table('transfer_reviews')->where('id', $review->id)->update([
+            'status'         => self::STATUS_DECIDED,
+            'decision'       => $decision,
+            'approved_count' => count($selected),
+            'declined_count' => count($declined),
+            'decided_at'     => now(),
+            'executed_at'    => $applied > 0 ? now() : null,
+            'updated_at'     => now(),
+        ]);
+
+        self::audit(
+            actor: $actor,
+            requestId: (int) $request->id,
+            actionType: 'APPROVAL',
+            notes: 'Executive Director ' . ($declined ? 'partially approved' : 'approved') . ' transfer request #' . $request->id
+                . ' (invitation #' . $review->id . ')',
+            description: 'The Executive Director ' . ($declined ? 'approved part of' : 'approved') . ' transfer request #' . $request->id
+                . ' through invitation #' . $review->id . ': '
+                . ($approvedCodes ? implode(', ', $approvedCodes) . ' transferred' : 'nothing transferred')
+                . ($declinedCodes ? '; not approved: ' . implode(', ', $declinedCodes) : '')
+                . '. The decision was recorded and the invitation can no longer be used.',
+        );
+
+        $toName = self::userName((int) $request->assign_to_user_id);
+        $reference = 'TR-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT);
+
+        $summary = implode(', ', $approvedCodes);
+
+        Notifications::create(
+            (int) $request->user_id,
+            $declined ? 'Transfer Partially Approved' : 'Transfer Approved',
+            $declined
+                ? 'The Executive Director approved ' . count($selected) . ' of ' . count($allIds) . ' asset(s) on your transfer request ' . $reference
+                    . ' (' . $summary . '). The rest stay with you. The approved assets are now assigned to ' . $toName . '.'
+                : 'The Executive Director approved your transfer request ' . $reference . '. ' . $summary . ' ' . (count($selected) === 1 ? 'is' : 'are') . ' now assigned to ' . $toName . '.',
+            'TRANSFER',
+            (int) $request->id,
+            'request'
+        );
+
+        self::notifyOffice(
+            (int) $request->id,
+            $declined ? 'Transfer Partially Approved by the Executive Director' : 'Transfer Approved by the Executive Director',
+            $declined
+                ? 'Transfer request ' . $reference . ' was partially approved: ' . $summary . ' transferred to ' . $toName
+                    . '; not approved: ' . implode(', ', $declinedCodes) . '.'
+                : 'Transfer request ' . $reference . ' was approved: ' . $summary . ' transferred to ' . $toName . '.',
+            $actor
+        );
+
+        return [
+            'ok'       => true,
+            'decision' => $decision,
+            'approved' => $approvedCodes,
+            'declined' => $declinedCodes,
+            'message'  => $declined
+                ? 'Recorded. ' . count($selected) . ' of ' . count($allIds) . ' assets are now assigned to ' . $toName
+                    . '. The assets you did not approve stay with the employee who requested the transfer.'
+                : 'Recorded. ' . $summary . ' ' . (count($selected) === 1 ? 'is' : 'are') . ' now assigned to ' . $toName . '.',
+        ];
+    }
+
+    /**
+     * Reject: the request is closed with the reason, and nothing changes hands.
+     *
+     * @param  array<int, int>  $allIds
+     */
+    private static function recordRejection(object $review, object $request, array $allIds, string $reason, ?User $actor): array
+    {
+        // The existing status logic for a refused request, used unchanged: the
+        // request is Rejected, the office's reason is kept where a rejection
+        // reason has always been kept, and no asset row is touched.
+        DB::table('requests')->where('id', $request->id)->update([
+            'status'            => 'Rejected',
+            'admin_remarks'     => $reason,
+            'admin_remarks_by'  => $actor?->id,
+            'admin_remarks_at'  => now(),
+            'updated_at'        => now(),
+        ]);
+
+        foreach ($allIds as $assetId) {
+            DB::table('transfer_review_items')->updateOrInsert(
+                ['review_id' => $review->id, 'asset_id' => $assetId],
+                [
+                    'decision'   => self::ITEM_DECLINED,
+                    'decided_at' => now(),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
+
+        DB::table('transfer_reviews')->where('id', $review->id)->update([
+            'status'           => self::STATUS_DECIDED,
+            'decision'         => self::DECISION_REJECTED,
+            'rejection_reason' => $reason,
+            'approved_count'   => 0,
+            'declined_count'   => count($allIds),
+            'decided_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+
+        self::audit(
+            actor: $actor,
+            requestId: (int) $request->id,
+            actionType: 'APPROVAL',
+            notes: 'Executive Director rejected transfer request #' . $request->id . ' (invitation #' . $review->id . ')',
+            description: 'The Executive Director rejected transfer request #' . $request->id . ' through invitation #' . $review->id
+                . '. Reason: ' . $reason . '. No asset changed hands and the request is closed.',
+        );
+
+        $reference = 'TR-' . str_pad((string) $request->id, 4, '0', STR_PAD_LEFT);
+
+        Notifications::create(
+            (int) $request->user_id,
+            'Transfer Rejected',
+            'The Executive Director rejected your transfer request ' . $reference . '. Reason: ' . $reason
+                . ' The assets stay with their current custodian.',
+            'TRANSFER',
+            (int) $request->id,
+            'request'
+        );
+
+        self::notifyOffice(
+            (int) $request->id,
+            'Transfer Rejected by the Executive Director',
+            'Transfer request ' . $reference . ' was rejected. Reason: ' . $reason . ' No asset changed hands.',
+            $actor
+        );
+
+        return [
+            'ok'       => true,
+            'decision' => self::DECISION_REJECTED,
+            'approved' => [],
+            'declined' => [],
+            'message'  => 'Recorded. The transfer request is rejected and no asset changed hands.',
+        ];
+    }
+
+    /* ──────────────────────────── email ──────────────────────────── */
+
+    /**
+     * The invitation email: the link, when it dies, and nothing else.
+     *
+     * No asset list, no custodian names, no request note. The link is the only
+     * thing this email has to carry, and an email is not a safe place to put
+     * inventory details.
+     *
+     * @return array{ok: bool, error: string}
+     */
+    private static function sendInvitation(object $review, string $token): array
+    {
+        $url      = url('/executive-review/' . $token);
+        $expires  = \Illuminate\Support\Carbon::parse($review->expires_at)->format('F j, Y g:i A');
+        $reference = 'TR-' . str_pad((string) $review->request_id, 4, '0', STR_PAD_LEFT);
+
+        $body = "Dear " . self::recipientName() . ",\n\n"
+            . "The NU Lipa Asset Management Office has asked you to review an asset transfer request.\n\n"
+            . "Transfer request: " . $reference . "\n"
+            . "Open the review: " . $url . "\n\n"
+            . "The link opens only this transfer request. Before any details are shown you will be asked for a\n"
+            . "6-digit code, sent to this mailbox, to confirm that this message reached you.\n\n"
+            . "This link is personal and single-use. It expires on " . $expires . ".\n"
+            . "Nothing is approved, and no asset changes hands, until you submit a decision through it.\n\n"
+            . "If you were not expecting this, please contact the NU Lipa Asset Management Office.\n\n"
+            . "— NU TRACE Asset Management System";
+
+        return self::deliver(
+            $body,
+            'NU TRACE — Executive Director review of transfer request ' . $reference,
+            (string) ($review->recipient_email ?: self::defaultRecipientEmail())
+        );
+    }
+
+    /** The verification code, on its own, to the invitation's own address. */
+    private static function sendCodeEmail(string $code, string $to): array
+    {
+        $body = "Dear " . self::recipientName() . ",\n\n"
+            . "Your NU TRACE transfer review verification code is: " . $code . "\n\n"
+            . "It is valid for " . self::codeTtlMinutes() . " minutes and can be used once.\n"
+            . "Nobody from NU Lipa will ask you for this code.\n\n"
+            . "— NU TRACE Asset Management System";
+
+        return self::deliver($body, 'NU TRACE — Transfer review verification code', $to);
+    }
+
+    /**
+     * Send one plain message through the configured mailer.
+     *
+     * A refused send is reported as a failure, never swallowed: "sent" is the
+     * only thing the office can see, and an invitation that was never delivered
+     * looks exactly like one that was ignored. The body is never logged — it
+     * carries the link — and neither the token nor the code is written to the
+     * application log.
+     *
+     * @return array{ok: bool, error: string}
+     */
+    private static function deliver(string $body, string $subject, string $to): array
+    {
+        if (! self::validEmail($to)) {
+            return ['ok' => false, 'error' => 'This invitation has no valid email address recorded, so nothing could be sent.'];
+        }
+
+        try {
+            Mail::raw($body, function ($message) use ($to, $subject) {
+                $message->to($to)->subject($subject);
+            });
+        } catch (Throwable $e) {
+            $mailer = (string) config('mail.default');
+
+            Log::warning('Could not send an Executive Director transfer review email to ' . $to . ': ' . $e->getMessage());
+
+            if ($mailer === 'resend' && (string) config('services.resend.key') === '') {
+                $hint = 'RESEND_API_KEY is missing on this server.';
+            } elseif ($mailer === 'smtp' && (string) config('mail.mailers.smtp.password') === '') {
+                $hint = 'MAIL_USERNAME and MAIL_PASSWORD are not set on this server.';
+            } else {
+                $hint = 'The mail provider refused the message (' . class_basename($e) . ').';
+            }
+
+            return ['ok' => false, 'error' => $hint];
+        }
+
+        return ['ok' => true, 'error' => ''];
+    }
+
+    /* ──────────────────────────── helpers ──────────────────────────── */
+
+    /** Tell every active Asset Management Office account. */
+    private static function notifyOffice(int $requestId, string $title, string $message, ?User $actor = null): void
+    {
+        $office = User::query()
+            ->whereIn('role', Access::ASSET_OFFICE_ROLES)
+            ->whereRaw('LOWER(status) = ?', ['active'])
+            ->when($actor, fn ($query) => $query->where('id', '!=', $actor->id))
+            ->orderBy('id')
+            ->get();
+
+        foreach ($office as $account) {
+            Notifications::create(
+                (int) $account->id,
+                $title,
+                $message,
+                'TRANSFER',
+                $requestId,
+                'request'
+            );
+        }
+    }
+
+    private static function userName(int $userId): string
+    {
+        if ($userId <= 0) {
+            return 'the receiving employee';
+        }
+
+        $names = AssetTransfer::userLabels();
+
+        return $names[$userId]['name'] ?? ('user #' . $userId);
+    }
+
+    /**
+     * One audit entry, in the existing log.
+     *
+     * Call sites name their arguments: this helper has grown past the point
+     * where a positional call is safe, and an argument landing in the wrong slot
+     * writes a row that looks plausible.
+     *
+     * Only action types the audit log already accepts are used (the log keeps a
+     * check constraint on PostgreSQL): the invitation's comings and goings are
+     * UPDATE entries on the request, and the decision itself is an APPROVAL,
+     * next to the office's own approvals.
+     *
+     * TRANSFER is deliberately not used for the invitation. A TRANSFER entry
+     * with an asset on it is the evidence that an asset really changed hands —
+     * the Transfer page reads it, and so does the check that refuses a decision
+     * on a request whose assets have already moved — so an invitation must not
+     * be able to look like one.
+     *
+     * Neither the link token nor a verification code is ever written here.
+     */
+    private static function audit(?User $actor, int $requestId, string $actionType, string $notes, string $description): void
+    {
+        try {
+            DB::table('audit_logs')->insert([
+                'user_id'            => $actor?->id,
+                'request_id'         => $requestId > 0 ? $requestId : null,
+                'asset_id'           => null,
+                'action_type'        => $actionType,
+                'notes'              => $notes,
+                'action_description' => $description,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (Throwable $e) {
+            // The step it describes has already happened; losing the note must
+            // not undo it. Reported, never swallowed silently.
+            Log::warning('Transfer review audit entry failed (action=' . $actionType . ', request=' . $requestId . '): ' . $e->getMessage());
+        }
+    }
+
+    private static function actorName(?User $actor): string
+    {
+        if (! $actor) {
+            return 'the Executive Director';
+        }
+
+        return trim((string) ($actor->display_name ?? '')) ?: (string) $actor->email;
+    }
+}

@@ -376,6 +376,31 @@
                                     </p>
                                 </div>
 
+                                <!-- Executive Director review (transfer requests):
+                                     whether this transfer is waiting on the Executive
+                                     Director, what was sent, and the two actions the
+                                     office can take on an invitation. -->
+                                <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem; display:none;" id="detail-review-block">
+                                    <p class="eyebrow mb-1">Executive Director Review</p>
+                                    <span id="detail-review-status" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style="background:var(--paper-2); color:var(--ink-600);">—</span>
+                                    <p class="text-xs mt-2" style="color:var(--ink-600);" id="detail-review-hint"></p>
+                                    <p class="text-xs mt-1" style="color:var(--ink-400);" id="detail-review-meta"></p>
+                                    <p class="text-xs mt-2" style="color:var(--brick-dark);" id="detail-review-problem"></p>
+                                    <p class="text-xs mt-2" style="color:var(--ink-400);" id="detail-review-history"></p>
+                                    <div class="flex gap-2 mt-3">
+                                        <button type="button" id="detail-review-resend" onclick="resendReview()"
+                                                class="flex-1 text-white px-3 py-2 rounded-lg transition text-sm font-medium flex items-center justify-center"
+                                                style="background:var(--navy-900);" onmouseover="this.style.filter='brightness(1.12)'" onmouseout="this.style.filter='none'">
+                                            <i class="ri-send-plane-line mr-1.5"></i><span id="detail-review-resend-label">Send invitation</span>
+                                        </button>
+                                        <button type="button" id="detail-review-revoke" onclick="revokeReview()"
+                                                class="flex-1 px-3 py-2 rounded-lg transition text-sm font-medium flex items-center justify-center"
+                                                style="background:var(--paper-2); color:var(--brick-dark);" onmouseover="this.style.filter='brightness(.97)'" onmouseout="this.style.filter='none'">
+                                            <i class="ri-link-unlink-m mr-1.5"></i>Withdraw link
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <!-- Admin Remarks are recorded only when a request is rejected. -->
                                     <div class="pb-3" style="border-top:1px solid var(--line); padding-top:1rem; display:none;" id="detail-admin-remarks-block">
                                         <p class="eyebrow mb-1">Admin Remarks</p>
@@ -440,6 +465,98 @@
                         class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
                         style="background:var(--brick);">
                     <i class="ri-close-circle-line mr-1.5"></i>Reject Request
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Send (or re-send) an Executive Director review invitation. The address
+         is typed here every time, pre-filled with the one used last, so a change
+         of director is a change of text rather than a change of deployment. -->
+    <div id="reviewSendModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4"
+         style="background:rgba(10,24,48,.6);" onclick="closeReviewSendModal()">
+        <div class="panel rounded-xl w-full max-w-md p-6" onclick="event.stopPropagation();">
+            <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);" id="review-send-title">Send Review Invitation</h3>
+            <p class="text-sm mt-1 mb-4 detail-value" id="review-send-subtitle" style="color:var(--ink-400);">-</p>
+
+            <label for="review-send-recipient" class="eyebrow mb-1 block">Executive Director's email address</label>
+            <input type="email" id="review-send-recipient"
+                   class="w-full px-3 py-2 rounded-lg text-sm"
+                   style="border:1px solid var(--line); color:var(--ink-900);"
+                   placeholder="name@nu-lipa.edu.ph" autocomplete="off">
+            <p class="text-xs mt-1" style="color:var(--ink-400);">
+                The link is emailed here, and the verification code can only be sent to this mailbox.
+            </p>
+
+            <p class="text-xs mt-3" style="color:var(--ink-600);" id="review-send-note"></p>
+            <p class="text-xs mt-2 hidden" id="review-send-status"></p>
+
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" onclick="closeReviewSendModal()"
+                        class="px-4 py-2 rounded-lg text-sm font-medium"
+                        style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="review-send-confirm" onclick="confirmSendReview()"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                        style="background:var(--navy-900);">
+                    <i class="ri-send-plane-line mr-1.5"></i><span id="review-send-confirm-label">Send invitation</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approve transfer request modal: approving a transfer either executes it
+         here or hands the decision to the Executive Director. Which one happens
+         is the checkbox, and the box starts the way the office configured it. -->
+    <div id="transferApproveModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4"
+         style="background:rgba(10,24,48,.6);" onclick="closeTransferApproveModal()">
+        <div class="panel rounded-xl w-full max-w-md p-6" onclick="event.stopPropagation();">
+            <h3 class="font-display text-lg font-semibold" style="color:var(--navy-900);">Approve Transfer Request</h3>
+            <p class="text-sm mt-1 mb-4 detail-value" id="transfer-approve-subtitle" style="color:var(--ink-400);">-</p>
+
+            <div class="rounded-lg p-3 mb-4" style="background:var(--paper-2);">
+                <p class="eyebrow mb-2">Asset(s) in this transfer</p>
+                <div id="transfer-approve-assets" class="space-y-1"></div>
+            </div>
+
+            <label class="flex items-start gap-2 rounded-lg p-3 mb-3" style="background:var(--paper-2); cursor:pointer;" id="transfer-forward-wrap">
+                <input type="checkbox" id="transfer-forward" checked
+                       class="mt-0.5" style="accent-color:var(--gold-600); width:auto;">
+                <span class="text-sm" style="color:var(--navy-900); font-weight:600;">
+                    Send this transfer to the Executive Director
+                    <span class="block text-xs mt-1" style="color:var(--ink-600); font-weight:500;" id="transfer-forward-note"></span>
+                </span>
+            </label>
+
+            {{-- The office chooses who is asked. The Executive Director is a
+                 person and people change, so this is typed here rather than
+                 fixed in the server's configuration: a new director needs no
+                 deployment, and whoever sends the transfer knows the answer. --}}
+            <div class="mb-3" id="transfer-forward-address">
+                <label for="transfer-recipient" class="eyebrow mb-1 block">Executive Director's email address</label>
+                <input type="email" id="transfer-recipient"
+                       class="w-full px-3 py-2 rounded-lg text-sm"
+                       style="border:1px solid var(--line); color:var(--ink-900);"
+                       placeholder="name@nu-lipa.edu.ph" autocomplete="off">
+                <p class="text-xs mt-1" style="color:var(--ink-400);">
+                    The review link is emailed here, and this is the only mailbox the 6-digit verification code can be sent to.
+                </p>
+            </div>
+
+            <p class="text-xs mt-1" style="color:var(--ink-600);" id="transfer-approve-explainer"></p>
+            <p class="text-xs mt-2 hidden" id="transfer-approve-status"></p>
+
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" onclick="closeTransferApproveModal()"
+                        class="px-4 py-2 rounded-lg text-sm font-medium"
+                        style="background:var(--paper-2); color:var(--ink-600);">
+                    Cancel
+                </button>
+                <button type="button" id="transfer-approve-confirm" onclick="confirmTransferApprove()"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                        style="background:var(--forest);">
+                    <i class="ri-checkbox-circle-line mr-1.5"></i>Approve request
                 </button>
             </div>
         </div>
@@ -618,6 +735,9 @@
                         assetsContainer.appendChild(div);
                     });
                 }
+
+                // ─── Executive Director review (transfers only) ─────────
+                renderReviewPanel(request);
             }
 
             function escapeHtml(str) {
@@ -656,6 +776,234 @@
             }
         }
 
+        // ── Executive Director review ────────────────────────────────────────
+        // A transfer request the office approves either executes immediately or
+        // goes to the Executive Director for the final decision. This panel says
+        // which of the two is happening, and offers the only two things that can
+        // be done to an invitation: send one (or a replacement), or withdraw the
+        // link the office is waiting on.
+        function reviewPill(review) {
+            const base = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium';
+            const outstanding = review && review.outstanding;
+
+            if (outstanding) {
+                return outstanding.status === 'verified'
+                    ? `<span class="${base}" style="background:var(--forest-tint); color:var(--forest-dark);"><i class="ri-mail-check-line mr-1 text-xs"></i>Verified — awaiting decision</span>`
+                    : `<span class="${base}" style="background:var(--gold-100); color:var(--navy-900);"><i class="ri-mail-send-line mr-1 text-xs"></i>Awaiting verification</span>`;
+            }
+
+            const last = (review && review.history && review.history.length) ? review.history[0] : null;
+
+            if (last && last.decided_at) {
+                return `<span class="${base}" style="background:var(--forest-tint); color:var(--forest-dark);"><i class="ri-checkbox-circle-line mr-1 text-xs"></i>${escapeHtml(last.decision_label || 'Reviewed')}</span>`;
+            }
+
+            if (last) {
+                return `<span class="${base}" style="background:var(--paper-2); color:var(--ink-600);"><i class="ri-link-unlink-m mr-1 text-xs"></i>Invitation withdrawn</span>`;
+            }
+
+            return `<span class="${base}" style="background:var(--paper-2); color:var(--ink-600);"><i class="ri-mail-line mr-1 text-xs"></i>Not sent yet</span>`;
+        }
+
+        function renderReviewPanel(request) {
+            const block = document.getElementById('detail-review-block');
+            if (!block) return;
+
+            const review = request.review;
+
+            if (request.type !== 'transfer' || !review || !review.tables_ready) {
+                block.style.display = 'none';
+                return;
+            }
+
+            block.style.display = 'block';
+
+            const statusEl  = document.getElementById('detail-review-status');
+            const hintEl    = document.getElementById('detail-review-hint');
+            const metaEl    = document.getElementById('detail-review-meta');
+            const problemEl = document.getElementById('detail-review-problem');
+            const historyEl = document.getElementById('detail-review-history');
+            const resendEl  = document.getElementById('detail-review-resend');
+            const resendLabel = document.getElementById('detail-review-resend-label');
+            const revokeEl  = document.getElementById('detail-review-revoke');
+
+            const outstanding = review.outstanding;
+            const pending = request.status === 'pending';
+
+            if (statusEl) statusEl.innerHTML = reviewPill(review);
+
+            if (hintEl) {
+                hintEl.textContent = outstanding
+                    ? outstanding.status_hint
+                    : (pending
+                        ? 'Approving this transfer can send it to the Executive Director for the final decision.'
+                        : 'The office is not waiting on the Executive Director for this transfer right now.');
+            }
+
+            if (metaEl) {
+                if (outstanding) {
+                    metaEl.textContent = `Sent ${outstanding.sent_at || '—'}`
+                        + (outstanding.sent_count > 1 ? ` (sent ${outstanding.sent_count} times)` : '')
+                        + ` to ${outstanding.recipient_email || '—'}`
+                        + ` · the link expires ${outstanding.expires_at || '—'}`
+                        + (outstanding.verified_at ? ` · mailbox verified ${outstanding.verified_at}` : '');
+                } else if (review.recipient_email) {
+                    metaEl.textContent = `Ready to send to ${review.recipient_email} — you can change that address when you send it.`;
+                } else {
+                    metaEl.textContent = 'Type the Executive Director\u2019s email address when you send the invitation.';
+                }
+            }
+
+            if (problemEl) {
+                // While the request is still Pending, "not approved yet" is not a
+                // problem to report — it is the next step, described above.
+                problemEl.textContent = (!pending && review.problem) ? review.problem : '';
+            }
+
+            if (resendLabel) {
+                resendLabel.textContent = outstanding ? 'Send a new link' : 'Send invitation';
+            }
+
+            if (resendEl) resendEl.style.display = review.can_send ? 'flex' : 'none';
+            if (revokeEl) revokeEl.style.display = review.can_revoke ? 'flex' : 'none';
+
+            if (historyEl) {
+                const past = (review.history || []).filter(h => h.id !== (outstanding ? outstanding.id : null));
+                historyEl.innerHTML = past.length
+                    ? past.map(h => `<span class="block"><i class="ri-history-line mr-1"></i>${escapeHtml(h.sent_at || '—')} to ${escapeHtml(h.recipient_email || '—')} · ${escapeHtml(h.decision_label || h.status_label)}${h.revoked_reason ? ' · ' + escapeHtml(h.revoked_reason) : ''}</span>`).join('')
+                    : '';
+            }
+        }
+
+        // ── Sending the invitation ───────────────────────────────────────────
+        // The address is part of the action, not a setting: whoever sends a
+        // transfer knows who the Executive Director is right now.
+        let pendingReviewSendId = null;
+
+        function openReviewSendModal(requestId) {
+            const modal = document.getElementById('reviewSendModal');
+            if (!modal) return;
+
+            const request = requestsData.find(r => r.id == requestId);
+            const review = (request && request.review) || {};
+            const outstanding = review.outstanding;
+
+            pendingReviewSendId = requestId;
+
+            const subtitle = document.getElementById('review-send-subtitle');
+            if (subtitle) {
+                subtitle.textContent = `#REQ-${String(requestId).padStart(4, '0')} · ${(request && request.asset_name) || ''}`;
+            }
+
+            const title = document.getElementById('review-send-title');
+            if (title) {
+                title.textContent = outstanding ? 'Send a New Review Invitation' : 'Send Review Invitation';
+            }
+
+            const label = document.getElementById('review-send-confirm-label');
+            if (label) {
+                label.textContent = outstanding ? 'Send a new link' : 'Send invitation';
+            }
+
+            const recipient = document.getElementById('review-send-recipient');
+            if (recipient) {
+                recipient.value = review.recipient_email || review.default_recipient || '';
+            }
+
+            const note = document.getElementById('review-send-note');
+            if (note) {
+                note.textContent = outstanding
+                    ? 'This withdraws the invitation already sent — that link stops working immediately — and sends a new one to the address above.'
+                    : 'The transfer is approved and waits for the Executive Director: no asset changes hands until a decision comes back.';
+            }
+
+            const status = document.getElementById('review-send-status');
+            if (status) status.classList.add('hidden');
+
+            const confirmBtn = document.getElementById('review-send-confirm');
+            if (confirmBtn) confirmBtn.disabled = false;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            if (recipient) recipient.focus();
+        }
+
+        function closeReviewSendModal() {
+            const modal = document.getElementById('reviewSendModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            pendingReviewSendId = null;
+        }
+
+        async function confirmSendReview() {
+            const id = pendingReviewSendId;
+            if (!id) return;
+
+            const recipient = document.getElementById('review-send-recipient');
+            const address = recipient ? recipient.value.trim() : '';
+            const status = document.getElementById('review-send-status');
+            const confirmBtn = document.getElementById('review-send-confirm');
+
+            if (!address) {
+                if (status) {
+                    status.textContent = 'Enter the email address the Executive Director reads.';
+                    status.classList.remove('hidden');
+                }
+                if (recipient) recipient.focus();
+                return;
+            }
+
+            if (confirmBtn) confirmBtn.disabled = true;
+            if (status) status.classList.add('hidden');
+
+            try {
+                const result = await sendRequestAction(id, 'review/resend', { recipient_email: address });
+                closeReviewSendModal();
+                alert(result.message || 'Invitation sent.');
+                location.reload();
+            } catch (error) {
+                if (status) {
+                    status.textContent = error.message || 'The invitation could not be sent.';
+                    status.classList.remove('hidden');
+                }
+                if (confirmBtn) confirmBtn.disabled = false;
+            }
+        }
+
+        function resendReview() {
+            if (currentSelectedRequestId) {
+                openReviewSendModal(currentSelectedRequestId);
+            }
+        }
+
+        async function revokeReview() {
+            const id = currentSelectedRequestId;
+            if (!id) return;
+
+            const reason = prompt(
+                'Withdraw the review link? The Executive Director will no longer be able to submit a decision through it.\n\nReason (optional):',
+                ''
+            );
+
+            if (reason === null) return;
+
+            const button = document.getElementById('detail-review-revoke');
+            if (button) button.disabled = true;
+
+            try {
+                const result = await sendRequestAction(id, 'review/revoke', { reason: reason });
+                alert(result.message || 'The invitation was withdrawn.');
+                location.reload();
+            } catch (error) {
+                alert(error.message || 'The invitation could not be withdrawn.');
+                if (button) button.disabled = false;
+            }
+        }
+
         async function sendRequestAction(requestId, action, payload = {}) {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             const response = await fetch(`/admin/requests/${requestId}/${action}`, {
@@ -689,8 +1037,157 @@
                 return;
             }
 
+            // A transfer asks a second question — execute it here, or hand the
+            // decision to the Executive Director — so it gets a dialog rather
+            // than a bare confirm.
+            if (request && request.type === 'transfer' && request.review && request.review.tables_ready) {
+                openTransferApproveModal(requestId);
+                return;
+            }
+
             if (!confirm('Are you sure you want to approve this request?')) return;
             await submitApproval(requestId, {});
+        }
+
+        // ── Approving a transfer ─────────────────────────────────────────────
+        let pendingTransferApproveId = null;
+
+        function openTransferApproveModal(requestId) {
+            const modal = document.getElementById('transferApproveModal');
+            if (!modal) return;
+
+            const request = requestsData.find(r => r.id == requestId);
+            if (!request) return;
+
+            pendingTransferApproveId = requestId;
+
+            const sub = document.getElementById('transfer-approve-subtitle');
+            if (sub) {
+                sub.textContent = `#REQ-${String(requestId).padStart(4, '0')} · ${request.asset_name || ''}`;
+            }
+
+            const list = document.getElementById('transfer-approve-assets');
+            if (list) {
+                list.innerHTML = '';
+                (request.assets || []).forEach(asset => {
+                    const row = document.createElement('div');
+                    row.className = 'text-sm detail-value';
+                    row.style.color = 'var(--ink-600)';
+                    row.innerHTML = `<i class="ri-record-circle-line mr-1.5 text-xs" style="color:var(--gold-ink);"></i>${escapeHtml(asset.name || 'Unnamed')} <span class="font-mono text-xs" style="color:var(--ink-400);">${escapeHtml(asset.code || '')}</span>`;
+                    list.appendChild(row);
+                });
+            }
+
+            const review = request.review || {};
+            const box = document.getElementById('transfer-forward');
+            const note = document.getElementById('transfer-forward-note');
+            const status = document.getElementById('transfer-approve-status');
+            const confirmBtn = document.getElementById('transfer-approve-confirm');
+
+            // can_forward, not can_send: this dialog is shown while the request
+            // is still Pending, and asking whether it may be forwarded *once
+            // approved* is the question that belongs here.
+            if (box) {
+                box.disabled = !review.can_forward;
+                box.checked = !!review.can_forward && review.forward_default !== false;
+            }
+
+            const recipientInput = document.getElementById('transfer-recipient');
+            if (recipientInput) {
+                recipientInput.value = review.recipient_email || review.default_recipient || '';
+            }
+
+            if (note) {
+                note.textContent = review.can_forward
+                    ? 'The review link is emailed to the address below, and nothing moves until the decision comes back.'
+                    : (review.forward_problem || 'This transfer can only be approved here.');
+            }
+
+            if (status) status.classList.add('hidden');
+            if (confirmBtn) confirmBtn.disabled = false;
+
+            updateTransferApproveExplainer();
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeTransferApproveModal() {
+            const modal = document.getElementById('transferApproveModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            pendingTransferApproveId = null;
+        }
+
+        // The checkbox is the whole difference between the two outcomes, so the
+        // sentence under it is rewritten every time it changes.
+        function updateTransferApproveExplainer() {
+            const box = document.getElementById('transfer-forward');
+            const explainer = document.getElementById('transfer-approve-explainer');
+            const addressWrap = document.getElementById('transfer-forward-address');
+            const recipient = document.getElementById('transfer-recipient');
+            const forwarding = !!(box && box.checked && !box.disabled);
+
+            // The address only matters while the box is ticked, so it is shown
+            // and asked for only then — and required, because an invitation with
+            // nowhere to go is not an invitation.
+            if (addressWrap) addressWrap.style.display = forwarding ? 'block' : 'none';
+            if (recipient) {
+                recipient.disabled = !forwarding;
+                recipient.required = forwarding;
+            }
+
+            if (!explainer) return;
+
+            if (forwarding) {
+                explainer.innerHTML = 'The request is recorded as approved and an invitation is emailed to the address above. '
+                    + '<strong>No asset changes hand yet</strong> — the transfer is applied only for the assets the Executive Director approves.';
+            } else {
+                explainer.innerHTML = 'The transfer is executed now: every asset listed above is reassigned to the employee who requested the transfer.';
+            }
+        }
+
+        async function confirmTransferApprove() {
+            const id = pendingTransferApproveId;
+            if (!id) return;
+
+            const box = document.getElementById('transfer-forward');
+            const forward = !!(box && box.checked && !box.disabled);
+            const recipient = document.getElementById('transfer-recipient');
+            const address = recipient ? recipient.value.trim() : '';
+            const confirmBtn = document.getElementById('transfer-approve-confirm');
+            const status = document.getElementById('transfer-approve-status');
+
+            if (forward && !address) {
+                if (status) {
+                    status.textContent = 'Enter the email address the Executive Director reads, or untick the box to complete the transfer here.';
+                    status.classList.remove('hidden');
+                }
+                if (recipient) recipient.focus();
+                return;
+            }
+
+            if (confirmBtn) confirmBtn.disabled = true;
+            if (status) status.classList.add('hidden');
+
+            try {
+                const result = await sendRequestAction(id, 'approve', {
+                    forward_for_review: forward,
+                    recipient_email: forward ? address : null,
+                });
+                closeTransferApproveModal();
+                alert(result.message || 'Request approved.');
+                location.reload();
+            } catch (error) {
+                if (status) {
+                    status.textContent = error.message || 'Unable to approve request.';
+                    status.classList.remove('hidden');
+                }
+                if (confirmBtn) confirmBtn.disabled = false;
+            }
         }
 
         async function submitApproval(requestId, payload) {
@@ -906,8 +1403,17 @@
             if (e.key === 'Escape') {
                 closeRejectModal();
                 closeApproveModal();
+                closeTransferApproveModal();
+                closeReviewSendModal();
             }
         });
+
+        // Registered once, not per opening: the sentence under the forward box
+        // follows the box, and a listener added on every open would stack up.
+        const transferForwardBox = document.getElementById('transfer-forward');
+        if (transferForwardBox) {
+            transferForwardBox.addEventListener('change', updateTransferApproveExplainer);
+        }
     </script>
 </body>
 </html>

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Password;
 use App\Http\Controllers\UserRequestController;
 use App\Http\Controllers\TransferController;
+use App\Http\Controllers\ExecutiveReviewController;
 use App\Support\Media;
 use App\Support\AssetLabel;
 use App\Support\AssetDetails;
@@ -33,6 +34,7 @@ use App\Support\AccountAdmin;
 use App\Support\EmployeeDirectory;
 use App\Support\Reviewers;
 use App\Support\Approval;
+use App\Support\TransferReviews;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -529,6 +531,37 @@ Route::post('/forgot-password/reset', function (Request $request) {
     return redirect('/login')
         ->with('success', 'Your password has been changed successfully. You can now sign in with your new password.');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Executive Director transfer review (public, token only)
+|--------------------------------------------------------------------------
+|
+| The Executive Director has no NU Trace account, so these four routes are
+| deliberately reachable without a session — and they are the only ones that
+| are. Nothing here lists an asset, searches an inventory or takes an
+| identifier the visitor could change: the token in the URL is the whole of
+| what may be reached, the request it points at is read from the database,
+| and the review it opens is one transfer request and nothing else.
+|
+| The area is absent from RedirectGuestToLanding's PRIVATE_AREAS on purpose,
+| so a guest with a link lands on the review rather than the landing page.
+|
+| CSRF protection, the session cookie and the security headers all apply as
+| they do everywhere else in the app.
+|
+*/
+Route::get('/executive-review/{token}', [ExecutiveReviewController::class, 'show'])
+    ->name('executive.review');
+
+Route::post('/executive-review/{token}/code', [ExecutiveReviewController::class, 'sendCode'])
+    ->name('executive.review.code');
+
+Route::post('/executive-review/{token}/verify', [ExecutiveReviewController::class, 'verify'])
+    ->name('executive.review.verify');
+
+Route::post('/executive-review/{token}/decide', [ExecutiveReviewController::class, 'decide'])
+    ->name('executive.review.decide');
 
 // Users area -> render users.dashboard and show assigned assets when logged in
 // User assets page (My Assets) - show assigned assets for authenticated user
@@ -3508,6 +3541,15 @@ Route::get('/admin/requests', function () {
             'disposal_date'     => $isDisposalRequest ? now()->toDateString() : null,
             'disposal_recorded' => $isDisposalRequest
                                     && in_array((int) $request->id, $recordedDisposalRequests, true),
+
+            // ── Transfer requests the Executive Director has been asked about ─
+            // One array describing the invitation the office is waiting on (if
+            // any), whether this request may be sent at all, and what was sent
+            // before. Null for every other request type. No token is ever part
+            // of this payload.
+            'review' => strtolower((string) $request->request_type) === 'transfer'
+                            ? TransferReviews::panel((int) $request->id)
+                            : null,
         ];
     });
 
@@ -5481,6 +5523,37 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
     $requestType = strtolower((string) $requestRecord->request_type);
     $isDisposal  = $requestType === 'disposal';
 
+    // ─── Is this approval also a request for the Executive Director? ─────
+    // Only a transfer can be forwarded, and only when the office asks for it.
+    // A forwarded transfer is approved here but deliberately NOT executed: the
+    // assets change hands when the Executive Director decides, and until that
+    // decision comes back they stay with the employee who holds them. That is
+    // what stops "approval recorded" from quietly meaning "asset moved".
+    $wantsForward = $requestType === 'transfer' && $request->boolean('forward_for_review');
+
+    // Who the invitation goes to is the office's answer, not the deployment's:
+    // a new Executive Director must not need an environment variable changed.
+    // The address is validated before anything is written, so a typo cannot
+    // leave an approval that was meant to go out for review with nowhere to go.
+    $reviewRecipient = trim((string) $request->input('recipient_email', ''));
+
+    if ($wantsForward && ! TransferReviews::validEmail($reviewRecipient ?: TransferReviews::defaultRecipientEmail())) {
+        return response()->json([
+            'message' => 'Enter the email address the Executive Director actually reads. That mailbox is where the review link goes, and the only place the verification code can be sent.',
+        ], 422);
+    }
+
+    // A request that cannot be reviewed is refused *before* anything is
+    // recorded, so the office is never left with an approval that was meant to
+    // go out for review and a request that quietly moved the assets instead.
+    if ($wantsForward && ($forwardProblem = TransferReviews::eligibilityProblem($requestRecord, false))) {
+        return response()->json([
+            'message' => $forwardProblem . ' Approve the transfer here instead, or correct the request first.',
+        ], 422);
+    }
+
+    $forwardForReview = $wantsForward;
+
     // ─── A disposal approval records a real disposal ─────────────────
     // The reason and date are read from the request (a disposal request carries
     // its reason inside the requester's note), so the Admin confirms rather than
@@ -5549,7 +5622,7 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
     }
 
     try {
-        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds, $isDisposal, $disposalReason, $disposalDate, $assetCodes) {
+        DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds, $isDisposal, $disposalReason, $disposalDate, $assetCodes, $forwardForReview) {
 
             // 1. Mark the request as Approved
             DB::table('requests')
@@ -5636,33 +5709,25 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                 }
 
                 // ─────────────── TRANSFER ───────────────
-                if ($requestType === 'transfer') {
-                    $targetUserId = $requestRecord->assign_to_user_id ?? null;
+                // Nothing per-asset happens here: a transfer is executed once,
+                // below, by the same helper the Executive Director's decision
+                // runs. Keeping it in one place is what makes an approved
+                // transfer look identical whoever released it.
+            }
 
-                    if ($targetUserId) {
-                        DB::table('assets')->where('id', $assetId)->update([
-                            'user_id'          => $targetUserId,
-                            'Lifecycle_Status' => 'Active',
-                            'updated_at'       => now(),
-                        ]);
-
-                        $assigneeName = DB::table('users')
-                            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-                            ->where('users.id', $targetUserId)
-                            ->value('employee_numbers.Full_Name');
-
-                        DB::table('audit_logs')->insert([
-                            'user_id'            => Auth::id(),
-                            'request_id'         => $requestRecord->id,
-                            'asset_id'           => $assetId,
-                            'action_type'        => 'TRANSFER',
-                            'notes'              => 'Transferred asset to ' . ($assigneeName ?? 'User #' . $targetUserId),
-                            'action_description' => 'Asset ownership transferred via approved bulk transfer request #' . $requestRecord->id,
-                            'created_at'         => now(),
-                            'updated_at'         => now(),
-                        ]);
-                    }
-                }
+            // ─────────────── TRANSFER ───────────────
+            // Approving a transfer request the ordinary way still executes it
+            // here — the office releases the assets, exactly as before. A
+            // request that is going to the Executive Director does not: it
+            // waits for that decision, and until then every asset stays with
+            // the employee who holds it.
+            if ($requestType === 'transfer' && ! $forwardForReview) {
+                AssetTransfer::applyRequestTransfer(
+                    $requestRecord,
+                    $assetIds,
+                    Auth::id(),
+                    'approved transfer request #' . $requestRecord->id
+                );
             }
 
             // ─────────────── Official disposal form ───────────────
@@ -5788,6 +5853,18 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                     (int) $requestRecord->id,
                     'disposal'
                 );
+            } elseif ($forwardForReview) {
+                // Approval here is not the end of a transfer any more: it is the
+                // step that asks the Executive Director. The notice says so, and
+                // promises nothing about an asset that has not moved yet.
+                createNotification(
+                    (int) $requestRecord->user_id,
+                    'Transfer Approved — Awaiting the Executive Director',
+                    "Your transfer request for {$assetLabel} has been approved by the Asset Management Office and sent to the Executive Director, who makes the final decision. The assets stay with their current custodian until that decision is recorded.",
+                    'TRANSFER',
+                    (int) $requestRecord->id,
+                    'request'
+                );
             } else {
                 $typeLabel = ucfirst($requestRecord->request_type ?? 'request');
 
@@ -5801,6 +5878,23 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                 );
             }
         });
+
+        // ─── Send it to the Executive Director ────────────────────────────
+        // After the approval is committed, so a mail server that refuses the
+        // message cannot roll back the office's own decision: the invitation is
+        // simply sent again from the request page. Either way the assets have
+        // not changed hands, and the response never says they have.
+        if ($forwardForReview) {
+            $invitation = TransferReviews::invite((int) $requestRecord->id, $actor, false, $reviewRecipient);
+
+            return response()->json([
+                'message' => $invitation['ok']
+                    ? 'Transfer request approved. ' . $invitation['message']
+                    : 'The transfer request was approved, but the review invitation could not be sent. ' . $invitation['message'],
+                'forwarded' => $invitation['ok'],
+                'delivered' => (bool) ($invitation['delivered'] ?? false),
+            ], 200);
+        }
 
         return response()->json(['message' => 'Request approved successfully.']);
     } catch (\RuntimeException $e) {
@@ -5871,6 +5965,18 @@ Route::post('/admin/requests/{id}/reject', function (Request $request, $id) {
             'updated_at'       => now(),
         ]);
 
+    // A transfer that was already sent to the Executive Director and is refused
+    // here must not leave a working link behind: the invitation would open a
+    // request the office has just closed. Nothing is withdrawn unless one was
+    // issued, and the link stops working the moment this runs.
+    if (strtolower((string) $requestRecord->request_type) === 'transfer') {
+        TransferReviews::withdrawOutstanding(
+            (int) $requestRecord->id,
+            'The transfer request was rejected by the Asset Management Office.',
+            $admin
+        );
+    }
+
     // Audit: rejected. action_type is NOT NULL on audit_logs — omitting it (as this
     // route used to) made the insert throw and silently drop both this entry and the
     // requester's notification.
@@ -5926,6 +6032,84 @@ Route::post('/admin/requests/{id}/reject', function (Request $request, $id) {
 
     return response()->json(['message' => 'Request rejected successfully.']);
 })->name('admin.requests.reject');
+
+/*
+|--------------------------------------------------------------------------
+| Executive Director review — the office's two actions
+|--------------------------------------------------------------------------
+|
+| Sending an invitation is the same authority as approving the request: it is
+| the Asset Management Office's decision to ask. Withdrawing one is the same
+| authority again. Both are refused for anybody else, and both are refused on
+| a request that is not an approved transfer.
+|
+| A resend is a replacement, not a second link: whatever the office was
+| waiting on is withdrawn inside the same transaction, so the previous email
+| stops working the moment a new one is issued.
+*/
+Route::post('/admin/requests/{id}/review/resend', function (Request $request, $id) {
+    $admin = Auth::user();
+
+    if (! Access::canDecideRequests($admin)) {
+        return response()->json(['message' => Access::decideMessage()], 403);
+    }
+
+    $requestRecord = DB::table('requests')->where('id', $id)->first();
+
+    if (! $requestRecord) {
+        return response()->json(['message' => 'Request not found.'], 404);
+    }
+
+    // Asking the Executive Director is not the submitter's decision to make on
+    // their own request, for the same reason approving it is not.
+    if (Access::isSubmitter($admin, $requestRecord)) {
+        return response()->json(['message' => Access::selfApprovalMessage()], 403);
+    }
+
+    // The request is already approved, so it is past the point where the office
+    // could decide it: this is the request to ask again, and to say who to ask.
+    // One live invitation at a time is kept by withdrawOutstanding inside
+    // TransferReviews::invite — so a resend to a new director also kills the
+    // link that went to the old one.
+    $result = TransferReviews::resend(
+        (int) $requestRecord->id,
+        $admin,
+        trim((string) $request->input('recipient_email', ''))
+    );
+
+    return response()->json([
+        'message'   => $result['message'],
+        'delivered' => (bool) ($result['delivered'] ?? false),
+    ], $result['ok'] ? 200 : 422);
+})->name('admin.requests.review.resend');
+
+Route::post('/admin/requests/{id}/review/revoke', function (Request $request, $id) {
+    $admin = Auth::user();
+
+    if (! Access::canDecideRequests($admin)) {
+        return response()->json(['message' => Access::decideMessage()], 403);
+    }
+
+    $requestRecord = DB::table('requests')->where('id', $id)->first();
+
+    if (! $requestRecord) {
+        return response()->json(['message' => 'Request not found.'], 404);
+    }
+
+    $validated = $request->validate([
+        'reason' => 'nullable|string|max:255',
+    ], [
+        'reason.max' => 'The reason cannot exceed 255 characters.',
+    ]);
+
+    $result = TransferReviews::revoke(
+        (int) $requestRecord->id,
+        $admin,
+        trim((string) ($validated['reason'] ?? '')) ?: 'Withdrawn by the Asset Management Office.'
+    );
+
+    return response()->json(['message' => $result['message']], $result['ok'] ? 200 : 422);
+})->name('admin.requests.review.revoke');
 
 // AJAX: find asset by scanned code (used by the pullout scanner fallback)
 //
