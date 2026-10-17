@@ -176,6 +176,26 @@ class AssetTransfer
     {
         $transfers = DB::table('requests')
             ->where('request_type', 'Transfer')
+            // A transfer the Executive Director has been asked about has not
+            // happened yet, and one they rejected, or an invitation that was
+            // withdrawn or left to expire, never will: those assets are still in
+            // the sending employee's name. Listing one here — and counting its
+            // assets in the page's own totals — would report a handover that the
+            // Transfer page's Executive Review tab can still withdraw, and that
+            // the assets themselves contradict. The review is where that
+            // transfer lives until a decision is recorded.
+            ->when(TransferReviews::tablesReady(), function ($query) {
+                $query->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('transfer_reviews')
+                        ->whereColumn('transfer_reviews.request_id', 'requests.id')
+                        ->where(function ($inner) {
+                            $inner->where('transfer_reviews.status', '!=', TransferReviews::STATUS_DECIDED)
+                                ->orWhereNull('transfer_reviews.decision')
+                                ->orWhere('transfer_reviews.decision', TransferReviews::DECISION_REJECTED);
+                        });
+                });
+            })
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->get();
@@ -507,6 +527,203 @@ class AssetTransfer
 
             return ['id' => (int) $requestId, 'replayed' => false];
         });
+    }
+
+    /**
+     * Stage a relocation for the Executive Director's decision.
+     *
+     * The relocation the Transfer page performs, held one step earlier: the same
+     * approved Transfer request with its assets in `request_items`, the same
+     * reason in `requests.Note`, the office's own approval in the audit trail —
+     * and nothing changes hands. The invitation is issued by the caller, after
+     * this has committed, so a mail server that refuses the message cannot roll
+     * back a decision the office has already made.
+     *
+     * Everything the Executive Director's review promises is kept here: the
+     * assets stay in the sending employee's custody, they stay in that
+     * employee's listings, and no other door may move them while the invitation
+     * is live — because `TransferReviews::assetsOnHold()` answers for exactly
+     * this kind of approved but not-yet-executed transfer.
+     *
+     * A second submit of the same confirmation (a double click, a retried POST)
+     * is not an error and must not ask the Executive Director twice: the
+     * outstanding invitation covering this same batch, from this same employee
+     * to this same one, is answered with the request that already holds it.
+     *
+     * @param  array<int, int>  $assetIds
+     * @return array{id: int, replayed: bool}
+     *
+     * @throws RuntimeException when an asset is no longer the sender's to give away, or is on hold
+     */
+    public static function stageForReview(
+        int $fromUserId,
+        int $toUserId,
+        array $assetIds,
+        string $reason,
+        ?string $notes = null,
+        ?int $adminId = null
+    ): array {
+        if ($fromUserId === $toUserId) {
+            throw new RuntimeException('Choose a different employee to receive the assets.');
+        }
+
+        $assetIds = array_values(array_unique(array_map('intval', $assetIds)));
+
+        if (empty($assetIds)) {
+            throw new RuntimeException('Select at least one asset to transfer.');
+        }
+
+        return DB::transaction(function () use ($fromUserId, $toUserId, $assetIds, $reason, $notes, $adminId) {
+            $assets = DB::table('assets')
+                ->whereIn('id', $assetIds)
+                ->lockForUpdate()
+                ->get(['id', 'user_id', 'Asset_code', 'Asset_name', 'Lifecycle_Status']);
+
+            if ($assets->count() !== count($assetIds)) {
+                throw new RuntimeException('One or more of the selected assets no longer exist.');
+            }
+
+            // Asked before anything else, because a replayed confirmation leaves
+            // the assets exactly where they started — still the sending
+            // employee's — and would otherwise read as a genuine second request
+            // and send the Executive Director a second invitation for one
+            // handover.
+            if (($replay = self::stagedReplayId($fromUserId, $toUserId, $assetIds)) !== null) {
+                Log::info('Duplicate review request ignored; the transfer is already waiting on the Executive Director.', [
+                    'transfer_id'  => $replay,
+                    'from_user_id' => $fromUserId,
+                    'to_user_id'   => $toUserId,
+                    'assets'       => count($assetIds),
+                ]);
+
+                return ['id' => $replay, 'replayed' => true];
+            }
+
+            $foreign = $assets->where('user_id', '!=', $fromUserId);
+
+            if ($foreign->isNotEmpty()) {
+                throw new RuntimeException(
+                    'These assets are no longer assigned to the employee you are transferring from: '
+                    . $foreign->pluck('Asset_code')->implode(', ')
+                    . '. Reload the page and try again.'
+                );
+            }
+
+            // An asset another review is already holding cannot enter a second
+            // one: two live invitations for one asset would let the Executive
+            // Director answer a question that has already moved on.
+            if ($hold = TransferReviews::assetsOnHold($assetIds)) {
+                throw new RuntimeException(TransferReviews::holdRefusal($hold));
+            }
+
+            if ($problem = self::custodyProblem($assetIds, $toUserId)) {
+                throw new RuntimeException($problem);
+            }
+
+            $names = self::userLabels();
+            $fromName = $names[$fromUserId]['name'] ?? ('User #' . $fromUserId);
+            $toName = $names[$toUserId]['name'] ?? ('User #' . $toUserId);
+
+            $requestId = DB::table('requests')->insertGetId([
+                'user_id'            => $fromUserId,
+                'asset_id'           => null,
+                'request_type'       => 'Transfer',
+                'status'             => 'Approved',
+                'Note'               => $reason,
+                'assign_to_user_id'  => $toUserId,
+                'admin_remarks'      => $notes !== null && trim($notes) !== '' ? trim($notes) : null,
+                'admin_remarks_by'   => $adminId,
+                'admin_remarks_at'   => now(),
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+
+            foreach ($assets as $asset) {
+                DB::table('request_items')->insert([
+                    'request_id' => $requestId,
+                    'asset_id'   => $asset->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // The office's approval, recorded the way the Requests page records
+            // it — the Executive Director's review page reads this entry back to
+            // say who released the transfer. The marker inside the note is what
+            // tells the Transfer page that this transfer was prepared here
+            // rather than asked for by an employee; no column has to be added
+            // for it.
+            DB::table('audit_logs')->insert([
+                'user_id'            => $adminId,
+                'request_id'         => $requestId,
+                'asset_id'           => null,
+                'action_type'        => 'APPROVAL',
+                'notes'              => 'Approved bulk Transfer request with ' . count($assetIds)
+                    . ' asset(s) (' . TransferReviews::ORIGIN_TRANSFER_PAGE . ')',
+                'action_description' => 'Transfer request #' . $requestId . ' was prepared by the Asset Management Office'
+                    . ' on the Transfer page and sent to the Executive Director for the final decision. '
+                    . 'No asset has changed hands — ' . $fromName . ' still holds every asset named on it.',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+
+            // The employee whose assets are being handed over is told, because
+            // the transfer waits on somebody else now and their custody is
+            // unchanged until it is decided — not a goodbye, a "not yet".
+            Notifications::create(
+                $fromUserId,
+                'Transfer Awaiting the Executive Director',
+                count($assetIds) . ' asset' . (count($assetIds) === 1 ? '' : 's') . ' of yours '
+                    . (count($assetIds) === 1 ? 'is' : 'are') . ' being handed over to ' . $toName
+                    . '. The Asset Management Office approved the transfer and sent it to the Executive Director, who makes the final decision. '
+                    . 'The assets stay with you until that decision is recorded.',
+                'TRANSFER',
+                $requestId,
+                'request'
+            );
+
+            return ['id' => (int) $requestId, 'replayed' => false];
+        });
+    }
+
+    /**
+     * The same handover already waiting on the Executive Director, if there is one.
+     *
+     * Only answers when an outstanding invitation covers every one of these
+     * assets for this same from → to pair and was sent moments ago: the
+     * unmistakable fingerprint of the same confirmation arriving twice. A
+     * genuinely different request — another employee, another batch, another
+     * destination — returns null and is decided on its own merits.
+     *
+     * @param  array<int, int>  $assetIds
+     */
+    protected static function stagedReplayId(int $fromUserId, int $toUserId, array $assetIds): ?int
+    {
+        if (! TransferReviews::tablesReady()) {
+            return null;
+        }
+
+        $candidates = DB::table('transfer_reviews')
+            ->join('requests', 'transfer_reviews.request_id', '=', 'requests.id')
+            ->whereIn('transfer_reviews.status', [TransferReviews::STATUS_AWAITING, TransferReviews::STATUS_VERIFIED])
+            ->where('transfer_reviews.last_sent_at', '>=', now()->subMinutes(self::REPLAY_WINDOW_MINUTES))
+            ->where('requests.user_id', $fromUserId)
+            ->where('requests.assign_to_user_id', $toUserId)
+            ->orderByDesc('transfer_reviews.id')
+            ->pluck('transfer_reviews.request_id');
+
+        foreach ($candidates as $candidateId) {
+            $covered = DB::table('request_items')
+                ->where('request_id', $candidateId)
+                ->whereIn('asset_id', $assetIds)
+                ->count();
+
+            if ($covered === count($assetIds)) {
+                return (int) $candidateId;
+            }
+        }
+
+        return null;
     }
 
     /**

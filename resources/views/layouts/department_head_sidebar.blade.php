@@ -108,6 +108,15 @@
                         <i class="ri-mail-line mr-3 text-lg"></i>
                         <span>Requests</span>
                     </a>
+
+                    {{-- Reports: this department's own records — inventory,
+                         acquisitions, repairs, transfers, disposals and
+                         requests — and nothing outside it. --}}
+                    <a href="/department-head/reports"
+                       class="sidebar-item {{ Request::is('department-head/reports*') ? 'active' : '' }} flex items-center px-3 py-2.5 text-sm text-[#B7BFD4] rounded-lg mb-1">
+                        <i class="ri-file-chart-line mr-3 text-lg"></i>
+                        <span>Reports</span>
+                    </a>
             </nav>
 
             <!-- User Info + Logout -->

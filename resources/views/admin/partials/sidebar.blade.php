@@ -105,6 +105,16 @@
                 <i class="ri-group-line text-lg"></i>
                 <span>Employee Management</span>
             </a>
+            {{-- Reports: the registry, the workflows and the history, read
+                 together and exportable. --}}
+            <a href="/admin/reports"
+               class="flex items-center gap-3 px-3 py-2.5 mb-0.5 text-sm rounded-lg transition-colors
+                      {{ request()->is('admin/reports*')
+                          ? 'border-l-[3px] border-[#C9A227] rounded-l-none bg-[#C9A227]/10 text-[#E9C766] font-medium pl-[9px]'
+                          : 'text-[#B7BFD4] hover:bg-white/5 hover:text-[#F3EFE3]' }}">
+                <i class="ri-file-chart-line text-lg"></i>
+                <span>Reports</span>
+            </a>
         </div>
     </nav>
 

@@ -199,6 +199,17 @@
                         <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="history">
                             Transfer History
                         </button>
+                        <button class="tab-btn pb-3 text-sm font-medium transition whitespace-nowrap" style="color:var(--ink-400);" data-tab="executive">
+                            Executive Review
+                            @if($awaitingReviews > 0)
+                                <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[.65rem] font-bold align-middle"
+                                      style="background:var(--gold-500); color:var(--navy-950);"
+                                      title="Waiting on the {{ $reviewDefaults['recipient'] }}">{{ $awaitingReviews }}</span>
+                            @elseif(count($executiveReviews) > 0)
+                                <span class="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[.65rem] font-bold align-middle"
+                                      style="background:var(--paper-2); color:var(--ink-600);">{{ count($executiveReviews) }}</span>
+                            @endif
+                        </button>
                     </div>
                 </div>
 
@@ -365,6 +376,115 @@
                         <p class="text-sm font-medium" style="color:var(--navy-900);">No matching transfers</p>
                         <p class="text-xs mt-1" style="color:var(--ink-400);">Try another employee name, reason or transfer number.</p>
                     </div>
+                </div>
+
+                <!-- Executive Review — every transfer the Executive Director was emailed about -->
+                <div id="tab-executive" class="panel rounded-b-xl overflow-hidden hidden" style="border-top:0;">
+                    <div class="px-4 sm:px-6 py-4" style="border-bottom:1px solid var(--line); background:var(--paper-3);">
+                        <div class="flex items-start gap-3">
+                            <i class="ri-shield-star-line text-lg mt-0.5 flex-shrink-0" style="color:var(--gold-ink);"></i>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold" style="color:var(--navy-900);">Transfers sent to the {{ $reviewDefaults['recipient'] }}</p>
+                                <p class="text-xs mt-1 leading-relaxed" style="color:var(--ink-600);">
+                                    Everything the office approved and emailed for a final decision — the transfers sent from this page
+                                    and the ones forwarded from Requests. The assets stay with the employee holding them until a decision
+                                    is recorded, and the review link exists only in the email the {{ $reviewDefaults['recipient'] }} received.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if(! $reviewDefaults['tables_ready'])
+                        <div class="px-6 py-10 text-center">
+                            <i class="ri-database-2-line text-4xl mb-3 block" style="color:var(--bronze);"></i>
+                            <p class="text-sm font-medium" style="color:var(--navy-900);">The transfer review tables have not been created on this server yet</p>
+                            <p class="text-xs mt-1" style="color:var(--ink-400);">Run the database migration, then reload this page — until then a transfer cannot be sent to the {{ $reviewDefaults['recipient'] }}.</p>
+                        </div>
+                    @else
+                    <div class="overflow-x-auto scrollbar-hide">
+                        <table class="w-full">
+                            <thead class="sticky top-0" style="background:var(--paper-2); border-bottom:1px solid var(--line);">
+                                <tr>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Transfer</th>
+                                    <th class="eyebrow text-left py-3 px-3">From → To</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Assets</th>
+                                    <th class="eyebrow text-left py-3 px-3 hidden lg:table-cell">Sent to</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap">Status</th>
+                                    <th class="eyebrow text-left py-3 px-3 whitespace-nowrap hidden xl:table-cell">Sent</th>
+                                    <th class="eyebrow text-right py-3 px-3 whitespace-nowrap">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="executive-table-body">
+                                @forelse($executiveReviews as $review)
+                                    @php
+                                        $reviewTone = match (true) {
+                                            $review['awaiting'] => ['bg' => 'var(--gold-100)', 'ink' => 'var(--gold-ink)', 'label' => 'Awaiting decision'],
+                                            $review['decided'] && $review['decision'] === 'rejected' => ['bg' => 'var(--brick-tint)', 'ink' => 'var(--brick-dark)', 'label' => 'Rejected'],
+                                            $review['decided'] && $review['decision'] === 'partially_approved' => ['bg' => 'var(--plum-tint)', 'ink' => 'var(--plum-dark)', 'label' => 'Partially approved'],
+                                            $review['decided'] => ['bg' => 'var(--forest-tint)', 'ink' => 'var(--forest-dark)', 'label' => 'Approved'],
+                                            $review['status'] === 'revoked' => ['bg' => 'var(--paper-2)', 'ink' => 'var(--ink-600)', 'label' => 'Withdrawn'],
+                                            default => ['bg' => 'var(--bronze-tint)', 'ink' => 'var(--bronze-dark)', 'label' => 'Link expired'],
+                                        };
+                                    @endphp
+                                    <tr class="request-row" style="border-bottom:1px solid var(--line);"
+                                        data-search="{{ strtolower(trim($review['reference'] . ' ' . ($review['from']['name'] ?? '') . ' ' . ($review['to']['name'] ?? '') . ' ' . ($review['recipient_email'] ?? '') . ' ' . ($review['reason'] ?? '') . ' ' . $review['decision_label'] . ' ' . implode(' ', array_column($review['assets'], 'code')))) }}">
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                            <p class="text-sm font-mono" style="color:var(--navy-900);">{{ $review['reference'] }}</p>
+                                            <p class="text-[.65rem] mt-0.5 uppercase tracking-wider" style="color:var(--ink-400);">
+                                                {{ $review['origin'] === 'transfer_page' ? 'Prepared here' : 'Employee request' }}
+                                            </p>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm" style="color:var(--ink-600);">
+                                            <span style="color:var(--navy-900);">{{ $review['from']['name'] ?? 'Unknown' }}</span>
+                                            <i class="ri-arrow-right-line mx-1 text-xs" style="color:var(--gold-ink);"></i>
+                                            <span style="color:var(--navy-900);">{{ $review['to']['name'] ?? 'Unknown' }}</span>
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                  style="background:var(--steel-tint); color:var(--steel-dark);">
+                                                {{ $review['asset_count'] }}
+                                            </span>
+                                        </td>
+                                        <td class="py-3 px-3 text-sm hidden lg:table-cell" style="color:var(--ink-600);">
+                                            <span class="truncate inline-block max-w-[14rem] align-bottom">{{ $review['recipient_email'] ?: '—' }}</span>
+                                        </td>
+                                        <td class="py-3 px-3 whitespace-nowrap">
+                                            <span class="status-badge inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold"
+                                                  style="background:{{ $reviewTone['bg'] }}; color:{{ $reviewTone['ink'] }};"
+                                                  title="{{ $review['status_label'] }} — {{ $review['status_hint'] }}">
+                                                <span class="w-1.5 h-1.5 rounded-full mr-1.5" style="background:currentColor;"></span>{{ $reviewTone['label'] }}
+                                            </span>
+                                            @if($review['outcome'])
+                                                <p class="text-xs mt-1 max-w-[18rem]" style="color:var(--ink-400);">{{ $review['outcome'] }}</p>
+                                            @endif
+                                        </td>
+                                        <td class="py-3 px-3 text-sm whitespace-nowrap hidden xl:table-cell" style="color:var(--ink-600);">{{ $review['sent_at'] ?: '—' }}</td>
+                                        <td class="py-3 px-3 text-right whitespace-nowrap">
+                                            <button type="button" onclick="openExecutiveModal({{ $review['id'] }})"
+                                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                    style="background:var(--paper-2); color:var(--navy-900);">
+                                                <i class="ri-eye-line mr-1"></i>View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="py-12 text-center">
+                                            <i class="ri-shield-star-line text-5xl mb-3 block" style="color:var(--line);"></i>
+                                            <p style="color:var(--ink-400);">No transfer has been sent to the {{ $reviewDefaults['recipient'] }} yet.</p>
+                                            <p class="text-xs mt-1" style="color:var(--ink-400);">On the Employees tab, pick the assets, choose the receiving employee, and send the confirmation for approval instead of completing it.</p>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="executive-no-match" class="hidden py-12 text-center">
+                        <i class="ri-search-line text-4xl mb-3 block" style="color:var(--gold-500);"></i>
+                        <p class="text-sm font-medium" style="color:var(--navy-900);">No matching reviews</p>
+                        <p class="text-xs mt-1" style="color:var(--ink-400);">Try another employee name, transfer number or email address.</p>
+                    </div>
+                    @endif
                 </div>
 
                 <div class="text-center text-sm mt-10 pt-7" style="color:var(--ink-400); border-top:1px solid var(--line);">
@@ -544,13 +664,53 @@
                 </div>
 
                 <div class="mt-5">
-                    <p class="eyebrow mb-2">Assets that will move</p>
+                    <p class="eyebrow mb-2">Who completes this transfer?</p>
+                    <div class="space-y-2">
+                        <label class="asset-pick" id="mode-direct-label">
+                            <input type="radio" name="transfer_mode" value="direct" checked onchange="updateTransferMode()">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium" style="color:var(--navy-900);">Complete it now</p>
+                                <p class="text-xs mt-0.5" style="color:var(--ink-400);">The assets change custodian the moment you confirm. No further approval is needed.</p>
+                            </div>
+                        </label>
+                        <label class="asset-pick {{ $reviewDefaults['tables_ready'] ? '' : 'opacity-60' }}" id="mode-review-label">
+                            <input type="radio" name="transfer_mode" value="review" onchange="updateTransferMode()"
+                                   {{ $reviewDefaults['tables_ready'] ? '' : 'disabled' }}>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium" style="color:var(--navy-900);">Send to the {{ $reviewDefaults['recipient'] }} for approval</p>
+                                <p class="text-xs mt-0.5" style="color:var(--ink-400);">
+                                    @if($reviewDefaults['tables_ready'])
+                                        The transfer is held: nothing changes hands until the decision comes back on the emailed review page.
+                                    @else
+                                        Unavailable until the transfer review tables are created on this server — run the database migration first.
+                                    @endif
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="review-options" class="hidden mt-4 rounded-xl px-4 py-3" style="background:var(--gold-100); border:1px solid #EADFC0;">
+                    <label for="review-recipient" class="eyebrow mb-1 block">Executive Director's email address</label>
+                    <input type="email" id="review-recipient" autocomplete="off"
+                           placeholder="executive.director@nu-lipa.edu.ph"
+                           value="{{ $reviewDefaults['default_recipient'] }}"
+                           class="w-full px-3 py-2.5 rounded-lg text-sm" style="border:1px solid var(--line);">
+                    <p class="text-xs mt-2" style="color:var(--gold-ink);">
+                        The review link and its 6-digit verification code are emailed here, and the only mailbox that can submit a decision.
+                        The link stops working after {{ $reviewDefaults['link_lifetime'] }} — or the moment you withdraw it on the Executive Review tab.
+                    </p>
+                    <p class="text-xs mt-2 font-medium" id="review-mode-warning" style="color:var(--bronze-dark);"></p>
+                </div>
+
+                <div class="mt-5">
+                    <p class="eyebrow mb-2">Assets named on this transfer</p>
                     <div id="confirm-asset-list" class="space-y-1 scroll-area" style="max-height:11rem;"></div>
                 </div>
 
                 <div class="mt-5 flex items-start gap-2.5 px-3.5 py-3 rounded-xl" style="background:var(--bronze-tint); border:1px solid #EADFC0;">
-                    <i class="ri-alert-line text-lg mt-0.5" style="color:var(--bronze);"></i>
-                    <p class="text-xs leading-relaxed" style="color:var(--bronze-dark);">
+                    <i class="ri-alert-line text-lg mt-0.5 flex-shrink-0" style="color:var(--bronze);"></i>
+                    <p class="text-xs leading-relaxed" id="confirm-warning" style="color:var(--bronze-dark);">
                         The receiving employee becomes responsible for these assets. Their Asset ID, Asset Code, QR Code and history stay the same — only the accountable employee changes.
                     </p>
                 </div>
@@ -563,6 +723,28 @@
                 <button type="button" id="confirm-transfer-btn" onclick="submitTransfer()" class="px-5 py-2.5 rounded-lg text-sm font-semibold" style="background:var(--gold-500); color:var(--navy-950);">
                     <i class="ri-check-line mr-1.5"></i>Confirm Transfer
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive Director review details — the same facts the email link carries -->
+    <div id="executiveModal" class="fixed inset-0 hidden items-center justify-center z-50 p-4" style="background:rgba(10,24,48,.6);" onclick="closeExecutiveModal()">
+        <div class="panel modal-panel rounded-xl w-full max-w-3xl flex flex-col max-h-[92vh]" onclick="event.stopPropagation();">
+            <div class="modal-head px-6 py-5 flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="eyebrow mb-1">Executive Director review</p>
+                    <h3 class="font-display text-lg font-semibold truncate" id="executive-modal-title" style="color:var(--navy-900);">—</h3>
+                    <p class="text-sm mt-0.5" id="executive-modal-sub" style="color:var(--ink-400);">—</p>
+                </div>
+                <button type="button" onclick="closeExecutiveModal()" class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0" style="color:var(--ink-400);" aria-label="Close">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            <div class="px-6 py-5 scroll-area flex-1" id="executive-modal-body">
+                <!-- filled by JS -->
+            </div>
+            <div class="px-6 py-4 flex flex-wrap items-center justify-end gap-3" style="border-top:1px solid var(--line);" id="executive-modal-actions">
+                <!-- filled by JS -->
             </div>
         </div>
     </div>
@@ -594,13 +776,20 @@
         <input type="hidden" name="to_user_id" id="form-to-user">
         <input type="hidden" name="reason" id="form-reason">
         <input type="hidden" name="notes" id="form-notes">
+        <input type="hidden" name="send_for_review" id="form-send-for-review" value="0">
+        <input type="hidden" name="review_recipient_email" id="form-review-email">
         <div id="form-asset-inputs"></div>
     </form>
 
     <script>
         const TRANSFER_EMPLOYEES = @json($employees);
         const TRANSFER_HISTORY  = @json($transfers);
+        const TRANSFER_REVIEWS  = @json($executiveReviews);
+        const REVIEW_TABLES_READY = @json($reviewDefaults['tables_ready']);
+        const REVIEW_RECIPIENT  = @json($reviewDefaults['recipient']);
         const OPEN_TRANSFER_ID  = @json($openTransferId);
+        const OPEN_REVIEW_ID    = @json($openReviewId);
+        const CSRF_TOKEN        = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
         let activeEmployee = null;   // employee object from TRANSFER_EMPLOYEES
         let selectedAssetIds = [];   // asset ids ticked in step 1
@@ -633,9 +822,9 @@
 
         /* ---------------- tabs ---------------- */
         function selectTab(tab) {
-            const isHistory = tab === 'history';
-            byId('tab-employees').classList.toggle('hidden', isHistory);
-            byId('tab-history').classList.toggle('hidden', !isHistory);
+            ['employees', 'history', 'executive'].forEach((name) => {
+                byId('tab-' + name)?.classList.toggle('hidden', name !== tab);
+            });
             document.querySelectorAll('.tab-btn').forEach((btn) => {
                 const on = btn.dataset.tab === tab;
                 btn.classList.toggle('tab-active', on);
@@ -672,6 +861,15 @@
                 if (visible) historyHits++;
             });
             byId('history-no-match').classList.toggle('hidden', historyHits > 0);
+
+            let reviewHits = 0;
+            document.querySelectorAll('#executive-table-body tr').forEach((row) => {
+                if (!row.dataset.search) return;
+                const visible = !needle || row.dataset.search.includes(needle);
+                row.style.display = visible ? '' : 'none';
+                if (visible) reviewHits++;
+            });
+            byId('executive-no-match')?.classList.toggle('hidden', reviewHits > 0);
         }
 
         /* ---------------- step 1: the employee's assets ---------------- */
@@ -886,6 +1084,7 @@
                 </div>`).join('');
 
             closeReceiverModal();
+            updateTransferMode();
             byId('confirmModal').classList.remove('hidden');
             byId('confirmModal').classList.add('flex');
         }
@@ -895,25 +1094,232 @@
             byId('confirmModal').classList.remove('flex');
         }
 
+        /* ---------------- complete now, or ask the Executive Director ---------------- */
+        function transferMode() {
+            const chosen = document.querySelector('input[name="transfer_mode"]:checked');
+            return chosen ? chosen.value : 'direct';
+        }
+
+        function updateTransferMode() {
+            const review = transferMode() === 'review';
+
+            byId('review-options').classList.toggle('hidden', !review);
+            byId('mode-direct-label').classList.toggle('is-checked', !review);
+            byId('mode-review-label').classList.toggle('is-checked', review);
+
+            const from = activeEmployee ? activeEmployee.name : 'the employee';
+
+            if (review) {
+                byId('review-mode-warning').textContent =
+                    'Nothing changes hands when you send this: ' + from + ' stays accountable for these assets until the ' + REVIEW_RECIPIENT + ' records a decision.';
+                byId('confirm-warning').textContent =
+                    'The assets stay with ' + from + ' and keep their Asset ID, Asset Code, QR Code and history. They move to the receiving employee only after the ' + REVIEW_RECIPIENT + ' approves the transfer.';
+                byId('confirm-transfer-btn').innerHTML = '<i class="ri-send-plane-line mr-1.5"></i>Send for Approval';
+            } else {
+                byId('confirm-warning').textContent =
+                    'The receiving employee becomes responsible for these assets. Their Asset ID, Asset Code, QR Code and history stay the same — only the accountable employee changes.';
+                byId('confirm-transfer-btn').innerHTML = '<i class="ri-check-line mr-1.5"></i>Confirm Transfer';
+            }
+        }
+
         function submitTransfer() {
             if (submitted) return;   // one confirmation per page — no double sends
             if (!activeEmployee || !receiverId || !selectedAssetIds.length) return;
+
+            const review = transferMode() === 'review';
+            const recipient = byId('review-recipient').value.trim();
+
+            // The address is where the link and its code go, so a send without a
+            // usable one is stopped here rather than at the server. The browser's
+            // own validation does not run for a form this script submits.
+            if (review && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+                alert('Enter the email address ' + REVIEW_RECIPIENT + ' actually reads — the review link and its verification code are sent there.');
+                byId('review-recipient').focus();
+                return;
+            }
 
             submitted = true;
 
             const btn = byId('confirm-transfer-btn');
             btn.disabled = true;
             btn.style.opacity = '.6';
-            btn.innerHTML = '<i class="ri-loader-4-line mr-1.5 animate-spin inline-block"></i>Transferring...';
+            btn.innerHTML = review
+                ? '<i class="ri-loader-4-line mr-1.5 animate-spin inline-block"></i>Sending...'
+                : '<i class="ri-loader-4-line mr-1.5 animate-spin inline-block"></i>Transferring...';
 
             byId('form-from-user').value = activeEmployee.id;
             byId('form-to-user').value = receiverId;
             byId('form-reason').value = byId('reason-select').value;
             byId('form-notes').value = byId('transfer-notes').value.trim();
+            byId('form-send-for-review').value = review ? '1' : '0';
+            byId('form-review-email').value = review ? recipient : '';
             byId('form-asset-inputs').innerHTML = selectedAssetIds
                 .map((id) => `<input type="hidden" name="asset_ids[]" value="${id}">`).join('');
 
             byId('transferForm').submit();
+        }
+
+        /* ---------------- the Executive Director review tab ---------------- */
+        function reviewById(reviewId) {
+            return TRANSFER_REVIEWS.find((r) => Number(r.id) === Number(reviewId)) || null;
+        }
+
+        function reviewTone(review) {
+            if (review.awaiting) return { bg: 'var(--gold-100)', ink: 'var(--gold-ink)', label: 'Awaiting ' + REVIEW_RECIPIENT + '’s decision' };
+            if (review.decided && review.decision === 'rejected') return { bg: 'var(--brick-tint)', ink: 'var(--brick-dark)', label: 'Rejected' };
+            if (review.decided && review.decision === 'partially_approved') return { bg: 'var(--plum-tint)', ink: 'var(--plum-dark)', label: 'Approved in part' };
+            if (review.decided) return { bg: 'var(--forest-tint)', ink: 'var(--forest-dark)', label: 'Approved' };
+            if (review.status === 'revoked') return { bg: 'var(--paper-2)', ink: 'var(--ink-600)', label: 'Invitation withdrawn' };
+            return { bg: 'var(--bronze-tint)', ink: 'var(--bronze-dark)', label: 'Link expired' };
+        }
+
+        function fact(label, value) {
+            return `<div class="rounded-xl px-4 py-3" style="background:var(--paper-3);">
+                <p class="eyebrow mb-1">${escapeHtml(label)}</p>
+                <p class="text-sm" style="color:var(--navy-900);">${escapeHtml(value || '—')}</p>
+            </div>`;
+        }
+
+        function openExecutiveModal(reviewId) {
+            const review = reviewById(reviewId);
+            if (!review) return;
+
+            const tone = reviewTone(review);
+
+            byId('executive-modal-title').textContent = 'Transfer ' + review.reference + ' — ' + tone.label;
+            byId('executive-modal-sub').textContent = review.from?.name
+                ? `${review.from.name} → ${review.to?.name || 'unknown employee'} • ${review.asset_count} asset(s)`
+                : `${review.asset_count} asset(s)`;
+
+            const assetRows = (review.assets || []).map((asset) => `
+                <div class="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg" style="background:var(--paper-3);">
+                    <span class="text-xs font-mono" style="color:var(--navy-900);">${escapeHtml(asset.code || ('asset #' + asset.id))}</span>
+                    <span class="text-xs flex-1 min-w-0" style="color:var(--ink-600);">${escapeHtml(asset.name || '')}</span>
+                    <span class="text-[.68rem] font-semibold whitespace-nowrap" style="color:${asset.decision === 'approved' ? 'var(--forest-dark)' : (asset.decision === 'declined' ? 'var(--brick-dark)' : 'var(--ink-400)')};">${escapeHtml(asset.decision_label)}</span>
+                </div>`).join('') || '<p class="text-xs" style="color:var(--ink-400);">The assets on this transfer are no longer on record.</p>';
+
+            const sentLine = review.can_resend
+                ? `<div class="px-4 py-3 rounded-xl" style="background:var(--gold-100); border:1px solid #EADFC0;">
+                        <label for="executive-resend-email" class="eyebrow mb-1 block">Send the review link to</label>
+                        <input type="email" id="executive-resend-email" autocomplete="off"
+                               value="${escapeHtml(review.recipient_email || '')}"
+                               class="w-full px-3 py-2.5 rounded-lg text-sm" style="border:1px solid var(--line);">
+                        <p class="text-xs mt-2" style="color:var(--gold-ink);">
+                            Sending again replaces the previous link: whatever was emailed before stops working, and this address is the only mailbox that can submit the decision.
+                        </p>
+                   </div>`
+                : '';
+
+            byId('executive-modal-body').innerHTML = `
+                <div class="rounded-xl px-4 py-3 mb-4" style="background:${tone.bg};">
+                    <p class="text-sm font-semibold" style="color:${tone.ink};">${escapeHtml(tone.label)}</p>
+                    <p class="text-xs mt-1" style="color:${tone.ink};">${escapeHtml(review.status_hint)}</p>
+                    ${review.outcome ? `<p class="text-xs mt-2 font-medium" style="color:${tone.ink};">${escapeHtml(review.outcome)}</p>` : ''}
+                    ${review.revoked_reason ? `<p class="text-xs mt-2" style="color:${tone.ink};">Withdrawn: ${escapeHtml(review.revoked_reason)}</p>` : ''}
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    ${fact('From', review.from?.name || 'Unknown')}
+                    ${fact('To', review.to?.name || 'Unknown')}
+                    ${fact('Reason', review.reason || '—')}
+                    ${fact('Notes', review.notes || '—')}
+                </div>
+
+                <p class="eyebrow mb-2">Email and decision</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    ${fact('Sent to', review.recipient_email || '—')}
+                    ${fact('Sent', review.sent_at ? (review.sent_at + (review.sent_count > 1 ? ' (sent ' + review.sent_count + ' times)' : '')) : '—')}
+                    ${fact('Link expires', review.expires_at || '—')}
+                    ${fact('Mailbox verified', review.verified_at || 'Not yet')}
+                    ${fact('Decision recorded', review.decided_at || '—')}
+                    ${fact('Released for review by', (review.released_by || '—') + (review.released_at ? ' on ' + review.released_at : ''))}
+                </div>
+
+                ${sentLine ? `<div class="mb-4">${sentLine}</div>` : ''}
+
+                <p class="eyebrow mb-2">Assets named on this transfer</p>
+                <div class="space-y-1">${assetRows}</div>`;
+
+            const actions = [];
+
+            if (review.can_resend) {
+                actions.push(`<button type="button" onclick="sendReviewAgain(${review.id})" class="px-4 py-2.5 rounded-lg text-sm font-semibold" style="background:var(--gold-500); color:var(--navy-950);">
+                    <i class="ri-send-plane-line mr-1.5"></i>${review.status === 'revoked' ? 'Send a new invitation' : 'Send again'}</button>`);
+            }
+
+            if (review.can_revoke) {
+                actions.push(`<button type="button" onclick="withdrawReview(${review.id})" class="px-4 py-2.5 rounded-lg text-sm font-medium" style="background:var(--brick-tint); color:var(--brick-dark);">
+                    <i class="ri-close-circle-line mr-1.5"></i>Withdraw invitation</button>`);
+            }
+
+            actions.push('<button type="button" onclick="closeExecutiveModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium" style="background:var(--paper-2); color:var(--ink-600);">Close</button>');
+
+            byId('executive-modal-actions').innerHTML = actions.join('');
+
+            byId('executiveModal').classList.remove('hidden');
+            byId('executiveModal').classList.add('flex');
+        }
+
+        function closeExecutiveModal() {
+            byId('executiveModal').classList.add('hidden');
+            byId('executiveModal').classList.remove('flex');
+        }
+
+        async function reviewAction(url, body) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN,
+                    },
+                    body: JSON.stringify(body || {}),
+                });
+
+                let data = {};
+                try { data = await response.json(); } catch (e) { data = {}; }
+
+                return { ok: response.ok, message: data.message || 'The server did not say what happened.' };
+            } catch (e) {
+                return { ok: false, message: 'The request could not be sent. Check the connection and try again.' };
+            }
+        }
+
+        async function sendReviewAgain(reviewId) {
+            const review = reviewById(reviewId);
+            if (!review) return;
+
+            const email = byId('executive-resend-email')?.value.trim() || '';
+
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                alert('Enter the email address ' + REVIEW_RECIPIENT + ' actually reads — the review link and its verification code are sent there.');
+                byId('executive-resend-email')?.focus();
+                return;
+            }
+
+            const result = await reviewAction(`/admin/requests/${review.request_id}/review/resend`, { recipient_email: email });
+
+            alert(result.message);
+
+            if (result.ok) window.location.reload();
+        }
+
+        async function withdrawReview(reviewId) {
+            const review = reviewById(reviewId);
+            if (!review) return;
+
+            if (!confirm('Withdraw this invitation?\n\nThe link emailed to the ' + REVIEW_RECIPIENT + ' stops working immediately and cannot be used to submit a decision. The assets stay where they are, and nothing is transferred.')) {
+                return;
+            }
+
+            const reason = prompt('Why is this invitation being withdrawn? This is recorded on the trail.', 'Withdrawn by the Asset Management Office.') || '';
+
+            const result = await reviewAction(`/admin/requests/${review.request_id}/review/revoke`, { reason });
+
+            alert(result.message);
+
+            if (result.ok) window.location.reload();
         }
 
         /* ---------------- history details ---------------- */
@@ -983,6 +1389,14 @@
                 selectTab('history');
                 openHistoryModal(OPEN_TRANSFER_ID);
             }
+
+            // The office just sent a transfer for review (or asked for one again):
+            // land on the tab that holds it, with its details open, rather than
+            // making them search for what they just did.
+            if (OPEN_REVIEW_ID) {
+                selectTab('executive');
+                openExecutiveModal(OPEN_REVIEW_ID);
+            }
         });
 
         // Coming back to this page from the history (browser Back / Forward) restores
@@ -999,9 +1413,9 @@
             if (btn) {
                 btn.disabled = false;
                 btn.style.opacity = '1';
-                btn.innerHTML = '<i class="ri-check-line mr-1.5"></i>Confirm Transfer';
             }
 
+            updateTransferMode();
             closeConfirmModal();
         });
 
@@ -1011,6 +1425,7 @@
             closeReceiverModal();
             closeAssetsModal();
             closeHistoryModal();
+            closeExecutiveModal();
         });
     </script>
 </body>

@@ -59,6 +59,18 @@ class TransferReviews
     public const ITEM_APPROVED = 'approved';
     public const ITEM_DECLINED = 'declined';
 
+    /**
+     * Where a transfer was prepared, written into the office's own APPROVAL
+     * audit entry and read back out of it.
+     *
+     * The Transfer page can ask the Executive Director about a handover the
+     * office set up itself, and the Requests page about one an employee asked
+     * for. Both create the same kind of approved Transfer request, so the trail
+     * says which door it came through rather than the schema carrying a column
+     * for it — the same way the approval's author and time are read back.
+     */
+    public const ORIGIN_TRANSFER_PAGE = 'prepared-on-transfer-page';
+
     private static ?bool $tablesReady = null;
 
     /* ───────────────────────── configuration ───────────────────────── */
@@ -428,6 +440,176 @@ class TransferReviews
         return $panel;
     }
 
+    /**
+     * Every transfer the Executive Director has been asked about, for the
+     * Transfer page's own tab.
+     *
+     * The Requests page can answer this one transfer request at a time, and the
+     * office can send a transfer from the Transfer page itself — so a link the
+     * office can only find by going back to Requests is a link it will lose
+     * track of. One row per invitation, newest first, carrying the same facts
+     * the invitation email put in front of the Executive Director: who the
+     * transfer is from and to, which assets, why, where the email went, and what
+     * came back. The office can answer "what exactly did we send, and what is
+     * still unanswered?" without leaving this page.
+     *
+     * Read-only, and no token: the link exists only in the email that carried
+     * it. `can_revoke` and `can_resend` are the two actions the page may offer,
+     * and both are answered by the same rules the endpoints themselves apply.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function board(int $limit = 60): array
+    {
+        if (! self::tablesReady()) {
+            return [];
+        }
+
+        $reviews = DB::table('transfer_reviews')->orderByDesc('id')->limit(max(1, min($limit, 200)))->get();
+
+        if ($reviews->isEmpty()) {
+            return [];
+        }
+
+        $requestIds = $reviews->pluck('request_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        $requests  = DB::table('requests')->whereIn('id', $requestIds)->get()->keyBy('id');
+        $assets    = self::assetsForRequests($requestIds);
+        $items     = DB::table('transfer_review_items')
+            ->whereIn('review_id', $reviews->pluck('id')->map(fn ($id) => (int) $id)->all())
+            ->get();
+        $approvals = DB::table('audit_logs')
+            ->whereIn('request_id', $requestIds)
+            ->where('action_type', 'APPROVAL')
+            ->orderBy('id')
+            ->get(['request_id', 'user_id', 'notes', 'created_at'])
+            ->groupBy('request_id');
+        $names     = AssetTransfer::userLabels();
+
+        $board = [];
+
+        foreach ($reviews as $review) {
+            $request = $requests->get((int) $review->request_id);
+
+            // A review whose request is gone describes nothing; the foreign key
+            // cascades on delete, so this is belt and braces.
+            if (! $request) {
+                continue;
+            }
+
+            $reviewId  = (int) $review->id;
+            $requestId = (int) $review->request_id;
+
+            $rowAssets = $assets->get($requestId, new Collection());
+            $decisions = $items
+                ->where('review_id', $reviewId)
+                ->filter(fn ($item) => (int) ($item->asset_id ?? 0) > 0)
+                ->keyBy('asset_id');
+
+            $from   = $names[(int) $request->user_id] ?? null;
+            $to     = $names[(int) ($request->assign_to_user_id ?? 0)] ?? null;
+            $toName = $to['name'] ?? ('user #' . (int) ($request->assign_to_user_id ?? 0));
+
+            // The office's release, read back out of the trail: the newest
+            // APPROVAL entry that is not the Executive Director's own decision.
+            $release = ($approvals->get($requestId) ?? new Collection())
+                ->last(fn ($entry) => ! str_starts_with((string) $entry->notes, 'Executive Director'));
+
+            $status      = (string) $review->status;
+            $outstanding = self::isOutstanding($status);
+            $decided     = $status === self::STATUS_DECIDED;
+            $decision    = $review->decision ? (string) $review->decision : null;
+
+            $assetRows = [];
+
+            foreach ($rowAssets as $asset) {
+                $item = $decisions->get((int) $asset->id);
+
+                $assetRows[] = [
+                    'id'             => (int) $asset->id,
+                    'code'           => $asset->Asset_code,
+                    'name'           => $asset->Asset_name,
+                    'category'       => $asset->Category,
+                    'condition'      => $asset->Condition,
+                    'lifecycle'      => $asset->Lifecycle_Status,
+                    'location'       => $asset->asset_location,
+                    'decision'       => $item->decision ?? null,
+                    'decision_label' => self::itemLabel($item->decision ?? null),
+                ];
+            }
+
+            $board[] = [
+                'id'              => $reviewId,
+                'request_id'      => $requestId,
+                'reference'       => 'TR-' . str_pad((string) $requestId, 4, '0', STR_PAD_LEFT),
+                'origin'          => $release && str_contains((string) $release->notes, self::ORIGIN_TRANSFER_PAGE)
+                                        ? 'transfer_page'
+                                        : 'request',
+                'status'          => $status,
+                'status_label'    => self::label($status),
+                'status_hint'     => self::hint($status),
+                'expired'         => self::isExpired($review),
+                'awaiting'        => $outstanding && ! self::isExpired($review),
+                'decided'         => $decided,
+                'decision'        => $decision,
+                'decision_label'  => self::decisionLabel($decision),
+                'outcome'         => self::boardOutcome($decision, $review->rejection_reason ?? null, $decisions, $toName),
+                'recipient_email' => $review->recipient_email,
+                'sent_at'         => self::stamp($review->last_sent_at),
+                'sent_count'      => (int) ($review->sent_count ?? 0),
+                'expires_at'      => self::stamp($review->expires_at),
+                'verified_at'     => self::stamp($review->verified_at),
+                'decided_at'      => self::stamp($review->decided_at),
+                'revoked_reason'  => $review->revoked_reason,
+                'reason'          => $request->Note,
+                'notes'           => $request->admin_remarks,
+                'request_status'  => $request->status,
+                'from'            => $from,
+                'to'              => $to,
+                'assets'          => $assetRows,
+                'asset_count'     => count($assetRows),
+                'released_by'     => $release && ! empty($release->user_id)
+                                        ? ($names[(int) $release->user_id]['name'] ?? null)
+                                        : null,
+                'released_at'     => self::stamp($release->created_at ?? null),
+                'can_revoke'      => $outstanding,
+                'can_resend'      => $outstanding || self::eligibilityProblem($request) === null,
+            ];
+        }
+
+        return $board;
+    }
+
+    /** What a recorded decision meant, in one sentence, for the page's records. */
+    private static function boardOutcome(?string $decision, ?string $reason, Collection $decisions, string $toName): ?string
+    {
+        if ($decision === self::DECISION_REJECTED) {
+            $reason = trim((string) $reason);
+
+            return 'Rejected — nothing was transferred.' . ($reason !== '' ? ' Reason: ' . $reason : '');
+        }
+
+        if ($decision !== self::DECISION_APPROVED && $decision !== self::DECISION_PARTIAL) {
+            return null;
+        }
+
+        $total    = $decisions->count();
+        $approved = $decisions->where('decision', self::ITEM_APPROVED)->count();
+        $declined = $decisions->where('decision', self::ITEM_DECLINED)->count();
+
+        $sentence = $approved . ' of ' . $total . ' asset' . ($total === 1 ? '' : 's') . ' approved';
+
+        if ($approved > 0) {
+            $sentence .= ' and now assigned to ' . $toName;
+        }
+
+        if ($declined > 0) {
+            $sentence .= '; ' . $declined . ' not approved and left where they were';
+        }
+
+        return $sentence . '.';
+    }
+
     /** A stored timestamp, formatted for the pages that read it. */
     public static function stamp($value, string $format = 'M j, Y g:i A'): ?string
     {
@@ -472,32 +654,81 @@ class TransferReviews
      */
     public static function transferAssets(int $requestId): Collection
     {
+        if ($requestId <= 0) {
+            return new Collection();
+        }
+
+        return self::assetsForRequests([$requestId])->get($requestId, new Collection());
+    }
+
+    /**
+     * The assets of several transfer requests at once, keyed by request id.
+     *
+     * One implementation for one request and for a page that lists many: the
+     * Transfer page's Executive Review tab shows what each invitation sent, and
+     * asking the database once per row is how a listing quietly becomes slow.
+     * The shape each request's assets arrive in is exactly what
+     * `transferAssets()` has always returned.
+     *
+     * @param  array<int, int>  $requestIds
+     * @return Collection<int, Collection<int, object>>
+     */
+    public static function assetsForRequests(array $requestIds): Collection
+    {
+        $requestIds = array_values(array_unique(array_filter(array_map('intval', $requestIds))));
+
+        if (! $requestIds) {
+            return new Collection();
+        }
+
         $items = DB::table('request_items')
-            ->where('request_id', $requestId)
+            ->whereIn('request_id', $requestIds)
             ->orderBy('id')
-            ->pluck('asset_id')
-            ->map(fn ($id) => (int) $id)
-            ->filter()
-            ->values()
-            ->all();
+            ->get(['request_id', 'asset_id']);
 
-        if (! $items) {
-            // Older single-asset requests keep the asset on the request row.
-            $assetId = DB::table('requests')->where('id', $requestId)->value('asset_id');
+        // Older single-asset requests keep the asset on the request row, and only
+        // when there are no items for them at all.
+        $singles = DB::table('requests')
+            ->whereIn('id', $requestIds)
+            ->whereNotNull('asset_id')
+            ->pluck('asset_id', 'id');
 
-            if ($assetId) {
-                $items = [(int) $assetId];
+        $ordered = [];
+
+        foreach ($requestIds as $requestId) {
+            $ordered[$requestId] = [];
+        }
+
+        foreach ($items as $item) {
+            $assetId = (int) $item->asset_id;
+
+            if ($assetId > 0) {
+                $ordered[(int) $item->request_id][] = $assetId;
             }
         }
 
-        if (! $items) {
-            return new Collection();
+        foreach ($singles as $requestId => $assetId) {
+            if (empty($ordered[(int) $requestId]) && (int) $assetId > 0) {
+                $ordered[(int) $requestId] = [(int) $assetId];
+            }
+        }
+
+        $assetIds = array_values(array_unique(array_merge(...array_values($ordered))));
+
+        $grouped = new Collection();
+
+        if (! $assetIds) {
+            foreach ($ordered as $requestId => $ids) {
+                $grouped->put((int) $requestId, new Collection());
+            }
+
+            return $grouped;
         }
 
         $rows = DB::table('assets')
             ->leftJoin('users as holder', 'assets.user_id', '=', 'holder.id')
             ->leftJoin('employee_numbers as holder_emp', 'holder.employee_numbers_id', '=', 'holder_emp.id')
-            ->whereIn('assets.id', $items)
+            ->whereIn('assets.id', $assetIds)
             ->orderBy('assets.Asset_name')
             ->get([
                 'assets.id',
@@ -514,17 +745,22 @@ class TransferReviews
             ]);
 
         $byId = $rows->keyBy('id');
-        $ordered = new Collection();
 
-        // Keep the request's own order, and keep an asset that has since been
-        // deleted: the request still lists it.
-        foreach ($items as $assetId) {
-            if (isset($byId[$assetId])) {
-                $ordered->push($byId[$assetId]);
+        foreach ($ordered as $requestId => $ids) {
+            $forRequest = new Collection();
+
+            // Keep the request's own order, and keep an asset that has since
+            // been deleted: the request still lists it.
+            foreach ($ids as $assetId) {
+                if (isset($byId[$assetId])) {
+                    $forRequest->push($byId[$assetId]);
+                }
             }
+
+            $grouped->put((int) $requestId, $forRequest);
         }
 
-        return $ordered;
+        return $grouped;
     }
 
     /**

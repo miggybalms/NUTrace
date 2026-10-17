@@ -15,6 +15,7 @@ use Illuminate\Validation\Rules\Password;
 use App\Http\Controllers\UserRequestController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\ExecutiveReviewController;
+use App\Http\Controllers\ReportController;
 use App\Support\Media;
 use App\Support\AssetLabel;
 use App\Support\AssetDetails;
@@ -5231,6 +5232,51 @@ Route::get('/admin/transfer', [TransferController::class, 'index'])
 Route::post('/admin/transfer', [TransferController::class, 'store'])
     ->middleware('auth')
     ->name('admin.transfer.store');
+
+// ─── Reports ────────────────────────────────────────────────────────────
+// One reporting module, two roles. The page, its CSV export and its print
+// sheet all carry the report's criteria in the query string, so a report is a
+// link: it can be bookmarked, exported and printed and always describes the
+// same records. Apply Filters posts, and a successful attempt redirects to
+// that link; a failed one explains itself and leaves the previous report on
+// the screen.
+//
+// Who is asking decides which prefix is reachable at all — /admin/reports is
+// the Asset Management Office (already guarded by RequireAdminArea), and
+// /department-head/reports is a Department Head's own. The scope of the data
+// inside a report is read from the signed-in account by Support\Reports, never
+// from the query string, so no filter can widen it.
+Route::get('/admin/reports', [ReportController::class, 'show'])
+    ->middleware('auth')
+    ->name('admin.reports');
+
+Route::post('/admin/reports/generate', [ReportController::class, 'generate'])
+    ->middleware('auth')
+    ->name('admin.reports.generate');
+
+Route::get('/admin/reports/export', [ReportController::class, 'export'])
+    ->middleware('auth')
+    ->name('admin.reports.export');
+
+Route::get('/admin/reports/print', [ReportController::class, 'print'])
+    ->middleware('auth')
+    ->name('admin.reports.print');
+
+Route::get('/department-head/reports', [ReportController::class, 'show'])
+    ->middleware('auth')
+    ->name('department_head.reports');
+
+Route::post('/department-head/reports/generate', [ReportController::class, 'generate'])
+    ->middleware('auth')
+    ->name('department_head.reports.generate');
+
+Route::get('/department-head/reports/export', [ReportController::class, 'export'])
+    ->middleware('auth')
+    ->name('department_head.reports.export');
+
+Route::get('/department-head/reports/print', [ReportController::class, 'print'])
+    ->middleware('auth')
+    ->name('department_head.reports.print');
 
 // Live availability check for a custom Asset Code (single code or a bulk list)
 Route::get('/admin/assets/check-code', function (Request $request) {
