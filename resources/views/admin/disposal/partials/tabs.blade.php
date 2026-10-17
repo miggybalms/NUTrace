@@ -10,6 +10,7 @@
     $disposalTab       = $disposalTab ?? 'records';
     $formCounts        = $formCounts ?? [];
     $awaitingFormCount = $awaitingFormCount ?? 0;
+    $ageReviewEnabled  = $ageReviewEnabled ?? false;
 
     $openForms = ($formCounts['draft'] ?? 0)
         + ($formCounts['ready'] ?? 0)
@@ -21,7 +22,7 @@
     <div class="flex flex-wrap items-center justify-between gap-x-3 px-2 sm:px-4 border-b border-[#EFE9D8]">
         <div class="flex overflow-x-auto">
             <a href="{{ url('/admin/disposal') }}"
-               class="px-4 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 {{ $disposalTab === 'forms' ? 'border-transparent text-[#5B6678] hover:text-[#0F2143]' : 'border-[#C9A227] text-[#0F2143]' }}">
+               class="px-4 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 {{ $disposalTab === 'records' ? 'border-[#C9A227] text-[#0F2143]' : 'border-transparent text-[#5B6678] hover:text-[#0F2143]' }}">
                 <i class="ri-archive-2-line mr-1.5"></i>Disposal Records
             </a>
             <a href="{{ url('/admin/disposal') }}?tab=forms"
@@ -32,10 +33,18 @@
                           style="background:#F3E7C4; color:#0F2143;">{{ $openForms }} open</span>
                 @endif
             </a>
+            @if($ageReviewEnabled)
+                <a href="{{ url('/admin/disposal') }}?tab=age"
+                   class="px-4 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 {{ $disposalTab === 'age' ? 'border-[#C9A227] text-[#0F2143]' : 'border-transparent text-[#5B6678] hover:text-[#0F2143]' }}">
+                    <i class="ri-time-line mr-1.5"></i>Service-life review
+                </a>
+            @endif
         </div>
         <p class="text-sm text-[#5C6474] py-3">
             @if($disposalTab === 'forms')
                 Official NU Lipa disposal forms and where each one is in the paper trail
+            @elseif($disposalTab === 'age')
+                Assets at the proposed age mark — for review only, never automatic disposal
             @else
                 Assets whose disposal has been finalized and recorded
             @endif

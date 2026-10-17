@@ -119,6 +119,19 @@ class AccountAdmin
 
         $counts['inactive'] = DB::table('users')->whereRaw('LOWER(status) = ?', ['inactive'])->count();
 
+        // Accounts with no matching masterlist row, or whose employee record is
+        // no longer Active. Shown so the office can review the account itself;
+        // nothing is unlinked or deactivated automatically.
+        $counts['unmatched'] = DB::table('users as u')
+            ->leftJoin('employee_numbers as e', 'u.employee_numbers_id', '=', 'e.id')
+            ->whereNull('e.id')
+            ->count();
+
+        $counts['inactive_employee'] = DB::table('users as u')
+            ->join('employee_numbers as e', 'u.employee_numbers_id', '=', 'e.id')
+            ->whereRaw('LOWER(e.status) != ?', ['active'])
+            ->count();
+
         return $counts;
     }
 
@@ -375,6 +388,24 @@ class AccountAdmin
     }
 
     /** The name to show for an account: the employee's, or the email as a fallback. */
+    /**
+     * How an account relates to the employee masterlist.
+     *
+     * @return array{key: string, label: string}
+     */
+    public static function employeeRecordState(object $account): array
+    {
+        if (empty($account->Employee_number)) {
+            return ['key' => 'unmatched', 'label' => 'No employee record'];
+        }
+
+        if (strtolower(trim((string) ($account->employee_status ?? 'Active'))) !== 'active') {
+            return ['key' => 'inactive', 'label' => 'Employee record inactive'];
+        }
+
+        return ['key' => 'matched', 'label' => (string) $account->Employee_number];
+    }
+
     public static function displayName(object $account): string
     {
         $name = trim((string) ($account->Full_Name ?? ''));

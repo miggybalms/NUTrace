@@ -178,6 +178,42 @@ class EmployeeDirectory
         return DB::table('departments')->orderBy('Name')->get(['id', 'Name', 'status']);
     }
 
+    /**
+     * Whether this masterlist record may be used to register an account.
+     *
+     * Registration (routes/web.php, POST /register/verify) is the only place an
+     * account is created, and it applies the same two rules this method
+     * describes: the record must be Active, and no account may already point at
+     * it. The directory shows the answer so the office does not have to guess
+     * why an employee cannot sign up.
+     *
+     * @return array{eligible: bool, label: string, detail: string}
+     */
+    public static function eligibility(object $record): array
+    {
+        if (! empty($record->account_id)) {
+            return [
+                'eligible' => false,
+                'label'    => 'Already registered',
+                'detail'   => 'This employee already has a NU Trace account. Manage it on the Accounts tab.',
+            ];
+        }
+
+        if (strtolower(trim((string) ($record->status ?? 'Active'))) !== 'active') {
+            return [
+                'eligible' => false,
+                'label'    => 'Not eligible',
+                'detail'   => 'The employee record is ' . ($record->status ?: 'Inactive') . '. Registration is refused until the office marks it Active.',
+            ];
+        }
+
+        return [
+            'eligible' => true,
+            'label'    => 'Eligible to register',
+            'detail'   => 'The employee may register an account with this employee number.',
+        ];
+    }
+
     /** Counters for the page's summary cards. */
     public static function counts(): array
     {
@@ -205,6 +241,7 @@ class EmployeeDirectory
 
         $validator = Validator::make($data, self::rules(), [], self::attributeNames());
 
+        self::addDuplicateNumberRule($validator, $data);
         self::addDuplicateEmailRule($validator, $data);
 
         if ($validator->fails()) {
@@ -260,12 +297,9 @@ class EmployeeDirectory
 
         $data = self::normalizeInput($input);
 
-        $unique = [
-            'employee_number' => Rule::unique('employee_numbers', 'Employee_number')->ignore($id),
-        ];
+        $validator = Validator::make($data, self::rules(), [], self::attributeNames());
 
-        $validator = Validator::make($data, array_merge(self::rules(), $unique), [], self::attributeNames());
-
+        self::addDuplicateNumberRule($validator, $data, $id);
         self::addDuplicateEmailRule($validator, $data, $id);
 
         if ($validator->fails()) {
@@ -597,8 +631,17 @@ class EmployeeDirectory
                 $errors[] = 'Employee number is required.';
             } elseif (mb_strlen($values['employee_number']) > 20) {
                 $errors[] = 'Employee number cannot be longer than 20 characters.';
-            } elseif (isset($seenNumbers[$values['employee_number']])) {
-                $errors[] = 'Employee number ' . $values['employee_number'] . ' appears more than once in this file (also on line ' . $seenNumbers[$values['employee_number']] . ').';
+            }
+
+            if ($values['employee_number'] !== '') {
+                if (isset($seenNumbers[$values['employee_number']])) {
+                    $errors[] = 'Employee number ' . $values['employee_number'] . ' appears more than once in this file (also on line ' . $seenNumbers[$values['employee_number']] . ').';
+                } else {
+                    // Recorded even when this row has another error, so a later
+                    // row with the same number is still reported as a duplicate
+                    // instead of importing one of two identical people.
+                    $seenNumbers[$values['employee_number']] = $entry['line'];
+                }
             }
 
             if ($values['full_name'] === '') {
@@ -612,6 +655,8 @@ class EmployeeDirectory
                     $errors[] = 'Email "' . $values['email'] . '" is not a valid email address.';
                 } elseif (isset($seenEmails[strtolower($values['email'])])) {
                     $errors[] = 'Email ' . $values['email'] . ' appears more than once in this file (also on line ' . $seenEmails[strtolower($values['email'])] . ').';
+                } else {
+                    $seenEmails[strtolower($values['email'])] = $entry['line'];
                 }
             }
 
@@ -632,7 +677,7 @@ class EmployeeDirectory
                 // Already on the masterlist? Then the file says nothing new
                 // about this person, and the existing record is left exactly as
                 // it is. Only a deliberate edit on the directory changes it.
-                if (DB::table('employee_numbers')->where('Employee_number', $values['employee_number'])->exists()) {
+                if (DB::table('employee_numbers')->whereRaw('UPPER(Employee_number) = ?', [$values['employee_number']])->exists()) {
                     $action = 'skip';
                     $errors[] = 'Already on the masterlist - existing record left unchanged.';
                 } elseif ($values['email'] !== '' && self::emailTaken($values['email'])) {
@@ -643,10 +688,6 @@ class EmployeeDirectory
 
             if ($action === 'import' && empty($errors)) {
                 $summary['ready']++;
-                $seenNumbers[$values['employee_number']] = $entry['line'];
-                if ($values['email'] !== '') {
-                    $seenEmails[strtolower($values['email'])] = $entry['line'];
-                }
             } elseif ($action === 'skip') {
                 $summary['skipped']++;
             } else {
@@ -681,7 +722,7 @@ class EmployeeDirectory
     public static function rules(): array
     {
         return [
-            'employee_number' => ['required', 'string', 'max:20', Rule::unique('employee_numbers', 'Employee_number')],
+            'employee_number' => ['required', 'string', 'max:20'],
             'full_name'       => ['required', 'string', 'max:100'],
             'email'           => ['nullable', 'email', 'max:100'],
             'department_id'   => ['required', 'integer', Rule::exists('departments', 'id')->where('status', 'Active')],
@@ -698,6 +739,41 @@ class EmployeeDirectory
             'department_id'   => 'department',
             'status'          => 'status',
         ];
+    }
+
+    /**
+     * One employee number belongs to one employee record, whatever the casing.
+     *
+     * New records are stored upper-case, but older rows may not be: comparing
+     * with UPPER() is what stops 'emp-7' and 'EMP-7' becoming two records that
+     * registration can only ever attach one account to.
+     */
+    private static function addDuplicateNumberRule($validator, array $data, ?int $ignoreId = null): void
+    {
+        $validator->after(function ($validator) use ($data, $ignoreId) {
+            $number = strtoupper(trim((string) ($data['employee_number'] ?? '')));
+
+            if ($number === '') {
+                return;
+            }
+
+            $query = DB::table('employee_numbers')
+                ->whereRaw('UPPER(Employee_number) = ?', [$number]);
+
+            if ($ignoreId !== null) {
+                $query->where('id', '!=', $ignoreId);
+            }
+
+            $clash = $query->first(['Employee_number', 'Full_Name']);
+
+            if ($clash) {
+                $validator->errors()->add(
+                    'employee_number',
+                    'The employee number ' . $number . ' already belongs to employee record '
+                    . $clash->Employee_number . ' (' . $clash->Full_Name . ').'
+                );
+            }
+        });
     }
 
     /**

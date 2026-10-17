@@ -777,4 +777,94 @@ class EmployeeManagementTest extends TestCase
     {
         $this->get('/admin/employees')->assertRedirect('/');
     }
+
+    /* ═══════════ 2.10 — eligibility and unmatched accounts ═══════════ */
+
+    public function test_the_directory_shows_who_is_eligible_to_register(): void
+    {
+        DB::table('employee_numbers')->insert([
+            ['id' => 4, 'Employee_number' => 'EMP-4', 'Full_Name' => 'Ana Cruz', 'Department_id' => 2, 'status' => 'Active', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 5, 'Employee_number' => 'EMP-5', 'Full_Name' => 'Retired Person', 'Department_id' => 2, 'status' => 'Inactive', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $response = $this->actingAs($this->admin)->get('/admin/employees');
+
+        $response->assertOk()
+            ->assertSee('Eligible to register')
+            ->assertSee('Not eligible')
+            ->assertSee('The employee record is Inactive', false)
+            ->assertSee('Already registered');
+    }
+
+    public function test_an_account_whose_employee_record_is_not_eligible_is_flagged(): void
+    {
+        DB::table('employee_numbers')->where('id', 2)->update(['status' => 'Inactive']);
+
+        $response = $this->actingAs($this->admin)->get('/admin/employees?tab=accounts');
+
+        $response->assertOk()
+            ->assertSee('Employee record inactive')
+            ->assertSee('no longer Active');
+    }
+
+    /* ═══════════ 2.11 — duplicate and case handling ═══════════ */
+
+    public function test_duplicate_rows_are_reported_even_when_the_first_row_also_has_an_error(): void
+    {
+        $csv = "Employee Number,Full Name,Department\n"
+            . "EMP-41,Ana Cruz,No Such Office\n"
+            . "EMP-41,Ana Again,Registrar\n";
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees/import/preview', [
+                'file' => UploadedFile::fake()->createWithContent('employees.csv', $csv),
+            ])
+            ->assertOk()
+            ->assertJsonPath('summary.ready', 0)
+            ->assertJsonPath('summary.invalid', 2)
+            ->assertJsonPath('rows.1.errors.0', 'Employee number EMP-41 appears more than once in this file (also on line 2).');
+    }
+
+    public function test_an_existing_employee_number_is_matched_whatever_its_casing(): void
+    {
+        DB::table('employee_numbers')->where('id', 2)->update(['Employee_number' => 'emp-2']);
+
+        $csv = "Employee Number,Full Name,Department\nEMP-2,Somebody Else,Facilities\n";
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees/import', ['file' => UploadedFile::fake()->createWithContent('employees.csv', $csv)])
+            ->assertStatus(422)
+            ->assertJsonPath('imported', 0)
+            ->assertJsonPath('skipped', 1);
+
+        $this->assertSame(1, DB::table('employee_numbers')->whereRaw('UPPER(Employee_number) = ?', ['EMP-2'])->count());
+        $this->assertSame('Nena Santos', DB::table('employee_numbers')->where('id', 2)->value('Full_Name'));
+    }
+
+    public function test_a_duplicate_employee_number_is_refused_whatever_its_casing(): void
+    {
+        DB::table('employee_numbers')->where('id', 2)->update(['Employee_number' => 'emp-2']);
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees', $this->employeePayload(['employee_number' => 'EMP-2']))
+            ->assertSessionHasErrors('employee_number');
+
+        $this->assertSame(1, DB::table('employee_numbers')->whereRaw('UPPER(Employee_number) = ?', ['EMP-2'])->count());
+    }
+
+    public function test_an_unusable_import_file_is_recorded_in_the_audit_log(): void
+    {
+        $csv = "Employee Number,Full Name\nEMP-60,Ana Cruz\n";
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees/import/preview', [
+                'file' => UploadedFile::fake()->createWithContent('employees.csv', $csv),
+            ])
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id'            => $this->admin->id,
+            'action_description' => 'Employee masterlist import rejected - nothing was written',
+        ]);
+    }
 }

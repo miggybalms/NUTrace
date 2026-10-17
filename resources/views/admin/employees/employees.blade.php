@@ -220,7 +220,7 @@
                             <th class="px-5 py-3.5 text-left font-semibold hidden md:table-cell">Email</th>
                             <th class="px-5 py-3.5 text-left font-semibold">Department</th>
                             <th class="px-5 py-3.5 text-left font-semibold">Status</th>
-                            <th class="px-5 py-3.5 text-left font-semibold hidden lg:table-cell">Account</th>
+                            <th class="px-5 py-3.5 text-left font-semibold hidden lg:table-cell">Account / registration</th>
                             <th class="px-5 py-3.5 text-right font-semibold">Actions</th>
                         </tr>
                     </thead>
@@ -235,13 +235,22 @@
                                     <span class="badge {{ $employee->status === 'Active' ? 'badge-active' : 'badge-inactive' }}">{{ $employee->status }}</span>
                                 </td>
                                 <td class="px-5 py-3.5 hidden lg:table-cell">
+                                    @php $eligibility = \App\Support\EmployeeDirectory::eligibility($employee); @endphp
                                     @if($employee->account_id)
                                         <span class="badge badge-role">{{ $employee->account_role }}</span>
                                         @if(strtolower((string) $employee->account_status) !== 'active')
-                                            <span class="badge badge-inactive ml-1">Inactive</span>
+                                            <span class="badge badge-inactive ml-1">Account inactive</span>
                                         @endif
+                                        <p class="text-xs text-[#5B6678] mt-1">Already registered</p>
+                                    @elseif($eligibility['eligible'])
+                                        <span class="badge badge-active" title="{{ $eligibility['detail'] }}">
+                                            <i class="ri-user-add-line"></i>Eligible to register
+                                        </span>
                                     @else
-                                        <span class="badge badge-none">Not registered</span>
+                                        <span class="badge badge-inactive" title="{{ $eligibility['detail'] }}">
+                                            <i class="ri-forbid-line"></i>Not eligible
+                                        </span>
+                                        <p class="text-xs text-[#5B6678] mt-1">{{ $eligibility['detail'] }}</p>
                                     @endif
                                 </td>
                                 <td class="px-5 py-3.5 text-right whitespace-nowrap">
@@ -328,6 +337,19 @@
                     A role is granted here, deliberately, one account at a time. Changing someone's department moves
                     them without changing what they are allowed to do.
                 </p>
+
+                @if(($accountCounts['unmatched'] ?? 0) > 0 || ($accountCounts['inactive_employee'] ?? 0) > 0)
+                    <div class="mt-3 p-3 rounded-lg text-sm" style="background:var(--brick-tint); color:var(--brick);">
+                        <i class="ri-error-warning-line mr-1.5"></i>
+                        @if(($accountCounts['unmatched'] ?? 0) > 0)
+                            {{ $accountCounts['unmatched'] }} account(s) are not linked to any employee masterlist record.
+                        @endif
+                        @if(($accountCounts['inactive_employee'] ?? 0) > 0)
+                            {{ $accountCounts['inactive_employee'] }} account(s) belong to an employee record that is no longer Active.
+                        @endif
+                        Review the flagged rows below; nothing has been unlinked or deactivated automatically.
+                    </div>
+                @endif
             </div>
 
             <div class="overflow-x-auto">
@@ -349,7 +371,14 @@
                                     <p class="font-medium text-[#0F2143]">{{ $account->Full_Name ?: '—' }}</p>
                                     <p class="text-xs text-[#5B6678]">{{ $account->email }}</p>
                                 </td>
-                                <td class="px-5 py-3.5 hidden md:table-cell font-mono text-xs text-[#0F2143]">{{ $account->Employee_number ?: '—' }}</td>
+                                <td class="px-5 py-3.5 hidden md:table-cell">
+                                    @php $recordState = \App\Support\AccountAdmin::employeeRecordState($account); @endphp
+                                    @if($recordState['key'] === 'matched')
+                                        <span class="font-mono text-xs text-[#0F2143]">{{ $recordState['label'] }}</span>
+                                    @else
+                                        <span class="badge badge-error">{{ $recordState['label'] }}</span>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-3.5">
                                     <select class="field py-1.5 text-xs" onchange="changeDepartment({{ $account->id }}, this)"
                                             aria-label="Department for {{ $account->email }}">
@@ -665,6 +694,7 @@
     const importResult = document.getElementById('import-result');
     const runButton = document.getElementById('import-run');
     const importFile = document.getElementById('import_file');
+    let lastPreviewRows = [];
 
     // The import controls only exist on the Import tab. Without this guard the
     // listener throws on the other two tabs, which stops the rest of this
@@ -673,6 +703,7 @@
         importFile.addEventListener('change', function () {
             importNotice.classList.add('hidden');
             importResult.classList.add('hidden');
+            lastPreviewRows = [];
             runButton.disabled = true;
             document.getElementById('import-run-label').textContent = 'Import';
         });
@@ -683,14 +714,78 @@
             alert('Choose the CSV file first.');
             return null;
         }
-        return importFile.files[0];
+
+        const file = importFile.files[0];
+
+        // Checked here as well as on the server, so an obvious mistake is
+        // answered without a round trip. The server check remains the one that
+        // decides; this is only a convenience.
+        if (!/\.(csv|txt)$/i.test(file.name)) {
+            notice(false, 'Only a CSV file can be imported. Download the template and fill that in.');
+            return null;
+        }
+
+        if (!file.size) {
+            notice(false, 'That file is empty. Download the template and fill it in.');
+            return null;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            notice(false, 'That file is larger than 2 MB. Split the list and import it in parts.');
+            return null;
+        }
+
+        return file;
     }
 
     function notice(ok, message) {
         importNotice.classList.remove('hidden');
         importNotice.style.borderLeftColor = ok ? 'var(--forest)' : 'var(--brick)';
         importNotice.innerHTML = `<p class="text-sm" style="color:${ok ? 'var(--forest)' : 'var(--brick)'};">
-            <i class="ri-${ok ? 'checkbox-circle' : 'error-warning'}-line mr-1.5"></i>${message}</p>`;
+            <i class="ri-${ok ? 'checkbox-circle' : 'error-warning'}-line mr-1.5"></i>${escapeHtml(message)}</p>`;
+    }
+
+    // A rejected-rows file the office can correct and upload again. Values are
+    // quoted, and a value a spreadsheet would run as a formula is prefixed with
+    // an apostrophe - the same guard CSV exports use on the server.
+    function csvCell(value) {
+        let text = String(value ?? '');
+        if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
+    }
+
+    function downloadRejected() {
+        const rows = lastPreviewRows.filter(row => row.action !== 'import');
+
+        if (!rows.length) {
+            notice(false, 'There are no rejected rows to download.');
+            return;
+        }
+
+        const header = ['Line', 'Employee Number', 'Full Name', 'Email', 'Department', 'Status', 'Outcome', 'Errors'];
+        const lines = [header.map(csvCell).join(',')];
+
+        rows.forEach(row => {
+            lines.push([
+                row.line,
+                row.employee_number,
+                row.full_name,
+                row.email,
+                row.department,
+                row.status,
+                row.action === 'skip' ? 'Skipped' : 'Rejected',
+                (row.errors || []).join(' | '),
+            ].map(csvCell).join(','));
+        });
+
+        const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'employee-import-rejected-' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        link.remove();
     }
 
     function badgeClass(action) {
@@ -767,10 +862,18 @@
             }
 
             const summary = data.summary;
+            lastPreviewRows = data.rows || [];
             notice(true, `${summary.total} row(s) read: ${summary.ready} ready to import, ${summary.skipped} already on the masterlist, ${summary.invalid} with an error.`);
 
+            const rejected = lastPreviewRows.filter(row => row.action !== 'import');
+
             document.getElementById('import-result').classList.remove('hidden');
-            document.getElementById('import-result').innerHTML = renderRows(data.rows);
+            document.getElementById('import-result').innerHTML = renderRows(lastPreviewRows)
+                + (rejected.length
+                    ? `<div class="mt-3"><button type="button" class="btn-ghost" onclick="downloadRejected()">
+                        <i class="ri-download-2-line mr-1.5"></i>Download rejected rows (${rejected.length})
+                       </button></div>`
+                    : '');
 
             runButton.disabled = summary.ready === 0;
             document.getElementById('import-run-label').textContent = `Import ${summary.ready} record(s)`;
@@ -815,6 +918,11 @@
                         <ul class="text-sm text-[#5B6678] list-disc pl-5">
                             ${data.errors.map(row => `<li>Line ${row.line}: ${row.errors.map(escapeHtml).join(' ')}</li>`).join('')}
                         </ul>
+                        ${lastPreviewRows.some(row => row.action !== 'import')
+                            ? `<button type="button" class="btn-ghost mt-3" onclick="downloadRejected()">
+                                <i class="ri-download-2-line mr-1.5"></i>Download rejected rows
+                               </button>`
+                            : ''}
                     </div>`;
             } else {
                 document.getElementById('import-result').classList.add('hidden');

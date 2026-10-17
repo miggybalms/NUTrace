@@ -468,7 +468,7 @@
                                         <i class="ri-edit-line text-lg"></i>
                                     </button>
                                 ` : ''}
-                                ${repair.status === 'completed' || repair.status === 'cancelled' ? `
+                                ${repair.status === 'cancelled' || (repair.status === 'completed' && (!repair.repair_result || repair.repair_result === 'repaired')) ? `
                                     <button onclick="deleteRepair(${repair.id})" title="Delete" class="w-9 h-9 flex items-center justify-center rounded-lg transition-colors" style="color:var(--ink-600);" onmouseover="this.style.background='var(--brick-tint)'; this.style.color='var(--brick)'" onmouseout="this.style.background='transparent'; this.style.color='var(--ink-600)'">
                                         <i class="ri-delete-bin-line text-lg"></i>
                                     </button>
@@ -959,11 +959,31 @@
         }
 
         function deleteRepair(id) {
-            if (confirm('Are you sure you want to delete this repair request?')) {
+            if (!confirm('Are you sure you want to delete this repair request? This cannot be undone.')) return;
+
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            fetch(`/admin/repairs/${id}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf || '',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Error: ' + (data.message || 'Failed to delete repair'));
+                    return;
+                }
+
+                // Only drop the card once the server has actually deleted the
+                // record, so a refused request never looks like a success.
                 repairs = repairs.filter(r => r.id !== id);
                 renderRepairs();
-                alert('Repair request deleted successfully');
-            }
+                alert(data.message || 'Repair request deleted successfully.');
+            })
+            .catch(err => alert('Error deleting repair: ' + err.message));
         }
 
         // Filter functionality

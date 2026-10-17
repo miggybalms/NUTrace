@@ -637,6 +637,26 @@
                     This record was created before disposal requests were linked to their record.
                 </p>`);
 
+            /* ── supporting documents kept with the request ── */
+            const documents = d.documents || [];
+            const documentsSection = section('Supporting Documents', documents.length
+                ? `<div class="space-y-2">${documents.map((doc) => `
+                    <div class="flex flex-wrap items-start justify-between gap-2 rounded-lg p-3" style="background:var(--paper-2);">
+                        <div>
+                            <a href="${esc(doc.url)}" target="_blank" rel="noopener" class="text-sm font-medium" style="color:var(--steel);">
+                                <i class="ri-attachment-2 mr-1"></i>${esc(doc.title || doc.file_name)}
+                            </a>
+                            <p class="text-xs mt-0.5" style="color:var(--ink-400);">
+                                ${esc(doc.asset_code ? ('Asset ' + doc.asset_code) : 'Whole request')}
+                                ${doc.uploaded ? ' · ' + esc(doc.uploaded) : ''}
+                                ${doc.uploader ? ' · ' + esc(doc.uploader) : ''}
+                            </p>
+                        </div>
+                        <span class="text-xs" style="color:var(--ink-400);">${esc(doc.size || '')}</span>
+                    </div>`).join('')}</div>`
+                : `<p class="text-xs italic" style="color:var(--ink-400);">No supporting documents are on file for this request.</p>`,
+                'ri-attachment-2');
+
             /* ── asset information ── */
             const assetSection = d.asset_still_exists ? section('Asset Information', rows([
                 fieldRow('Category', d.category),
@@ -701,6 +721,7 @@
                 ${descriptionBlock}
                 ${notesBlock}
                 ${requestSection}
+                ${documentsSection}
                 ${assetSection}
                 ${accountabilitySection}
                 ${repairSection}

@@ -29,6 +29,8 @@ use App\Support\AssetTransfer;
 use App\Support\Disposals;
 use App\Support\DisposalReason;
 use App\Support\DisposalForms;
+use App\Support\DisposalDocuments;
+use App\Support\AssetAgeReview;
 use App\Support\Inventory;
 use App\Support\Access;
 use App\Support\AccountAdmin;
@@ -2723,7 +2725,14 @@ Route::get('/api/notifications/user', function () {
 // Keeping them on one page means the sidebar entry the office already knows is
 // where the whole workflow lives.
 Route::get('/admin/disposal', function (Request $request) {
-    $tab = $request->query('tab') === 'forms' ? 'forms' : 'records';
+    $requestedTab = $request->query('tab');
+    $tab = in_array($requestedTab, ['forms', 'age'], true) ? $requestedTab : 'records';
+
+    // The service-life review is advisory and can be switched off in
+    // config/disposal.php. When it is off the tab does not exist at all.
+    if ($tab === 'age' && ! AssetAgeReview::enabled()) {
+        $tab = 'records';
+    }
 
     $disposalRecords = Disposals::query(false)
         ->orderByDesc('disposals.disposal_date')
@@ -2742,12 +2751,25 @@ Route::get('/admin/disposal', function (Request $request) {
         'formCounts'   => $formCounts,
         'formsReady'   => $formsReady,
         'awaitingFormCount' => $formsReady ? DisposalForms::awaitingForm()->count() : 0,
+        'ageReviewEnabled'  => AssetAgeReview::enabled(),
     ];
 
     if ($tab === 'forms') {
         return view('admin.disposal.forms', $shared + [
             'forms'    => $formsReady ? DisposalForms::queue() : collect(),
             'awaiting' => $formsReady ? DisposalForms::awaitingForm() : collect(),
+        ]);
+    }
+
+    if ($tab === 'age') {
+        $search = trim((string) $request->query('q', ''));
+        $candidates = AssetAgeReview::candidates($search);
+
+        return view('admin.disposal.age', $shared + [
+            'candidates' => $candidates,
+            'summary'    => AssetAgeReview::summary($candidates),
+            'search'     => $search,
+            'ready'      => AssetAgeReview::ready(),
         ]);
     }
 
@@ -3095,6 +3117,22 @@ Route::get('/admin/disposal/{id}/details', function ($id) {
             'requester_email' => $request->requester_email,
         ] : null,
 
+        // ── Supporting documents kept with the request ────────────────
+        // Still readable after finalization: the documents are part of the
+        // record, served only through the authorized download route.
+        'documents' => $request
+            ? DisposalDocuments::forRequest((int) $request->id)->map(fn ($doc) => [
+                'id'         => $doc->id,
+                'title'      => $doc->title ?: $doc->file_name,
+                'file_name'  => $doc->file_name,
+                'asset_code' => $doc->asset_code,
+                'size'       => $doc->size_label,
+                'uploaded'   => $doc->uploaded_label,
+                'uploader'   => $doc->uploader_name ?: $doc->uploader_email,
+                'url'        => url('/admin/disposal/documents/' . $doc->id),
+            ])->values()->all()
+            : [],
+
         // ── Lifecycle history ─────────────────────────────────────────
         'history' => Disposals::history($assetId),
     ]);
@@ -3189,6 +3227,11 @@ Route::get('/admin/disposal/forms/{id}', function ($id) {
         'items'   => $form->items,
         'missing' => DisposalForms::missingFields($form, $form->items->all()),
         'formCounts' => DisposalForms::statusCounts(),
+        // Supporting documentation belongs to the request, so it stays with
+        // the disposal even if this form is viewed again after finalization.
+        'documents'      => DisposalDocuments::forRequest((int) $form->request_id),
+        'documentsReady' => DisposalDocuments::ready(),
+        'documentLock'   => DisposalDocuments::lockReason((int) $form->request_id),
     ]);
 })->middleware('auth');
 
@@ -3352,6 +3395,132 @@ Route::get('/admin/disposal/forms/{id}/signed-copy', function ($id) {
     $name = trim((string) $form->signed_file_name) ?: basename($path);
 
     return Storage::disk(DisposalForms::UPLOAD_DISK)->download($path, $name);
+})->middleware('auth');
+
+/*
+ |─────────────────── Disposal supporting documents ───────────────────
+ |
+ | Inspection reports, appraisals, board approvals and photographs that the
+ | office keeps with a disposal. Files live on the private disk and every read
+ | goes through the authorized route below — there is no public URL.
+ |
+ | The signed official form has its own record on disposal_forms; it is not
+ | uploaded twice here.
+ */
+
+// Where an action started from: the form page when the form belongs to this
+// request, otherwise the forms queue. Never a caller-supplied path.
+$disposalDocumentBackTo = function (Request $request, int $requestId): string {
+    $formId = (int) $request->input('form_id', 0);
+
+    if ($formId > 0 && DisposalForms::tablesReady()
+        && DB::table('disposal_forms')->where('id', $formId)->where('request_id', $requestId)->exists()) {
+        return '/admin/disposal/forms/' . $formId;
+    }
+
+    return '/admin/disposal?tab=forms';
+};
+
+Route::post('/admin/disposal/requests/{requestId}/documents', function (Request $request, $requestId) use ($disposalDocumentBackTo) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        abort(403, 'Only the Asset Management Office can attach a supporting document to a disposal.');
+    }
+
+    $requestRecord = DB::table('requests')->where('id', $requestId)->first();
+
+    if (! $requestRecord) {
+        abort(404, 'Disposal request not found.');
+    }
+
+    $backTo = $disposalDocumentBackTo($request, (int) $requestId);
+
+    if (strtolower((string) $requestRecord->request_type) !== 'disposal') {
+        return redirect($backTo)->with('error', 'Supporting documents can only be attached to a disposal request.');
+    }
+
+    // Documentation belongs to the processing stage. A pending or rejected
+    // request has no disposal to document yet.
+    if (strtolower((string) $requestRecord->status) !== 'approved') {
+        return redirect($backTo)->with('error', 'Documents can be attached once the disposal request has been approved. This request is ' . $requestRecord->status . '.');
+    }
+
+    if (! DisposalDocuments::ready()) {
+        return redirect($backTo)->with('error', 'The disposal documents table has not been created yet — run the database migration first.');
+    }
+
+    if ($lock = DisposalDocuments::lockReason((int) $requestId)) {
+        return redirect($backTo)->with('error', $lock);
+    }
+
+    $request->validate([
+        'document' => 'required|file|mimes:' . implode(',', DisposalDocuments::MIMES) . '|max:' . DisposalDocuments::MAX_KB,
+        'title'    => 'nullable|string|max:' . DisposalDocuments::TITLE_MAX,
+        'asset_id' => 'nullable|integer',
+    ], [
+        'document.required' => 'Choose the document to attach.',
+        'document.mimes'    => 'The document must be a PDF, JPG, PNG or WEBP file.',
+        'document.max'      => 'The document may not be larger than ' . (DisposalDocuments::MAX_KB / 1024) . ' MB.',
+        'title.max'         => 'The document description cannot exceed ' . DisposalDocuments::TITLE_MAX . ' characters.',
+    ]);
+
+    $result = DisposalDocuments::store(
+        (int) $requestId,
+        $request->filled('asset_id') ? (int) $request->input('asset_id') : null,
+        $request->input('title'),
+        $request->file('document'),
+        $admin
+    );
+
+    return redirect($backTo)->with($result['ok'] ? 'success' : 'error', $result['message']);
+})->middleware('auth');
+
+// Open a supporting document. Private disk, authorized readers only.
+Route::get('/admin/disposal/documents/{id}', function ($id) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        abort(403, 'Only the Asset Management Office can open a disposal document.');
+    }
+
+    $document = DisposalDocuments::find((int) $id);
+
+    if (! $document) {
+        abort(404, 'That document no longer exists.');
+    }
+
+    $path = trim((string) ($document->file_path ?? ''));
+    $disk = Storage::disk(DisposalDocuments::DISK);
+
+    if ($path === '' || ! $disk->exists($path)) {
+        abort(404, 'The stored file for this document is missing.');
+    }
+
+    $name = trim((string) ($document->file_name ?? '')) ?: basename($path);
+
+    return $disk->download($path, $name);
+})->middleware('auth');
+
+// Remove a supporting document from a request that is still being processed.
+// The audit entry stays; the file does not.
+Route::post('/admin/disposal/documents/{id}/delete', function (Request $request, $id) use ($disposalDocumentBackTo) {
+    $admin = Auth::user();
+
+    if (! $admin || ! Access::isAssetOffice($admin)) {
+        abort(403, 'Only the Asset Management Office can remove a disposal document.');
+    }
+
+    $document = DisposalDocuments::find((int) $id);
+
+    if (! $document) {
+        abort(404, 'That document no longer exists.');
+    }
+
+    $backTo = $disposalDocumentBackTo($request, (int) $document->request_id);
+    $result = DisposalDocuments::delete((int) $id, $admin);
+
+    return redirect($backTo)->with($result['ok'] ? 'success' : 'error', $result['message']);
 })->middleware('auth');
 
 // Finalize the disposal: the only action in the whole workflow that retires an
@@ -4215,6 +4384,71 @@ Route::post('/admin/repairs/{id}/complete', function ($id, \Illuminate\Http\Requ
     } catch (\Throwable $e) {
         \Log::error('Repair completion failed: ' . $e->getMessage());
         return response()->json(['success' => false, 'message' => 'Failed to complete repair: ' . $e->getMessage()], 500);
+    }
+})->middleware('auth');
+
+// Delete a closed repair record.
+//
+// The page used to remove the card from the browser's array and announce
+// "Repair request deleted successfully" without sending anything to the
+// server, so the record came straight back on the next reload. A repair that
+// is still open is never deleted, and neither is one whose outcome is the
+// reason the asset is sitting in "For Repair" (waiting for replacement or
+// disposal) - that history has to outlive the record it explains.
+Route::post('/admin/repairs/{id}/delete', function ($id) {
+    $repair = DB::table('repairs')->where('Repair_id', $id)->first();
+
+    if (! $repair) {
+        return response()->json(['success' => false, 'message' => 'Repair not found'], 404);
+    }
+
+    if (! in_array($repair->status, ['Completed', 'Cancelled'], true)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Only a completed or cancelled repair can be deleted. Cancel it first if it will not be carried out.',
+        ], 422);
+    }
+
+    $result = trim((string) ($repair->Repair_result ?? ''));
+
+    if ($repair->status === 'Completed' && $result !== '' && $result !== 'Repairable') {
+        return response()->json([
+            'success' => false,
+            'message' => 'This repair records why the asset is ' . $result . '. Keep it until the replacement or disposal is recorded.',
+        ], 422);
+    }
+
+    try {
+        DB::transaction(function () use ($id, $repair) {
+            // One evaluation per repair; its foreign key cascades, but deleting
+            // it explicitly keeps this correct on a database where the
+            // constraint was created without the cascade.
+            DB::table('repair_evaluations')->where('repair_id', $id)->delete();
+            DB::table('repairs')->where('Repair_id', $id)->delete();
+
+            DB::table('audit_logs')->insert([
+                'user_id'            => Auth::id(),
+                'asset_id'           => $repair->Assets_id,
+                'request_id'         => $repair->Request_id,
+                'action_type'        => 'REPAIR',
+                'notes'              => 'Repair record deleted (' . $repair->status . ').',
+                'action_description' => 'Repair #' . $id . ' deleted by ' . (Auth::user()?->email ?? 'admin'),
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Repair request deleted successfully.',
+        ]);
+    } catch (\Throwable $e) {
+        \Log::error('Repair delete failed: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to delete the repair: ' . $e->getMessage(),
+        ], 500);
     }
 })->middleware('auth');
 
@@ -5934,6 +6168,30 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                     (int) $requestRecord->id,
                     'disposal'
                 );
+
+                // The other Asset Management Office accounts are the ones who
+                // may prepare, print or file the form. The approver already
+                // knows, so they are not notified about their own action.
+                // Written inside the approval transaction, and the request can
+                // only be approved once, so this notice cannot be duplicated.
+                $otherOfficers = DB::table('users')
+                    ->whereIn('role', Access::ASSET_OFFICE_ROLES)
+                    ->where('status', Access::STATUS_ACTIVE)
+                    ->where('id', '!=', (int) $requestRecord->user_id)
+                    ->where('id', '!=', (int) Auth::id())
+                    ->pluck('id');
+
+                foreach ($otherOfficers as $officerId) {
+                    createNotification(
+                        (int) $officerId,
+                        'Disposal Approved — Official Form to Prepare',
+                        'Disposal request #' . $requestRecord->id . ' for ' . $approvedLabel
+                            . ' was approved. The official NU Lipa disposal form is ready to be completed, printed and filed on the Disposal page.',
+                        'DISPOSAL',
+                        (int) $requestRecord->id,
+                        'disposal'
+                    );
+                }
             } elseif ($forwardForReview) {
                 // Approval here is not the end of a transfer any more: it is the
                 // step that asks the Executive Director. The notice says so, and
@@ -7444,6 +7702,17 @@ Route::middleware(['auth'])->group(function () {
 
         $preview = EmployeeDirectory::preview($validated['file']);
 
+        // A file the office cannot use is worth a line in the trail - once per
+        // file, not once per row, and with no employee data beyond the reason.
+        if (! $preview['ok']) {
+            EmployeeDirectory::audit(
+                Auth::user(),
+                'UPDATE',
+                'Employee import file rejected before import: ' . ($preview['message'] ?? 'the file could not be read'),
+                'Employee masterlist import rejected - nothing was written'
+            );
+        }
+
         return response()->json($preview, $preview['ok'] ? 200 : 422);
     })->name('admin.employees.import.preview');
 
@@ -7460,6 +7729,15 @@ Route::middleware(['auth'])->group(function () {
         ]);
 
         $result = EmployeeDirectory::commit($validated['file'], Auth::user());
+
+        if (! $result['ok']) {
+            EmployeeDirectory::audit(
+                Auth::user(),
+                'UPDATE',
+                'Employee import was not completed: ' . ($result['message'] ?? 'the file could not be imported'),
+                'Employee masterlist import rejected - nothing was written'
+            );
+        }
 
         return response()->json($result, $result['ok'] ? 200 : 422);
     })->name('admin.employees.import');

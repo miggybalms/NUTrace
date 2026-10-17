@@ -455,6 +455,135 @@
         </form>
     </div>
 
+    {{-- ── Supporting documents ─────────────────────────────────────── --}}
+    @php
+        $documents       = $documents ?? collect();
+        $documentsReady  = $documentsReady ?? false;
+        $documentLock    = $documentLock ?? null;
+    @endphp
+    <div class="card p-5 mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+                <p class="font-semibold text-[#0F2143] text-sm mb-1">
+                    <i class="ri-attachment-2 mr-1.5"></i>Supporting documents
+                    <span class="badge badge-draft ml-1">{{ $documents->count() }}</span>
+                </p>
+                <p class="text-sm text-[#5C6678] max-w-3xl">
+                    Inspection reports, appraisals, photographs or approvals kept with this disposal. Files are stored
+                    privately and can only be opened by the Asset Management Office. The signed official form is
+                    recorded above, not here.
+                </p>
+            </div>
+        </div>
+
+        @if(! $documentsReady)
+            <p class="text-sm text-[#8F5F16]">
+                <i class="ri-database-2-line mr-1.5"></i>
+                The disposal documents table has not been created yet — run the database migration to attach documents.
+            </p>
+        @else
+            @if($documents->isEmpty())
+                <p class="text-sm text-[#5C6678] mb-4">
+                    <i class="ri-inbox-line mr-1.5"></i>No supporting documents are attached to this request yet.
+                </p>
+            @else
+                <div class="overflow-x-auto mb-4">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left border-b border-[#EFE9D8]">
+                                <th class="py-2 pr-4 font-semibold">Document</th>
+                                <th class="py-2 pr-4 font-semibold hidden md:table-cell">Applies to</th>
+                                <th class="py-2 pr-4 font-semibold hidden lg:table-cell">Attached</th>
+                                <th class="py-2 pr-4 font-semibold text-right">Size</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($documents as $document)
+                                <tr class="border-b border-[#F5F0E2] last:border-0 align-top">
+                                    <td class="py-2.5 pr-4">
+                                        <a href="{{ url('/admin/disposal/documents/' . $document->id) }}"
+                                           class="font-semibold text-[#2E5C8A] hover:underline">
+                                            <i class="ri-file-line mr-1"></i>{{ $document->title ?: $document->file_name }}
+                                        </a>
+                                        @if($document->title)
+                                            <span class="block text-xs text-[#5C6678]">{{ $document->file_name }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-2.5 pr-4 hidden md:table-cell text-[#5C6678]">
+                                        @if($document->asset_code)
+                                            <span class="font-mono text-xs">{{ $document->asset_code }}</span>
+                                        @else
+                                            Whole request
+                                        @endif
+                                    </td>
+                                    <td class="py-2.5 pr-4 hidden lg:table-cell text-xs text-[#5C6678]">
+                                        {{ $document->uploaded_label }}
+                                        <span class="block">{{ $document->uploader_name ?: ($document->uploader_email ?: '—') }}</span>
+                                    </td>
+                                    <td class="py-2.5 pr-4 text-right text-xs text-[#5C6678]">
+                                        {{ $document->size_label }}
+                                        @if(! $documentLock)
+                                            <form method="POST" action="{{ url('/admin/disposal/documents/' . $document->id . '/delete') }}"
+                                                  class="mt-1" onsubmit="return confirm('Remove this document? The file is deleted; the audit entry stays.');">
+                                                @csrf
+                                                <input type="hidden" name="form_id" value="{{ $form->id }}">
+                                                <button type="submit" class="text-xs font-semibold text-[#A23B32] hover:underline">
+                                                    Remove
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
+            @if($documentLock)
+                <div class="p-3 rounded-lg text-sm" style="background:#F7F3E7; color:#8F5F16;">
+                    <i class="ri-lock-line mr-1.5"></i>{{ $documentLock }}
+                </div>
+            @else
+                <form method="POST" action="{{ url('/admin/disposal/requests/' . $form->request_id . '/documents') }}"
+                      enctype="multipart/form-data" class="pt-4 border-t border-[#EFE9D8]">
+                    @csrf
+                    <input type="hidden" name="form_id" value="{{ $form->id }}">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="eyebrow block mb-1.5" for="document">Document</label>
+                            <input id="document" name="document" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" class="field">
+                            <p class="text-xs text-[#5C6678] mt-1">
+                                PDF, JPG, PNG or WEBP, up to {{ (int) (\App\Support\DisposalDocuments::MAX_KB / 1024) }} MB.
+                            </p>
+                        </div>
+                        <div>
+                            <label class="eyebrow block mb-1.5" for="title">What is it? (optional)</label>
+                            <input id="title" name="title" type="text" maxlength="{{ \App\Support\DisposalDocuments::TITLE_MAX }}"
+                                   class="field" value="{{ old('title') }}" placeholder="For example: Property inspection report, June 2026">
+                        </div>
+                        <div>
+                            <label class="eyebrow block mb-1.5" for="asset_id">Applies to</label>
+                            <select id="asset_id" name="asset_id" class="field">
+                                <option value="">The whole request</option>
+                                @foreach($items as $item)
+                                    <option value="{{ $item->asset_id }}" @selected((string) old('asset_id') === (string) $item->asset_id)>
+                                        {{ $item->tag_no ?: 'Asset #' . $item->asset_id }} — {{ \Illuminate\Support\Str::limit((string) $item->description, 50) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="btn-gold">
+                                <i class="ri-upload-2-line mr-1.5"></i>Attach document
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            @endif
+        @endif
+    </div>
+
     {{-- ── Finalize ─────────────────────────────────────────────────── --}}
     <div class="card p-5" style="border-left:4px solid {{ $canFinalize ? 'var(--brick)' : 'var(--line)' }};">
         <p class="font-semibold text-[#0F2143] text-sm mb-1"><i class="ri-checkbox-circle-line mr-1.5"></i>Finalize the disposal</p>

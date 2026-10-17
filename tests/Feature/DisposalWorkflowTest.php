@@ -170,6 +170,43 @@ class DisposalWorkflowTest extends TestCase
         $this->assertSame(1, DB::table('notifications')->where('user_id', $this->employee->id)->count());
     }
 
+    public function test_the_rest_of_the_asset_management_office_is_told_once_after_approval(): void
+    {
+        DB::table('employee_numbers')->insert([
+            'id' => 9, 'Employee_number' => 'EMP-9', 'Full_Name' => 'Second Officer',
+            'Department_id' => 1, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $secondOfficer = User::create([
+            'employee_numbers_id' => 9, 'department_id' => 1, 'email' => 'amo2@nu-lipa.edu.ph',
+            'password' => Hash::make('secret-password'), 'role' => 'Admin', 'status' => 'Active',
+        ]);
+
+        $requestId = $this->submitDisposalRequest();
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/requests/{$requestId}/approve")
+            ->assertOk();
+
+        $notice = DB::table('notifications')->where('user_id', $secondOfficer->id)->first();
+
+        $this->assertNotNull($notice, 'the officer who has to prepare the form is told');
+        $this->assertStringContainsString('Disposal request #' . $requestId, $notice->message);
+        $this->assertStringContainsString('official NU Lipa disposal form', $notice->message);
+        $this->assertStringContainsString('AST-0001', $notice->message);
+        $this->assertSame('DISPOSAL', $notice->type);
+
+        // The approver is not notified about their own action.
+        $this->assertSame(0, DB::table('notifications')->where('user_id', $this->admin->id)->count());
+
+        // A repeated approval is refused, so the office is not told twice.
+        $this->actingAs($this->admin)
+            ->postJson("/admin/requests/{$requestId}/approve")
+            ->assertStatus(422);
+
+        $this->assertSame(1, DB::table('notifications')->where('user_id', $secondOfficer->id)->count());
+    }
+
     public function test_a_disposal_container_with_no_reason_or_note_is_refused(): void
     {
         $requestId = $this->submitDisposalRequest('');
