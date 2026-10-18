@@ -144,6 +144,10 @@
                         'department'      => $filters['department'] ?? '',
                         'status'          => $filters['status'] ?? '',
                         'account'         => ($filters['account'] ?? 'all') !== 'all' ? $filters['account'] : '',
+                        // The Accounts tab's own filter. Without it, clicking the
+                        // tab you are already on rebuilt the URL without the role
+                        // and quietly showed every account again.
+                        'role'            => $accountFilters['role'] ?? '',
                     ], fn ($value) => $value !== '' && $value !== null);
                 @endphp
                 @foreach($tabs as $key => $meta)
@@ -229,7 +233,10 @@
                             <tr class="hover:bg-[#FBF7EC]">
                                 <td class="px-5 py-3.5 font-mono text-xs text-[#0F2143]">{{ $employee->Employee_number }}</td>
                                 <td class="px-5 py-3.5 font-medium text-[#0F2143]">{{ $employee->Full_Name }}</td>
-                                <td class="px-5 py-3.5 hidden md:table-cell text-[#5B6678]">{{ $employee->Email ?: '—' }}</td>
+                                {{-- The masterlist's official email wins when it is recorded; an
+                                     employee who registered with a personal address shows the
+                                     address their account actually uses instead of a dash. --}}
+                                <td class="px-5 py-3.5 hidden md:table-cell text-[#5B6678]">{{ $employee->Email ?: ($employee->account_email ?: '—') }}</td>
                                 <td class="px-5 py-3.5 text-[#5B6678]">{{ $employee->department ?: '—' }}</td>
                                 <td class="px-5 py-3.5">
                                     <span class="badge {{ $employee->status === 'Active' ? 'badge-active' : 'badge-inactive' }}">{{ $employee->status }}</span>

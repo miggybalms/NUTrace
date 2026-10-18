@@ -1092,6 +1092,22 @@ Route::get('/qr/verify', function (Request $request) {
     return response()->json(QrVerification::verify($scanned, Auth::user()));
 })->middleware('auth');
 
+// API: the verifying half of the QR keyring.
+//
+// The mobile app scans stickers without any Laravel session, so it cannot call
+// /qr/verify; it fetches these public keys once and checks signatures on the
+// device instead. Only public halves are ever returned - a seed or anything
+// that could sign stays on the server (see QrSigner::publicKeyring). Public
+// keys are not sensitive, which is why this route needs no session; a
+// deployment with no keyring answers `configured: false` so the app reports
+// "verification unavailable" rather than guessing at a sticker's authenticity.
+Route::get('/qr/public-keys', function () {
+    return response()->json([
+        'configured' => QrSigner::keys() !== [],
+        'keys' => QrSigner::publicKeyring(),
+    ]);
+});
+
 // API: the signed payload for asset codes, so the screens that draw a QR in the
 // browser (the registry form and its QR modal) encode exactly what the stored
 // sticker encodes. Admin-only: this is the one place that mints a signature for

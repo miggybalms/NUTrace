@@ -81,7 +81,11 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('Employee Management')
             ->assertSee('Nena Santos')
             ->assertSee('EMP-2')
-            ->assertSee('Registrar');
+            ->assertSee('Registrar')
+            // The masterlist record has no official email of its own; the
+            // address on the registered account is what the office should see
+            // instead of a dash.
+            ->assertSee('nena@nu-lipa.edu.ph');
     }
 
     public function test_the_directory_can_be_searched_and_filtered(): void

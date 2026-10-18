@@ -315,6 +315,106 @@ class QrSigner
             : $algorithm;
     }
 
+    /**
+     * The verifying half of every key in the ring, in a shape a client that is
+     * not PHP can check: `id => ['algorithm' => 'ed25519'|'ecdsa-p256',
+     * 'public' => base64]`.
+     *
+     * This exists for the mobile app, which scans stickers offline of any PHP
+     * session and therefore cannot call `/qr/verify`. It gets only what a
+     * verifier needs - never a seed, never anything that can sign:
+     *
+     *  - Ed25519 entries carry the 32-byte public key.
+     *  - ECDSA P-256 entries carry the uncompressed point `04 || X || Y`, so the
+     *    client does not need an X.509 parser to make sense of an SPKI blob.
+     *
+     * A key whose public half cannot be derived (bad material, missing
+     * extension) is left out rather than reported as usable: a sticker signed
+     * with it must fall through to "unknown signing key" on the client, not
+     * "failed authenticity check".
+     *
+     * @return array<string, array{algorithm: string, public: string}>
+     */
+    public static function publicKeyring(): array
+    {
+        $ring = [];
+
+        foreach (self::keys() as $id => $key) {
+            $material = self::publicMaterial($key['algorithm'], $key['material']);
+
+            if ($material === null) {
+                continue;
+            }
+
+            $ring[$id] = [
+                'algorithm' => str_replace('-public', '', $key['algorithm']),
+                'public' => base64_encode($material),
+            ];
+        }
+
+        return $ring;
+    }
+
+    /** Raw public material for one key entry, or null when it cannot be read. */
+    private static function publicMaterial(string $algorithm, string $material): ?string
+    {
+        try {
+            return match ($algorithm) {
+                self::ED25519_PUBLIC => self::ed25519PublicBytes($material),
+                self::ED25519 => self::ed25519PublicFromSeed($material),
+                self::ECDSA_P256_PUBLIC => self::ecdsaPoint(openssl_pkey_get_public(self::pem('PUBLIC KEY', $material))),
+                self::ECDSA_P256 => self::ecdsaPoint(self::privateKey($material)),
+                default => null,
+            };
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
+        }
+    }
+
+    private static function ed25519PublicBytes(string $material): ?string
+    {
+        $public = self::decode($material);
+
+        return strlen($public) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES ? $public : null;
+    }
+
+    private static function ed25519PublicFromSeed(string $material): ?string
+    {
+        $seed = self::decode($material);
+
+        if (strlen($seed) !== SODIUM_CRYPTO_SIGN_SEEDBYTES) {
+            return null;
+        }
+
+        return sodium_crypto_sign_publickey(sodium_crypto_sign_seed_keypair($seed));
+    }
+
+    /**
+     * `04 || X || Y` from an OpenSSL key, or null when it is not a usable EC key.
+     *
+     * @param  \OpenSSLAsymmetricKey|false  $key
+     */
+    private static function ecdsaPoint($key): ?string
+    {
+        if ($key === false) {
+            return null;
+        }
+
+        $details = openssl_pkey_get_details($key);
+        $x = (string) ($details['ec']['x'] ?? '');
+        $y = (string) ($details['ec']['y'] ?? '');
+
+        if ($x === '' || $y === '') {
+            return null;
+        }
+
+        return "\x04"
+            . str_pad($x, 32, "\x00", STR_PAD_LEFT)
+            . str_pad($y, 32, "\x00", STR_PAD_LEFT);
+    }
+
     /** Report a keyring entry that cannot be used, without the material. */
     private static function reject(string $id, string $reason): void
     {
