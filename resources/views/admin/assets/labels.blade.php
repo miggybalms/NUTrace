@@ -7,14 +7,18 @@
       * the asset registry and replacement print buttons, which print values
         straight from their forms  (route: admin/assets/label-preview)
 
-    The sticker is 100mm × 40mm (App\Support\AssetLabel), the size of the roll
+    The sticker is 90mm × 40mm (App\Support\AssetLabel), the size of the roll
     loaded in the Zebra ZD230. Two layouts exist:
 
       * roll (default, and the only one for a single asset) — each sticker is
-        its own page at exactly 100mm × 40mm with no margin, so the printer
+        its own page at exactly 90mm × 40mm with no margin, so the printer
         feeds one die-cut label per sticker.
       * sheet (opt-in with ?layout=sheet) — the same sticker one per row on A4,
         for printing on an ordinary office printer.
+
+    The artwork is inset 1mm from the die line on every side: a ZD230 cannot
+    print right up to the edge of the stock, and a border drawn on the cut line
+    comes out clipped (or missing) on the physical label.
 
     Expects: $labels (array of App\Support\AssetLabel arrays),
              $single (bool), $layout ('roll'|'sheet'), $subtitle (string, screen only),
@@ -35,19 +39,24 @@
            the label is allowed to make it grow, so the logo, code, location and
            QR can never be pushed off the page.
 
-           100 × 40mm is the die-cut label on the Zebra ZD230 roll. The bands are
-           fixed (10 + 26 + 4 = 40mm) so the middle always has room for the code,
-           the three cells and the QR. */
+           90 × 40mm is the die-cut label on the Zebra ZD230 roll. The bands are
+           fixed (10 + 23.3 + 4 = 37.3mm of artwork) so the middle always has
+           room for the code, the three cells and the QR.
+
+           --label-inset keeps the box 1mm inside the stock all round: the
+           thermal head cannot print on the die line, so anything drawn there is
+           clipped (or dropped) when the label comes out of the printer. */
         :root {
-            --label-w: 100mm;
+            --label-w: 90mm;
             --label-h: 40mm;
+            --label-inset: 1mm;
             --label-border: 0.35mm;
             --header-h: 10mm;
             --foot-h: 4mm;
-            --qr-size: 22mm;
-            --qr-col: 25mm;
-            --logo-size: 8.2mm;
-            --mark-col: 10mm;
+            --qr-size: 20mm;
+            --qr-col: 22mm;
+            --logo-size: 8mm;
+            --mark-col: 9mm;
             --ink: #111;
             --muted: #555;
         }
@@ -118,8 +127,11 @@
 
         /* ---------- one sticker ---------- */
         .trace-label {
-            width: var(--label-w);
-            height: var(--label-h);
+            /* The label is 90 × 40mm; the box drawn on it is 88 × 38mm, centred,
+               so the print never touches the edge of the die-cut. */
+            width: calc(var(--label-w) - 2 * var(--label-inset));
+            height: calc(var(--label-h) - 2 * var(--label-inset));
+            margin: var(--label-inset);
             border: var(--label-border) solid var(--ink);
             background: #fff;
             display: grid;
@@ -136,43 +148,55 @@
             grid-template-columns: var(--mark-col) 1fr var(--mark-col);
             align-items: center;
             gap: 0.6mm;
-            padding: 0.5mm 2mm;
+            padding: 0.4mm 1.8mm;
             height: var(--header-h);
             border-bottom: 0.3mm solid var(--ink);
             text-align: center;
+            overflow: hidden;
         }
         .trace-label__mark {
             display: flex;
             align-items: center;
             justify-content: center;
+            min-width: 0;
+            overflow: hidden;
         }
         /* Height-driven so the seal keeps its own proportions — the official
            artwork is 318 x 383 — and can never be stretched or spill out of its
-           column. The header band is 10mm, so an 8.2mm mark fits with room. */
+           column. The header band is 10mm, so an 8mm mark fits with room. */
         .trace-label__mark img {
             height: var(--logo-size);
             width: auto;
             max-width: 100%;
             object-fit: contain;
         }
-        .trace-label__titles { display: block; min-width: 0; }
+        .trace-label__titles { display: block; min-width: 0; overflow: hidden; }
+        /* Three stacked lines inside a 10mm band: line-heights are pinned so the
+           campus line never rides up into the asset name. */
         .trace-label__titles .office {
             display: block;
-            font-size: 6.5pt;
+            font-size: 5.8pt;
+            line-height: 1.05;
             font-weight: 700;
             letter-spacing: .4px;
         }
         .trace-label__titles .name {
             display: block;
-            font-size: 9.5pt;
+            font-size: 8pt;
+            line-height: 1.1;
             font-weight: 700;
             text-transform: uppercase;
-            margin-top: .2mm;
+            margin-top: .1mm;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .trace-label__titles .campus { display: block; font-size: 5.5pt; color: #444; }
+        .trace-label__titles .campus {
+            display: block;
+            font-size: 4.6pt;
+            line-height: 1.05;
+            color: #444;
+        }
 
         .trace-label__mid {
             display: grid;
@@ -243,7 +267,7 @@
             /* Quiet zone. An in-browser code (qrcodejs) has no white margin of
                its own, and a code printed hard against the caption below it
                does not scan reliably. box-sizing is border-box, so this margin
-               comes out of the 22mm footprint instead of growing the sticker. */
+               comes out of the 20mm footprint instead of growing the sticker. */
             box-sizing: border-box;
             padding: 0.8mm;
             background: #fff;
@@ -284,16 +308,14 @@
         @if($isRoll)
         /* Exactly one die-cut label per page: the ZD230 feeds one sticker per
            page break, so the page has to be the sticker and nothing else. */
-        @page { size: 100mm 40mm; margin: 0; }
+        @page { size: 90mm 40mm; margin: 0; }
         @media print {
-            html, body { width: 100mm; background: #fff; }
+            html, body { width: 90mm; background: #fff; }
             .sheet-bar, .sheet-empty { display: none !important; }
             .sheet-wrap { padding: 0; }
             .sheet { display: block; margin: 0; }
             .trace-label {
-                width: 100mm;
-                height: 40mm;
-                margin: 0;
+                margin: var(--label-inset) auto;
                 break-after: page;
                 page-break-after: always;
             }
@@ -305,8 +327,7 @@
             }
         }
         @else
-        /* A 100mm sticker is too wide for two columns inside A4's margins, so
-           the sheet prints one per row with a page break every six. */
+        /* One 90mm sticker per row on A4, with a page break every six. */
         @page { size: A4; margin: 8mm; }
         @media print {
             body { background: #fff; }
@@ -315,10 +336,10 @@
             .sheet {
                 display: block;
                 margin: 0 auto;
-                width: 100mm;
+                width: 90mm;
             }
             .trace-label {
-                margin: 0 0 4mm;
+                margin: 0 auto 4mm;
                 break-inside: avoid;
                 page-break-inside: avoid;
             }
@@ -367,7 +388,7 @@
         <div class="sheet-bar__actions">
             @if($labels !== [] && ! $single)
                 <a class="layout-link {{ $isRoll ? 'is-active' : '' }}" href="{{ $layoutUrl('roll') }}"
-                   title="One 100 × 40 mm sticker per page, for the Zebra ZD230">Label roll (100 × 40)</a>
+                   title="One 90 × 40 mm sticker per page, for the Zebra ZD230">Label roll (90 × 40)</a>
                 <a class="layout-link {{ $isRoll ? '' : 'is-active' }}" href="{{ $layoutUrl('sheet') }}"
                    title="The same stickers on A4, for an office printer">A4 sheet</a>
             @endif
@@ -378,13 +399,13 @@
         @if($labels !== [])
             <p class="print-tip">
                 @if($isRoll)
-                    In the print dialog pick <strong>ZDesigner ZD230-203dpi</strong>, paper size <strong>100 × 40 mm</strong>,
+                    In the print dialog pick <strong>ZDesigner ZD230-203dpi</strong>, paper size <strong>90 × 40 mm</strong>,
                     margins <strong>None</strong>, scale <strong>100%</strong> and turn <strong>Headers and footers</strong> off.
                     The first time, add that paper size in Windows: Printer properties → Preferences → Options →
-                    Media size → <em>Custom</em> (width 100 mm, height 40 mm).
+                    Media size → <em>Custom</em> (width 90 mm, height 40 mm).
                 @else
                     A4 layout, one sticker per row. Set margins to <strong>None</strong>, scale to <strong>100%</strong>
-                    and turn <strong>Headers and footers</strong> off so the sticker stays 100 × 40 mm.
+                    and turn <strong>Headers and footers</strong> off so the sticker stays 90 × 40 mm.
                 @endif
             </p>
         @endif
@@ -440,7 +461,7 @@
                         colorLight: '#ffffff',
                         // A signed payload is around 130 characters. Measured in
                         // this browser: level H puts about 75 modules across the
-                        // 22mm square (0.29mm each), level M about 50 (0.44mm),
+                        // 20mm square (0.27mm each), level M about 50 (0.40mm),
                         // and a short legacy code stays on H at 30 modules.
                         correctLevel: isSignedText(payload) ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.H
                     });

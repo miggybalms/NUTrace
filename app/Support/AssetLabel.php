@@ -29,12 +29,17 @@ class AssetLabel
     /**
      * Sticker geometry in millimetres — the sheet stylesheet uses these too.
      *
-     * 100 × 40mm is the die-cut label on the Zebra ZD230 roll, and the sheet
-     * prints one sticker per page at exactly this size.
+     * 90 × 40mm is the die-cut label on the Zebra ZD230 roll, and the sheet
+     * prints one sticker per page at exactly this size. The artwork itself is
+     * drawn 1mm inside those edges (see the stylesheet), because the printer
+     * cannot put ink on the die line.
      */
-    public const WIDTH_MM = 100;
+    public const WIDTH_MM = 90;
 
     public const HEIGHT_MM = 40;
+
+    /** Safe distance between the printed border and the label edge, in mm. */
+    public const INSET_MM = 1.0;
 
     /** Longest value we will print in a cell before wrapping takes over. */
     private const MAX_CELL_CHARS = 60;
