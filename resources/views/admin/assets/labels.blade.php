@@ -7,14 +7,23 @@
       * the asset registry and replacement print buttons, which print values
         straight from their forms  (route: admin/assets/label-preview)
 
-    Layout is fixed at 90mm × 40mm (App\Support\AssetLabel). One label prints on
-    its own 90 × 40 page so it can go straight to a label printer; several
-    labels print 2-up on A4, matching the sheet the registry has always used.
+    The sticker is 100mm × 40mm (App\Support\AssetLabel), the size of the roll
+    loaded in the Zebra ZD230. Two layouts exist:
+
+      * roll (default, and the only one for a single asset) — each sticker is
+        its own page at exactly 100mm × 40mm with no margin, so the printer
+        feeds one die-cut label per sticker.
+      * sheet (opt-in with ?layout=sheet) — the same sticker one per row on A4,
+        for printing on an ordinary office printer.
 
     Expects: $labels (array of App\Support\AssetLabel arrays),
-             $single (bool), $subtitle (string, screen only),
+             $single (bool), $layout ('roll'|'sheet'), $subtitle (string, screen only),
              $emptyMessage (string, shown when there is nothing to print).
 --}}
+@php
+    $layout = ($layout ?? 'roll') === 'sheet' ? 'sheet' : 'roll';
+    $isRoll = $layout === 'roll';
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,19 +33,21 @@
     <style>
         /* Every measurement in one place. The sticker box is fixed: nothing on
            the label is allowed to make it grow, so the logo, code, location and
-           QR can never be pushed off the page. */
+           QR can never be pushed off the page.
+
+           100 × 40mm is the die-cut label on the Zebra ZD230 roll. The bands are
+           fixed (10 + 26 + 4 = 40mm) so the middle always has room for the code,
+           the three cells and the QR. */
         :root {
-            --label-w: 90mm;
+            --label-w: 100mm;
             --label-h: 40mm;
-            --label-border: 0.45mm;
-            /* The header and footer are fixed heights, so the middle band gets
-               40 - 11 - 4 = 25mm whether or not a logo is present. Without this
-               the logo pushed the QR into the footer on a real print. */
-            --header-h: 11mm;
+            --label-border: 0.35mm;
+            --header-h: 10mm;
             --foot-h: 4mm;
-            --qr-size: 20mm;
-            --logo-size: 9mm;
-            --mark-col: 9.5mm;
+            --qr-size: 22mm;
+            --qr-col: 25mm;
+            --logo-size: 8.2mm;
+            --mark-col: 10mm;
             --ink: #111;
             --muted: #555;
         }
@@ -65,7 +76,10 @@
         }
         .sheet-bar h1 { font-size: 15px; font-weight: 700; }
         .sheet-bar p { font-size: 12px; opacity: .8; margin-top: 2px; }
-        .sheet-bar button {
+        .sheet-bar__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .sheet-bar button,
+        .sheet-bar .layout-link {
+            display: inline-block;
             padding: 8px 16px;
             border: 0;
             border-radius: 8px;
@@ -73,21 +87,33 @@
             color: #0A1830;
             font-size: 13px;
             font-weight: 700;
+            text-decoration: none;
             cursor: pointer;
         }
+        .sheet-bar .layout-link {
+            background: rgba(255, 255, 255, .12);
+            color: #fff;
+        }
+        .sheet-bar .layout-link.is-active {
+            background: #C9A227;
+            color: #0A1830;
+        }
+        .sheet-bar .print-tip {
+            flex-basis: 100%;
+            font-size: 11.5px;
+            line-height: 1.5;
+            opacity: .85;
+        }
+        .sheet-bar .print-tip code { font-size: 11px; }
 
         .sheet-wrap { padding: 10mm 6mm; }
 
         .sheet {
             display: grid;
             grid-template-columns: repeat(2, var(--label-w));
-            gap: 5mm 6mm;
+            gap: 4mm 5mm;
             justify-content: center;
             margin: 0 auto;
-        }
-        .sheet--single {
-            grid-template-columns: var(--label-w);
-            gap: 0;
         }
 
         /* ---------- one sticker ---------- */
@@ -97,7 +123,7 @@
             border: var(--label-border) solid var(--ink);
             background: #fff;
             display: grid;
-            grid-template-rows: auto 1fr auto;
+            grid-template-rows: var(--header-h) 1fr var(--foot-h);
             overflow: hidden;
             break-inside: avoid;
             page-break-inside: avoid;
@@ -110,9 +136,9 @@
             grid-template-columns: var(--mark-col) 1fr var(--mark-col);
             align-items: center;
             gap: 0.6mm;
-            padding: 0.6mm 1.5mm;
+            padding: 0.5mm 2mm;
             height: var(--header-h);
-            border-bottom: 0.35mm solid var(--ink);
+            border-bottom: 0.3mm solid var(--ink);
             text-align: center;
         }
         .trace-label__mark {
@@ -122,7 +148,7 @@
         }
         /* Height-driven so the seal keeps its own proportions — the official
            artwork is 318 x 383 — and can never be stretched or spill out of its
-           column. The header band is 11mm, so a 9mm mark fits with room spare. */
+           column. The header band is 10mm, so an 8.2mm mark fits with room. */
         .trace-label__mark img {
             height: var(--logo-size);
             width: auto;
@@ -132,16 +158,16 @@
         .trace-label__titles { display: block; min-width: 0; }
         .trace-label__titles .office {
             display: block;
-            font-size: 6pt;
+            font-size: 6.5pt;
             font-weight: 700;
             letter-spacing: .4px;
         }
         .trace-label__titles .name {
             display: block;
-            font-size: 8.5pt;
+            font-size: 9.5pt;
             font-weight: 700;
             text-transform: uppercase;
-            margin-top: .3mm;
+            margin-top: .2mm;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -150,7 +176,7 @@
 
         .trace-label__mid {
             display: grid;
-            grid-template-columns: 1fr 23mm;
+            grid-template-columns: 1fr var(--qr-col);
             min-height: 0;
         }
 
@@ -160,14 +186,14 @@
             justify-content: center;
             gap: 1mm;
             padding: 1mm 2mm;
-            border-right: 0.35mm solid var(--ink);
+            border-right: 0.3mm solid var(--ink);
             min-width: 0;
         }
         /* The asset code sits in the middle of its own line, above the cells. */
         .trace-label__code {
             text-align: center;
             font-family: 'Courier New', monospace;
-            font-size: 8pt;
+            font-size: 9pt;
             font-weight: 700;
             letter-spacing: .4px;
             overflow-wrap: anywhere;
@@ -175,7 +201,7 @@
         .trace-label__cells {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: .8mm;
+            gap: 1mm;
             min-width: 0;
         }
         /* A long room name wraps to a few lines instead of being cut off: the
@@ -183,9 +209,9 @@
            App\Support\AssetLabel puts on a printed value. */
         .trace-label__cells .cell {
             border: 0.25mm solid #888;
-            padding: 0.45mm;
+            padding: 0.5mm;
             text-align: center;
-            font-size: 5pt;
+            font-size: 5.5pt;
             line-height: 1.15;
             max-height: 13mm;
             overflow: hidden;
@@ -193,7 +219,7 @@
         }
         .trace-label__cells .cell span {
             display: block;
-            font-size: 4.2pt;
+            font-size: 4.5pt;
             color: var(--muted);
             font-weight: 600;
         }
@@ -203,8 +229,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 0.5mm;
-            padding: 0.6mm;
+            gap: 0.4mm;
+            padding: 0.5mm;
         }
         .trace-label__qr img,
         .trace-label__qr canvas {
@@ -217,9 +243,9 @@
             /* Quiet zone. An in-browser code (qrcodejs) has no white margin of
                its own, and a code printed hard against the caption below it
                does not scan reliably. box-sizing is border-box, so this margin
-               comes out of the 20mm footprint instead of growing the sticker. */
+               comes out of the 22mm footprint instead of growing the sticker. */
             box-sizing: border-box;
-            padding: 0.7mm;
+            padding: 0.8mm;
             background: #fff;
         }
         .trace-label__qr .scan { font-size: 4.5pt; color: var(--ink); }
@@ -234,11 +260,11 @@
             justify-content: center;
             height: var(--foot-h);
             text-align: center;
-            font-size: 5.5pt;
+            font-size: 6pt;
             font-weight: 700;
             color: #c00;
             letter-spacing: .4px;
-            border-top: 0.35mm solid var(--ink);
+            border-top: 0.3mm solid var(--ink);
         }
 
         /* ---------- empty state (never printed) ---------- */
@@ -255,22 +281,49 @@
         .sheet-empty p { font-size: 13px; color: #475569; }
 
         /* ---------- print ---------- */
-        @if($single)
-        @page { size: 90mm 40mm; margin: 0; }
+        @if($isRoll)
+        /* Exactly one die-cut label per page: the ZD230 feeds one sticker per
+           page break, so the page has to be the sticker and nothing else. */
+        @page { size: 100mm 40mm; margin: 0; }
         @media print {
-            body { background: #fff; }
+            html, body { width: 100mm; background: #fff; }
             .sheet-bar, .sheet-empty { display: none !important; }
             .sheet-wrap { padding: 0; }
-            .sheet { display: block; }
-            .trace-label { border: var(--label-border) solid var(--ink); }
+            .sheet { display: block; margin: 0; }
+            .trace-label {
+                width: 100mm;
+                height: 40mm;
+                margin: 0;
+                break-after: page;
+                page-break-after: always;
+            }
+            /* No trailing page break on the last sticker, or the printer feeds
+               one blank label. */
+            .trace-label:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
         }
         @else
+        /* A 100mm sticker is too wide for two columns inside A4's margins, so
+           the sheet prints one per row with a page break every six. */
         @page { size: A4; margin: 8mm; }
         @media print {
             body { background: #fff; }
             .sheet-bar, .sheet-empty { display: none !important; }
             .sheet-wrap { padding: 0; }
-            .sheet { margin: 0; justify-content: center; }
+            .sheet {
+                display: block;
+                margin: 0 auto;
+                width: 100mm;
+            }
+            .trace-label {
+                margin: 0 0 4mm;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .trace-label:nth-child(6n) { margin-bottom: 0; break-after: page; page-break-after: always; }
+            .trace-label:last-child { break-after: auto; page-break-after: auto; }
         }
         @endif
     </style>
@@ -284,21 +337,56 @@
         $unsignedCount = collect($labels)
             ->filter(fn ($label) => ! \App\Support\QrPayload::isPayload((string) ($label['qr_payload'] ?? '')))
             ->count();
+
+        // Keep every other query value (filters, codes, asset) when switching
+        // between the roll and the A4 layout.
+        $layoutUrl = function (string $mode) {
+            $query = request()->query();
+            unset($query['layout']);
+            if ($mode === 'sheet') {
+                $query['layout'] = 'sheet';
+            }
+
+            $qs = http_build_query($query);
+
+            return url()->current().($qs === '' ? '' : '?'.$qs);
+        };
     @endphp
     <div class="sheet-bar">
         <div>
             <h1>{{ $labels === [] ? 'Asset Labels' : ($single ? 'Asset Label' : count($labels) . ' Asset Labels') }}</h1>
             <p>{{ $subtitle ?? '' }}</p>
             @if($unsignedCount > 0)
-                <p style="margin-top:4px;color:#7A5B00;font-size:12px;">
+                <p style="margin-top:4px;color:#F2CE62;font-size:12px;">
                     {{ $unsignedCount }} of these {{ $unsignedCount === 1 ? 'sticker carries' : 'stickers carry' }}
                     an unsigned code (no signature). They still scan as “unsigned”, and
                     <code>php artisan qr:resign</code> re-mints the stored images.
                 </p>
             @endif
         </div>
+        <div class="sheet-bar__actions">
+            @if($labels !== [] && ! $single)
+                <a class="layout-link {{ $isRoll ? 'is-active' : '' }}" href="{{ $layoutUrl('roll') }}"
+                   title="One 100 × 40 mm sticker per page, for the Zebra ZD230">Label roll (100 × 40)</a>
+                <a class="layout-link {{ $isRoll ? '' : 'is-active' }}" href="{{ $layoutUrl('sheet') }}"
+                   title="The same stickers on A4, for an office printer">A4 sheet</a>
+            @endif
+            @if($labels !== [])
+                <button type="button" onclick="window.print()">Print</button>
+            @endif
+        </div>
         @if($labels !== [])
-            <button type="button" onclick="window.print()">Print</button>
+            <p class="print-tip">
+                @if($isRoll)
+                    In the print dialog pick <strong>ZDesigner ZD230-203dpi</strong>, paper size <strong>100 × 40 mm</strong>,
+                    margins <strong>None</strong>, scale <strong>100%</strong> and turn <strong>Headers and footers</strong> off.
+                    The first time, add that paper size in Windows: Printer properties → Preferences → Options →
+                    Media size → <em>Custom</em> (width 100 mm, height 40 mm).
+                @else
+                    A4 layout, one sticker per row. Set margins to <strong>None</strong>, scale to <strong>100%</strong>
+                    and turn <strong>Headers and footers</strong> off so the sticker stays 100 × 40 mm.
+                @endif
+            </p>
         @endif
     </div>
 
@@ -309,7 +397,7 @@
         </div>
     @else
         <div class="sheet-wrap">
-            <div class="sheet {{ $single ? 'sheet--single' : '' }}">
+            <div class="sheet">
                 @foreach($labels as $label)
                     @include('partials.asset_label', ['label' => $label])
                 @endforeach
@@ -352,7 +440,7 @@
                         colorLight: '#ffffff',
                         // A signed payload is around 130 characters. Measured in
                         // this browser: level H puts about 75 modules across the
-                        // 20mm square (0.27mm each), level M about 50 (0.4mm),
+                        // 22mm square (0.29mm each), level M about 50 (0.44mm),
                         // and a short legacy code stays on H at 30 modules.
                         correctLevel: isSignedText(payload) ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.H
                     });

@@ -2228,6 +2228,9 @@ Route::get('/admin/assets/{id}', function ($id) {
 // Print sheet for department assets: one sticker for a single asset, or one per
 // asset the filters match. Both the page and this sheet filter through
 // DepartmentAssets, so the printout is exactly what was selected.
+//
+// The default layout is one 100 × 40mm sticker per page for the Zebra roll;
+// ?layout=sheet puts the same stickers on A4 for an ordinary printer.
 Route::get('/admin/assets/department/{departmentId}/labels', function (Request $request, $departmentId) {
     if (! Auth::check()) {
         return redirect('/login');
@@ -2253,6 +2256,7 @@ Route::get('/admin/assets/department/{departmentId}/labels', function (Request $
     return view('admin.assets.labels', [
         'labels'       => $labels,
         'single'       => count($labels) === 1,
+        'layout'       => count($labels) !== 1 && $request->query('layout') === 'sheet' ? 'sheet' : 'roll',
         'subtitle'     => DepartmentAssets::describeFilters($departmentName, $filters, count($labels)),
         'emptyMessage' => 'No asset in '.$departmentName.' matches the selected filters, so there is nothing to print.',
     ]);
@@ -2277,6 +2281,7 @@ Route::get('/admin/assets/label-preview', function (Request $request) {
         return view('admin.assets.labels', [
             'labels'       => [],
             'single'       => false,
+            'layout'       => 'roll',
             'subtitle'     => '',
             'emptyMessage' => 'No asset code was supplied, so there is nothing to print.',
         ]);
@@ -2285,6 +2290,7 @@ Route::get('/admin/assets/label-preview', function (Request $request) {
     return view('admin.assets.labels', [
         'labels'       => [AssetLabel::fromInput($data)],
         'single'       => true,
+        'layout'       => 'roll',
         'subtitle'     => 'Preview from the form (not saved yet)',
         'emptyMessage' => 'No asset code was supplied, so there is nothing to print.',
     ]);
@@ -2325,6 +2331,7 @@ Route::get('/admin/assets/labels', function (Request $request) {
     return view('admin.assets.labels', [
         'labels'       => $labels,
         'single'       => $count === 1,
+        'layout'       => $count !== 1 && $request->query('layout') === 'sheet' ? 'sheet' : 'roll',
         'subtitle'     => $count.' '.($count === 1 ? 'label' : 'labels').' · registered assets',
         'emptyMessage' => 'None of the selected assets could be found, so there is nothing to print.',
     ]);

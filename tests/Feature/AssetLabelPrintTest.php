@@ -19,7 +19,8 @@ use Tests\TestCase;
  *     only ever contain assets the filtered page was showing.
  *  2. The sticker carries the asset's own identifier and always fills its
  *     box — the code is printed on its own centred line, the QR encodes that
- *     same code, and one sticker prints on a 90mm × 40mm page.
+ *     same code, and one sticker prints on a 100mm × 40mm page — the die-cut
+ *     label on the Zebra ZD230 roll.
  */
 class AssetLabelPrintTest extends TestCase
 {
@@ -94,7 +95,46 @@ class AssetLabelPrintTest extends TestCase
             ->assertSee('data-asset-code="AST-0001"', false)
             ->assertSee('data-asset-code="AST-0002"', false)
             ->assertSee('data-asset-code="AST-0003"', false)
-            ->assertSee('size: A4', false);
+            // A batch defaults to the Zebra roll: one 100 × 40mm sticker per page.
+            ->assertSee('size: 100mm 40mm', false);
+    }
+
+    public function test_a_batch_prints_one_sticker_per_roll_label_by_default(): void
+    {
+        $html = $this->actingAs($this->admin)
+            ->get('/admin/assets/department/1/labels')
+            ->assertOk()
+            ->getContent();
+
+        // The page is the sticker, with no margin, and each sticker starts a new
+        // label — this is what makes the ZD230 feed one die-cut label per sticker.
+        $this->assertStringContainsString('@page { size: 100mm 40mm; margin: 0; }', $html);
+        $this->assertStringContainsString('break-after: page;', $html);
+        $this->assertStringContainsString('height: 40mm;', $html);
+
+        // Two layouts are offered, and the roll is the one selected.
+        $this->assertStringContainsString('layout=sheet', $html);
+        $this->assertStringContainsString('Label roll (100 × 40)', $html);
+    }
+
+    public function test_the_a4_layout_is_opt_in(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->get('/admin/assets/department/1/labels?layout=sheet');
+
+        $response->assertOk()
+            ->assertSee('size: A4', false)
+            ->assertDontSee('size: 100mm 40mm', false);
+    }
+
+    public function test_one_asset_always_prints_on_its_own_roll_label(): void
+    {
+        // Even when the A4 layout is asked for, a single sticker keeps the roll
+        // page: there is nothing to arrange on a sheet.
+        $this->actingAs($this->admin)
+            ->get('/admin/assets/department/1/labels?asset=AST-0001&layout=sheet')
+            ->assertOk()
+            ->assertSee('size: 100mm 40mm', false);
     }
 
     public function test_the_location_filter_decides_what_is_printed(): void
@@ -148,7 +188,7 @@ class AssetLabelPrintTest extends TestCase
             ->get('/admin/assets/department/1/labels?asset=AST-0001');
 
         $response->assertOk()
-            ->assertSee('size: 90mm 40mm', false)
+            ->assertSee('size: 100mm 40mm', false)
             ->assertSee('data-asset-code="AST-0001"', false)
             ->assertDontSee('data-asset-code="AST-0002"', false)
             // The code is printed in its own centred line, above the cells.
@@ -206,6 +246,12 @@ class AssetLabelPrintTest extends TestCase
             ->assertSee('data-asset-code="AST-0002"', false)
             ->assertSee('data-asset-code="AST-0003"', false)
             ->assertDontSee('data-asset-code="AST-0001"', false)
+            ->assertSee('size: 100mm 40mm', false);
+
+        // The A4 sheet is still reachable from the same batch.
+        $this->actingAs($this->admin)
+            ->get('/admin/assets/labels?codes=AST-0002,AST-0003&layout=sheet')
+            ->assertOk()
             ->assertSee('size: A4', false);
     }
 
@@ -216,7 +262,7 @@ class AssetLabelPrintTest extends TestCase
         );
 
         $response->assertOk()
-            ->assertSee('size: 90mm 40mm', false)
+            ->assertSee('size: 100mm 40mm', false)
             ->assertSee('AST-NEW-9', false)
             ->assertSee('Testing', false)
             ->assertSee('Faculty Room', false)
@@ -309,7 +355,7 @@ class AssetLabelPrintTest extends TestCase
 
         // Height-driven with max-width, never a forced square: the supplied
         // artwork is 318x383, so stretching it would be immediately visible.
-        $this->assertStringContainsString('--logo-size: 9mm', $html);
+        $this->assertStringContainsString('--logo-size: 8.2mm', $html);
         $this->assertStringContainsString('height: var(--logo-size)', $html);
         $this->assertStringContainsString('width: auto', $html);
         $this->assertStringContainsString('max-width: 100%', $html);
@@ -324,7 +370,7 @@ class AssetLabelPrintTest extends TestCase
         // An in-browser QR has no margin of its own, and a code printed hard
         // against the caption does not scan reliably. border-box means the
         // margin comes out of the 20mm footprint rather than growing the label.
-        $this->assertStringContainsString('padding: 0.7mm', $html);
+        $this->assertStringContainsString('padding: 0.8mm', $html);
         $this->assertStringContainsString('box-sizing: border-box', $html);
     }
 
@@ -365,31 +411,30 @@ class AssetLabelPrintTest extends TestCase
         $this->assertSame('AST-0001', $label['code']);
     }
 
-    public function test_the_sticker_keeps_its_fixed_90_by_40_box(): void
+    public function test_the_sticker_keeps_its_fixed_100_by_40_box(): void
     {
         $html = $this->actingAs($this->admin)
             ->get('/admin/assets/department/1/labels?asset=AST-0001')
             ->getContent();
 
-        // Fixed geometry, and a square QR that cannot be stretched.
-        $this->assertStringContainsString('--label-w: 90mm', $html);
+        // Fixed geometry at the size of the die-cut roll, and a square QR that
+        // cannot be stretched.
+        $this->assertStringContainsString('--label-w: 100mm', $html);
         $this->assertStringContainsString('--label-h: 40mm', $html);
-        $this->assertStringContainsString('--qr-size: 20mm', $html);
+        $this->assertStringContainsString('--qr-size: 22mm', $html);
         $this->assertStringContainsString('aspect-ratio: 1 / 1', $html);
         $this->assertStringContainsString('object-fit: contain', $html);
         $this->assertStringContainsString('overflow: hidden', $html);
 
         // The header and footer are fixed bands so the middle band always has
-        // 25mm for the code, cells and QR whether or not a logo is present.
-        // (Measured in a browser: with the logo, the QR used to push 2px past
-        // the row and clip on the footer.)
-        $this->assertStringContainsString('--header-h: 11mm', $html);
+        // 26mm for the code, cells and QR whether or not a logo is present.
+        $this->assertStringContainsString('--header-h: 10mm', $html);
         $this->assertStringContainsString('--foot-h: 4mm', $html);
         $this->assertStringContainsString('height: var(--header-h)', $html);
         $this->assertStringContainsString('height: var(--foot-h)', $html);
 
         // A long room name wraps instead of being cut off inside its cell.
         $this->assertStringContainsString('max-height: 13mm', $html);
-        $this->assertStringContainsString('font-size: 5pt', $html);
+        $this->assertStringContainsString('font-size: 5.5pt', $html);
     }
 }

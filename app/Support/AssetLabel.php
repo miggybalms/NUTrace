@@ -26,8 +26,13 @@ class AssetLabel
      */
     public const LOGO_FILE = 'nu-seal.png';
 
-    /** Sticker geometry in millimetres — the sheet stylesheet uses these too. */
-    public const WIDTH_MM = 90;
+    /**
+     * Sticker geometry in millimetres — the sheet stylesheet uses these too.
+     *
+     * 100 × 40mm is the die-cut label on the Zebra ZD230 roll, and the sheet
+     * prints one sticker per page at exactly this size.
+     */
+    public const WIDTH_MM = 100;
 
     public const HEIGHT_MM = 40;
 
