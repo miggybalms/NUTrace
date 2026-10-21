@@ -43,7 +43,7 @@ class SecurityHeaders
     /** Content the pages legitimately load from other origins. */
     private const SCRIPT_SOURCES = [
         'https://cdn.tailwindcss.com',   // Tailwind Play CDN (used by several admin screens)
-        'https://cdn.jsdelivr.net',      // qrcodejs, jsQR, html5-qrcode, remixicon
+        'https://cdn.jsdelivr.net',      // qrcode-generator, qrcodejs, jsQR, html5-qrcode, remixicon
         'https://cdnjs.cloudflare.com',  // qrcodejs (older pages)
         'https://unpkg.com',             // html5-qrcode (request pages)
     ];

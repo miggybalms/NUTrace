@@ -7,7 +7,7 @@
     of keeping three copies of it.
 
     Expects $label:
-        code      asset code, printed on its own centred line
+        code      asset code, printed on its own line
         name      asset name, in the header
         location  registered room / office / department
         category  asset category
@@ -17,8 +17,13 @@
                     signed payload, or its plain code without signing keys
         logo      URL of the official NU seal, or null when it is not available
 
+    Shape: two columns. The left column carries the seal, the name, the code and
+    the three fields; the right column is the QR square and nothing else, so no
+    text, rule or logo can ever sit on its modules or in its quiet zone.
+
     Everything is measured in millimetres and the box never grows: long values
-    wrap/clip inside their cell rather than pushing the footer off the sticker.
+    clip inside their line rather than pushing the QR or the footer off the
+    sticker.
 --}}
 @php
     $code     = trim((string) ($label['code'] ?? ''));
@@ -32,49 +37,47 @@
     $logoFallback = $label['logo_fallback'] ?? \App\Support\AssetLabel::logoFallbackUrl();
 @endphp
 <div class="trace-label" data-asset-code="{{ $code }}">
-    <div class="trace-label__top">
-        {{-- Logo slot: rendered only when the official seal is actually available,
-             so the header never prints a broken image. --}}
-        <span class="trace-label__mark">
-            @if($logo)
-                {{-- src prefers the published copy; if the media disk has not been
-                     given the file yet, the bundled copy takes over. --}}
-                <img src="{{ $logo }}" alt="NU seal"
-                     onerror="this.onerror=null;this.src='{{ $logoFallback }}'">
-            @endif
-        </span>
+    <div class="trace-label__left">
+        <div class="trace-label__top">
+            {{-- Logo slot: rendered only when the official seal is actually
+                 available, so the header never prints a broken image. --}}
+            <span class="trace-label__mark">
+                @if($logo)
+                    {{-- src prefers the published copy; if the media disk has not
+                         been given the file yet, the bundled copy takes over. --}}
+                    <img src="{{ $logo }}" alt="NU seal"
+                         onerror="this.onerror=null;this.src='{{ $logoFallback }}'">
+                @endif
+            </span>
 
-        <span class="trace-label__titles">
-            <span class="office">ASSET MANAGEMENT OFFICE</span>
-            <span class="name">{{ $name }}</span>
-            <span class="campus">NU LIPA</span>
-        </span>
+            <span class="trace-label__titles">
+                <span class="office">ASSET MANAGEMENT OFFICE</span>
+                <span class="name">{{ $name }}</span>
+                <span class="campus">NU LIPA</span>
+            </span>
+        </div>
 
-        {{-- Empty twin of the logo slot: keeps the titles optically centred. --}}
-        <span class="trace-label__mark" aria-hidden="true"></span>
-    </div>
-
-    <div class="trace-label__mid">
-        <div class="trace-label__info">
+        <div class="trace-label__mid">
             <div class="trace-label__code">{{ $code }}</div>
+
             <div class="trace-label__cells">
-                <div class="cell"><span>Location</span>{{ $location }}</div>
-                <div class="cell"><span>Category</span>{{ $category }}</div>
-                <div class="cell"><span>Acquired</span>{{ $acquired }}</div>
+                <div class="cell"><span>Location</span><span class="value">{{ $location }}</span></div>
+                <div class="cell"><span>Category</span><span class="value">{{ $category }}</span></div>
+                <div class="cell"><span>Acquired</span><span class="value">{{ $acquired }}</span></div>
             </div>
         </div>
 
-        {{-- data-qr-payload is what the sheet draws when there is no stored
-             image: the signed payload, never a bare code once signing is on. --}}
-        <div class="trace-label__qr" data-asset-code="{{ $code }}" data-qr-payload="{{ $payload }}">
-            @if($qr)
-                <img class="trace-label__qr-image" src="{{ $qr }}" alt="QR code for {{ $code }}">
-            @endif
-            {{-- Landing spot for the in-browser QR when no stored image exists. --}}
-            <span class="trace-label__qr-draw"></span>
-            <span class="scan">Scan me</span>
-        </div>
+        <div class="trace-label__foot">DO NOT REMOVE THIS TAG</div>
     </div>
 
-    <div class="trace-label__foot">DO NOT REMOVE THIS TAG</div>
+    {{-- data-qr-payload is what the sheet draws: the signed payload, never a
+         bare code once signing is on. The stored image stays as the fallback
+         for a browser that cannot draw (and is what prints with JS disabled);
+         the sheet replaces it with a crisp SVG at print resolution. --}}
+    <div class="trace-label__qr" data-asset-code="{{ $code }}" data-qr-payload="{{ $payload }}">
+        @if($qr)
+            <img class="trace-label__qr-image" src="{{ $qr }}" alt="QR code for {{ $code }}">
+        @endif
+        <span class="trace-label__qr-draw"></span>
+    </div>
 </div>

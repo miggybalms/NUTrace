@@ -27,22 +27,92 @@ class AssetLabel
     public const LOGO_FILE = 'nu-seal.png';
 
     /**
-     * Sticker geometry in millimetres — the sheet stylesheet uses these too.
+     * Default sticker geometry in millimetres, used when config/asset_label.php
+     * has no value (or a nonsensical one).
      *
-     * 90 × 40mm is the die-cut label on the Zebra ZD230 roll, and the sheet
-     * prints one sticker per page at exactly this size. The artwork itself is
-     * drawn 1mm inside those edges (see the stylesheet), because the printer
-     * cannot put ink on the die line.
+     * 50 × 25mm is the die-cut label loaded in the Zebra ZD230: the driver's
+     * 1.969" × 0.984" media size. The sheet prints one sticker per page at
+     * exactly this size, and the artwork is drawn 1mm inside those edges (see
+     * the stylesheet), because the printer cannot put ink on the die line.
+     *
+     * These are only the fallbacks — the live values come from the config, so a
+     * different roll can be set in .env without editing a view.
      */
-    public const WIDTH_MM = 90;
+    public const DEFAULT_WIDTH_MM = 50.0;
 
-    public const HEIGHT_MM = 40;
+    public const DEFAULT_HEIGHT_MM = 25.0;
 
     /** Safe distance between the printed border and the label edge, in mm. */
-    public const INSET_MM = 1.0;
+    public const DEFAULT_INSET_MM = 1.0;
+
+    /** Side of the QR square, quiet zone included, in mm. */
+    public const DEFAULT_QR_MM = 21.0;
 
     /** Longest value we will print in a cell before wrapping takes over. */
     private const MAX_CELL_CHARS = 60;
+
+    /**
+     * Sticker width in mm, from config with a sane fallback.
+     */
+    public static function widthMm(): float
+    {
+        return self::configuredMm('width_mm', self::DEFAULT_WIDTH_MM, 30, 200);
+    }
+
+    /**
+     * Sticker height in mm, from config with a sane fallback.
+     */
+    public static function heightMm(): float
+    {
+        return self::configuredMm('height_mm', self::DEFAULT_HEIGHT_MM, 12, 120);
+    }
+
+    /**
+     * Margin kept inside the die line, in mm. Never more than a quarter of the
+     * sticker, so a bad value cannot leave no room for the artwork.
+     */
+    public static function insetMm(): float
+    {
+        $inset = self::configuredMm('inset_mm', self::DEFAULT_INSET_MM, 0, 10);
+
+        return min($inset, min(self::widthMm(), self::heightMm()) / 4);
+    }
+
+    /**
+     * Width of the QR square in mm, quiet zone included.
+     *
+     * Clamped to the printable height: a QR taller than the sticker would be
+     * clipped by the label box, and a clipped finder pattern never scans.
+     */
+    public static function qrMm(): float
+    {
+        $room = self::heightMm() - 2 * self::insetMm() - 0.5;
+        $qr = self::configuredMm('qr_mm', self::DEFAULT_QR_MM, 8, 120);
+
+        return max(8.0, min($qr, $room));
+    }
+
+    /**
+     * A millimetre value as a CSS-ready string: `50`, `19.88`, never `50.00`.
+     */
+    public static function css(float $value): string
+    {
+        $formatted = rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+
+        return $formatted === '' ? '0' : $formatted;
+    }
+
+    private static function configuredMm(string $key, float $fallback, float $min, float $max): float
+    {
+        $value = config('asset_label.'.$key, $fallback);
+        $value = is_numeric($value) ? (float) $value : $fallback;
+
+        if ($value < $min || $value > $max) {
+            return $fallback;
+        }
+
+        return $value;
+    }
 
     /**
      * Build a label from a database row.

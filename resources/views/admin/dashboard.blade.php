@@ -447,10 +447,13 @@
                         <canvas id="qrCanvas" style="display:none;"></canvas>
                     </div>
                     <div class="mt-2 flex items-center space-x-2">
-                        <button id="stopCameraBtn" class="px-3 py-1 rounded text-white" style="background:var(--brick);">Stop</button>
-                        <span class="text-sm" style="color:var(--ink-400);">Camera will auto-detect QR codes.</span>
+                        <span id="scannerStatus" class="text-sm" style="color:var(--ink-600);">Point the camera at the sticker's QR code.</span>
                     </div>
                 </div>
+
+                {{-- Neutral feedback for "nothing decoded yet". This is not an
+                     error and must never look like a failed verification. --}}
+                <p id="scannerHint" class="text-sm hidden" style="color:var(--ink-600);"></p>
 
                 <div id="scannerResult" class="hidden p-4 rounded-lg" style="background:var(--paper-2); border:1px solid var(--line);">
                     <div id="assetImageWrapper" class="mb-4 flex justify-center">
@@ -492,12 +495,31 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     @include('partials.qr_scan_js')
     <script>
+        // Everything a scan can leave on screen. Called before every new scan
+        // and when the modal closes, so a "Verified sticker" from the previous
+        // sticker can never sit under a different one, or under no code at all.
+        function resetScannerPanel() {
+            const result = document.getElementById('scannerResult');
+            if (result) result.classList.add('hidden');
+
+            const message = document.getElementById('scannerMsg');
+            if (message) { message.classList.add('hidden'); message.textContent = ''; }
+
+            const hint = document.getElementById('scannerHint');
+            if (hint) { hint.classList.add('hidden'); hint.textContent = ''; }
+
+            const status = document.getElementById('scannerStatus');
+            if (status) status.textContent = 'Point the camera at the sticker\'s QR code.';
+
+            showVerification(null);
+        }
+
         function openScannerModal() {
             document.getElementById('scannerModal').classList.remove('hidden');
             document.getElementById('scannerModal').classList.add('flex');
             // auto-start camera scanner like user request page
             try {
-                document.getElementById('scannerMsg').classList.add('hidden');
+                resetScannerPanel();
                 startCamera();
             } catch (e) {
                 // ignore if scanner not available
@@ -508,8 +530,7 @@
             try { stopCamera(); } catch (e) { /* ignore */ }
             document.getElementById('scannerModal').classList.add('hidden');
             document.getElementById('scannerModal').classList.remove('flex');
-            document.getElementById('scannerResult').classList.add('hidden');
-            document.getElementById('scannerMsg').classList.add('hidden');
+            resetScannerPanel();
             // reset start/stop button visibility
             try {
                 startCameraBtn.style.display = 'inline-block';
@@ -517,9 +538,7 @@
             } catch (e) {}
         }
 
-        document.getElementById('openScannerBtn').addEventListener('click', openScannerModal);
-
-        // The verification banner is shown for every outcome, including the
+        document.getElementById('openScannerBtn').addEventListener('click', openScannerModal);                // The verification banner is shown for every outcome, including the
         // refused ones: the office needs to see "altered sticker" or "unsigned
         // sticker" rather than a bare "asset not found".
         function showVerification(verification) {
@@ -529,19 +548,24 @@
             holder.classList.toggle('hidden', holder.innerHTML === '');
         }
 
-        // lookup helper used by scanner on successful decode
+        // Look up one decoded payload. Everything shown here comes back from the
+        // server for *this* payload: no asset card and no banner can survive from
+        // an earlier scan, and nothing is called verified until the server says
+        // the signature checked out AND returned the asset row.
         function lookupAsset(code) {
-            showVerification(null);
+            resetScannerPanel();
 
             if (!code) {
                 document.getElementById('scannerMsg').textContent = 'Invalid code scanned.';
                 document.getElementById('scannerMsg').classList.remove('hidden');
                 return;
             }
-            document.getElementById('scannerMsg').classList.add('hidden');
             fetch(`/admin/assets/scan?code=${encodeURIComponent(code)}`)
                 .then(res => res.json())
                 .then(json => {
+                    // The banner is the *sticker's* verdict (signature, revocation);
+                    // the card below is the *asset's* details. They are drawn from
+                    // the same response so they cannot disagree or go stale.
                     showVerification(json.verification);
 
                     if (!json.success) {
@@ -585,21 +609,68 @@
         const startCameraBtn = document.getElementById('startCameraBtn');
         const stopCameraBtn = document.getElementById('stopCameraBtn');
 
+        // One decode at a time. Both readers can fire repeatedly while the code
+        // is in frame; without this guard one sticker produced several lookups,
+        // each redrawing the panel a moment after the previous one.
+        let scanBusy = false;
+        let noCodeTimer = null;
+
+        function beginScanSession() {
+            scanBusy = false;
+            resetScannerPanel();
+            clearNoCodeTimer();
+
+            // "Nothing decoded yet" is neutral information, not an error: the
+            // camera is working, the sticker simply has not been read.
+            noCodeTimer = setTimeout(function () {
+                const hint = document.getElementById('scannerHint');
+                if (!hint || scanBusy) return;
+                hint.textContent = 'No QR code detected yet. Adjust the camera or improve the image quality.';
+                hint.classList.remove('hidden');
+            }, 6000);
+        }
+
+        function clearNoCodeTimer() {
+            if (noCodeTimer) {
+                clearTimeout(noCodeTimer);
+                noCodeTimer = null;
+            }
+        }
+
+        function clearNoCodeHint() {
+            clearNoCodeTimer();
+            const hint = document.getElementById('scannerHint');
+            if (hint) { hint.classList.add('hidden'); hint.textContent = ''; }
+        }
+
         function onScanSuccess(decodedText, decodedResult) {
-            // stop camera immediately and perform lookup
+            if (scanBusy) return;
+
+            const payload = (decodedText || '').trim();
+
+            // A reader can report an empty result; that is not a scan.
+            if (!payload) return;
+
+            scanBusy = true;
+            clearNoCodeHint();
+
+            const status = document.getElementById('scannerStatus');
+            if (status) status.textContent = 'QR code detected — checking it.';
+
+            // Stop the camera immediately and look this one code up.
             stopCamera();
-            lookupAsset(decodedText);
+            lookupAsset(payload);
         }
 
         function onScanFailure(error) {
-            // ignore occasional scan failures
-            // console.debug('scan failure', error);
+            // A frame without a code is the normal case, not an error to show.
         }
 
         let fallbackStream = null;
         let fallbackScanTimer = null;
 
         function startCamera() {
+            beginScanSession();
             qrScannerWrap.classList.remove('hidden');
 
             // Preferred: use Html5Qrcode if available
@@ -634,6 +705,7 @@
             const video = document.getElementById('qrVideo');
             const canvas = document.getElementById('qrCanvas');
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                clearNoCodeTimer();
                 document.getElementById('scannerMsg').textContent = 'Camera not available in this browser.';
                 document.getElementById('scannerMsg').classList.remove('hidden');
                 return;
@@ -663,12 +735,15 @@
                     }
                 }, 300);
             }).catch(err => {
+                clearNoCodeTimer();
                 document.getElementById('scannerMsg').textContent = 'Camera permission denied or no camera found.';
                 document.getElementById('scannerMsg').classList.remove('hidden');
             });
         }
 
         function stopCamera() {
+            clearNoCodeTimer();
+
             // stop html5QrCode if present
             if (html5QrCode && html5QrCode.stop) {
                 try {

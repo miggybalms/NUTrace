@@ -2229,8 +2229,9 @@ Route::get('/admin/assets/{id}', function ($id) {
 // asset the filters match. Both the page and this sheet filter through
 // DepartmentAssets, so the printout is exactly what was selected.
 //
-// The default layout is one 90 × 40mm sticker per page for the Zebra roll;
-// ?layout=sheet puts the same stickers on A4 for an ordinary printer.
+// The default layout is one sticker per page at the configured roll size —
+// 50 × 25mm for the Zebra ZD230, see config/asset_label.php; ?layout=sheet puts
+// the same stickers on A4 for an ordinary printer.
 Route::get('/admin/assets/department/{departmentId}/labels', function (Request $request, $departmentId) {
     if (! Auth::check()) {
         return redirect('/login');
