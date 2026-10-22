@@ -12,7 +12,11 @@ use Illuminate\Database\Eloquent\Model;
     'user_id', 'Asset_code', 'Asset_name', 'Category', 'Condition', 'Lifecycle_Status',
     'accusion_date', 'accusion_cost', 'purchase_Price', 'warranty_months', 'supplier', 'model', 'manufacture',
     'serial_Number', 'asset_location', 'qr_code_path',
-    'lifespan_months', 'expiration_date', 'repair_counts', 'last_maintenance_date', 'next_maintenance_date', 'maintenance_interval'
+    'lifespan_months', 'expiration_date', 'repair_counts', 'last_maintenance_date', 'next_maintenance_date', 'maintenance_interval',
+    // Existing-asset import: the client's own identifiers, the department the
+    // asset belongs to, and the accountable name preserved while the person
+    // has no NU Trace account to be assigned to.
+    'property_id_no', 'inventory_id_no', 'po_no', 'accountable_name', 'department_id', 'completion_status'
 ])]
 class Asset extends Model
 {

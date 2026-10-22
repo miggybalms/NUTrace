@@ -68,6 +68,23 @@
                     </div>
                 @endif
 
+                @if(session('success'))
+                    <div class="mb-4 p-4 rounded-lg" style="background:#EAF4EE; border:1px solid #B6D9C4; color:#245C3B;">
+                        <i class="ri-checkbox-circle-line mr-1"></i>{{ session('success') }}
+                    </div>
+                @endif
+
+                @if($errors->any())
+                    <div class="mb-4 p-4 rounded-lg" style="background:#F7E9E6; border:1px solid #E2B7B1; color:#7E2E27;">
+                        <p class="text-sm font-semibold mb-1"><i class="ri-error-warning-line mr-1"></i>That could not be saved</p>
+                        <ul class="text-sm list-disc pl-5">
+                            @foreach($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 <div class="card-registry">
 
                     <!-- Registry header band -->
@@ -157,6 +174,132 @@
 
                     <div class="p-6 md:p-8">
 
+                        {{-- Correcting or completing the record. Imported assets often
+                             arrive with information the office's spreadsheet never had;
+                             this is where it is filled in. The asset code is not here
+                             on purpose: it is printed on a sticker and inside its
+                             signed payload, so changing it is a reissue. --}}
+                        @if((auth()->user()->role ?? '') === 'Admin')
+                        <details id="edit-asset" class="mb-8 rounded-xl" style="border:1px solid var(--line); background:var(--paper);">
+                            <summary class="cursor-pointer px-4 py-3 flex items-center justify-between" style="list-style:none;">
+                                <span class="font-semibold" style="color:var(--navy-900);">
+                                    <i class="ri-edit-line mr-1.5"></i>Edit asset information
+                                </span>
+                                <span class="text-xs" style="color:var(--ink-400);">Correct or complete this record</span>
+                            </summary>
+
+                            <form method="POST" action="{{ url('/admin/assets/' . $asset->id . '/details') }}" class="px-4 pb-4">
+                                @csrf
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="md:col-span-2">
+                                        <label class="field-label block mb-1" for="edit-name">Asset name</label>
+                                        <input id="edit-name" name="Asset_name" class="form-input" maxlength="150" required
+                                               value="{{ old('Asset_name', $asset->Asset_name) }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-category">Category</label>
+                                        <select id="edit-category" name="Category" class="form-input" required>
+                                            @foreach($categories as $category)
+                                                <option value="{{ $category }}" @selected(old('Category', $asset->Category) === $category)>{{ $category }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-condition">Condition</label>
+                                        <select id="edit-condition" name="Condition" class="form-input" required>
+                                            @foreach($conditions as $condition)
+                                                <option value="{{ $condition }}" @selected(old('Condition', $asset->Condition) === $condition)>{{ $condition }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-location">Location</label>
+                                        <input id="edit-location" name="asset_location" class="form-input" maxlength="255"
+                                               value="{{ old('asset_location', $asset->asset_location) }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-date">Date acquired</label>
+                                        <input id="edit-date" type="date" name="accusion_date" class="form-input"
+                                               value="{{ old('accusion_date', $asset->accusion_date ? \Carbon\Carbon::parse($asset->accusion_date)->format('Y-m-d') : '') }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-cost">Purchase price (₱)</label>
+                                        <input id="edit-cost" type="number" step="0.01" min="0" name="purchase_Price" class="form-input"
+                                               value="{{ old('purchase_Price', $asset->purchase_Price) }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-completion">Record completion</label>
+                                        <select id="edit-completion" name="completion_status" class="form-input">
+                                            @foreach($completions as $completion)
+                                                <option value="{{ $completion }}" @selected(old('completion_status', $asset->completion_status ?? 'Complete') === $completion)>{{ $completion }}</option>
+                                            @endforeach
+                                        </select>
+                                        <p class="text-xs mt-1" style="color:var(--ink-400);">Separate from the asset's lifecycle status.</p>
+                                    </div>
+
+                                    {{-- The client's own identifiers, preserved as text. --}}
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-property">Property ID No.</label>
+                                        <input id="edit-property" name="property_id_no" class="form-input font-mono" maxlength="100"
+                                               value="{{ old('property_id_no', $asset->property_id_no) }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-inventory">ID No. (inventory list)</label>
+                                        <input id="edit-inventory" name="inventory_id_no" class="form-input font-mono" maxlength="100"
+                                               value="{{ old('inventory_id_no', $asset->inventory_id_no) }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-po">PO No.</label>
+                                        <input id="edit-po" name="po_no" class="form-input" maxlength="100"
+                                               value="{{ old('po_no', $asset->po_no) }}">
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-department">Department</label>
+                                        <select id="edit-department" name="department_id" class="form-input">
+                                            <option value="">— none —</option>
+                                            @foreach($departments as $department)
+                                                <option value="{{ $department->id }}" @selected((int) old('department_id', $asset->department_id) === (int) $department->id)>{{ $department->Name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-person">Accountable person (active account)</label>
+                                        <select id="edit-person" name="accountable_user_id" class="form-input">
+                                            <option value="">— unassigned —</option>
+                                            @foreach($people as $person)
+                                                <option value="{{ $person->id }}" @selected((int) old('accountable_user_id', $asset->user_id) === (int) $person->id)>{{ $person->name }} ({{ $person->number }})</option>
+                                            @endforeach
+                                        </select>
+                                        <p class="text-xs mt-1" style="color:var(--ink-400);">Only an active account can hold an asset. Otherwise leave it unassigned and keep the name below.</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label block mb-1" for="edit-person-name">Accountable name as written</label>
+                                        <input id="edit-person-name" name="accountable_name" class="form-input" maxlength="150"
+                                               value="{{ old('accountable_name', $asset->accountable_name) }}" placeholder="Kept when nobody is assigned yet">
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end mt-4">
+                                    <button type="submit" class="btn-primary" style="background:var(--navy-800);">
+                                        <i class="ri-save-3-line mr-1.5"></i>Save changes
+                                    </button>
+                                </div>
+                            </form>
+                        </details>
+                        @endif
+
                         <div class="grid grid-cols-2 gap-x-6 gap-y-5">
                             <div>
                                 <p class="field-label">Acquisition Date</p>
@@ -181,6 +324,24 @@
                             <div>
                                 <p class="field-label">Category</p>
                                 <p class="field-value">{{ $asset->Category ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p class="field-label">Property ID No.</p>
+                                <p class="field-value font-mono">{{ $asset->property_id_no ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p class="field-label">Department</p>
+                                <p class="field-value">
+                                    {{ $asset->department_id ? (\App\Support\AssetEditing::departments()->firstWhere('id', $asset->department_id)->Name ?? '—') : '—' }}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="field-label">Accountable person</p>
+                                <p class="field-value">{{ $asset->full_name ?? $asset->accountable_name ?? 'Unassigned' }}</p>
+                            </div>
+                            <div>
+                                <p class="field-label">Record completion</p>
+                                <p class="field-value">{{ $asset->completion_status ?? 'Complete' }}</p>
                             </div>
                         </div>
 

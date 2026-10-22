@@ -479,6 +479,13 @@
                             <p id="resLocation" class="text-sm font-medium mt-0.5" style="color:var(--navy-900);">-</p>
                         </div>
                     </div>
+                    {{-- A scan is also the fastest way into an imported record:
+                         same asset page, edit panel already open. --}}
+                    <div id="resActions" class="mt-4 hidden">
+                        <a id="resEdit" href="#" class="btn-gold inline-flex items-center gap-2 text-sm">
+                            <i class="ri-edit-line"></i>Edit this asset
+                        </a>
+                    </div>
                 </div>
                 {{-- What the sticker itself turned out to be: verified, unsigned,
                      altered, revoked, or not a NU Trace code at all. --}}
@@ -501,6 +508,9 @@
         function resetScannerPanel() {
             const result = document.getElementById('scannerResult');
             if (result) result.classList.add('hidden');
+
+            const actions = document.getElementById('resActions');
+            if (actions) actions.classList.add('hidden');
 
             const message = document.getElementById('scannerMsg');
             if (message) { message.classList.add('hidden'); message.textContent = ''; }
@@ -591,6 +601,11 @@
                         assetImage.classList.add('hidden');
                     }
                     
+                    const edit = document.getElementById('resEdit');
+                    if (edit && d.id) edit.href = `/admin/assets/${d.id}#edit-asset`;
+                    const actions = document.getElementById('resActions');
+                    if (actions && d.id) actions.classList.remove('hidden');
+
                     document.getElementById('scannerResult').classList.remove('hidden');
                 })
                 .catch(err => {

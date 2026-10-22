@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rules\Password;
+use App\Http\Controllers\AssetImportController;
 use App\Http\Controllers\UserRequestController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\ExecutiveReviewController;
@@ -1334,9 +1335,10 @@ Route::get('/admin/assets', function () {
 
     // Group assets by user's department
     foreach ($assets as $asset) {
-        $userDeptId = $asset->user?->department_id;
+        // The asset's own department first: an imported asset whose accountable
+        // person has not registered yet has no holder to read a department from.
+        $userDeptId = $asset->department_id ?? $asset->user?->department_id;
         if (!$userDeptId) {
-            // Assets with no assigned user → skip or put in an "Unassigned" group if you want
             continue;
         }
 
@@ -1369,7 +1371,7 @@ Route::get('/admin/assets', function () {
             'name'             => $asset->Asset_name ?? '',
             'asset_code'       => $asset->Asset_code ?? '',
             'status'           => $status,
-            'accountable'      => $asset->user?->full_name ?? 'Unassigned',   // ← now works
+            'accountable'      => $asset->user?->full_name ?? ($asset->accountable_name ?: 'Unassigned'),
             'acquisition_date' => $asset->accusion_date ? (string) $asset->accusion_date : null,
             'url'              => $asset->url ?? null,
         ];
@@ -2222,8 +2224,30 @@ Route::get('/admin/assets/{id}', function ($id) {
         }
     }
 
-    return view('admin.assets.show', compact('asset'));
+    return view('admin.assets.show', [
+        'asset'       => $asset,
+        'departments' => \App\Support\AssetEditing::departments(),
+        'people'      => \App\Support\AssetEditing::people(),
+        'conditions'  => \App\Support\AssetEditing::CONDITIONS,
+        'completions' => \App\Support\AssetEditing::COMPLETION_STATUSES,
+        'categories'  => \App\Support\Import\AssetImport::CATEGORIES,
+    ]);
 })->where('id', '[0-9]+');
+
+// Correcting an asset's record — the Edit action on the asset page and in the
+// Asset Scanner. The asset code is deliberately not editable here: it is printed
+// on a sticker and inside that sticker's signed payload, so changing it is a
+// reissue, not an edit.
+Route::post('/admin/assets/{id}/details', function (Request $request, $id) {
+    $result = \App\Support\AssetEditing::update((int) $id, $request->all(), Auth::user());
+
+    if (! ($result['ok'] ?? false)) {
+        return back()->withErrors($result['errors'] ?? ['Asset_name' => 'That change could not be saved.'])->withInput();
+    }
+
+    return redirect('/admin/assets/' . $id)->with('success', $result['message'] ?? 'Asset record updated.');
+})->where('id', '[0-9]+')->middleware('auth');
+
 
 // Print sheet for department assets: one sticker for a single asset, or one per
 // asset the filters match. Both the page and this sheet filter through
@@ -2398,6 +2422,35 @@ Route::get('/admin/assets/registry', function () {
     return view('admin.assets.asset_registry', compact('bulkQrLabels', 'bulkRegisteredCount'));
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Existing asset import
+//
+// The office's Fixed Asset Registry is checked, corrected and imported in
+// windows so a large workbook never has to fit in one request. The page is at
+// /admin/assets/import; every step below refuses a batch it cannot find and
+// re-checks the Admin area's access on the server.
+//
+// The page route is registered before the numeric /admin/assets/{id} routes for
+// the reader's sake, although `import` can never match `[0-9]+`.
+// ─────────────────────────────────────────────────────────────────────────────
+Route::middleware(['auth'])->group(function () {
+    Route::get('/admin/assets/import', [AssetImportController::class, 'index'])->name('admin.assets.import');
+    Route::get('/admin/assets/import/template', [AssetImportController::class, 'template'])->name('admin.assets.import.template');
+    Route::post('/admin/assets/import', [AssetImportController::class, 'upload'])->name('admin.assets.import.upload');
+
+    Route::post('/admin/assets/import/{batch}/mapping', [AssetImportController::class, 'mapping'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/step', [AssetImportController::class, 'step'])->whereNumber('batch');
+    Route::get('/admin/assets/import/{batch}/rows', [AssetImportController::class, 'rows'])->whereNumber('batch');
+    Route::get('/admin/assets/import/{batch}/decisions', [AssetImportController::class, 'decisions'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/decisions', [AssetImportController::class, 'saveDecisions'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/codes', [AssetImportController::class, 'codes'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/propose', [AssetImportController::class, 'propose'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/commit', [AssetImportController::class, 'commit'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/retry', [AssetImportController::class, 'retry'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/qr', [AssetImportController::class, 'retryQr'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/discard', [AssetImportController::class, 'discard'])->whereNumber('batch');
+});
+
 // NOTE: the legacy /admin/assets/{id}/qr-sticker routes were removed.
 // They returned view('admin.assets.qr-sticker'), which does not exist, and two
 // identical copies were registered. QR stickers are rendered client-side
@@ -2491,7 +2544,14 @@ Route::get('/admin/assets/{id}', function ($id) {
         }
     }
 
-    return view('admin.assets.show', compact('asset'));
+    return view('admin.assets.show', [
+        'asset'       => $asset,
+        'departments' => \App\Support\AssetEditing::departments(),
+        'people'      => \App\Support\AssetEditing::people(),
+        'conditions'  => \App\Support\AssetEditing::CONDITIONS,
+        'completions' => \App\Support\AssetEditing::COMPLETION_STATUSES,
+        'categories'  => \App\Support\Import\AssetImport::CATEGORIES,
+    ]);
 })->where('id', '[0-9]+');
 
 // Download Inventory - Export all assets as CSV with full reporting data - IMPORTANT: place before catch-all routes

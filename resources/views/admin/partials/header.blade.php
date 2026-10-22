@@ -116,11 +116,16 @@
                         </a>
                         @break
 
-                    {{-- Assets: download inventory + register new asset --}}
+                    {{-- Assets: import the office's registry, download inventory,
+                         register a new asset --}}
                     @case('assets')
                         <a href="/admin/inventory-download" class="btn-ghost" download>
                             <i class="ri-download-line mr-1.5"></i>
                             <span class="whitespace-nowrap">Download Inventory</span>
+                        </a>
+                        <a href="/admin/assets/import" class="btn-ghost">
+                            <i class="ri-upload-cloud-2-line mr-1.5"></i>
+                            <span class="whitespace-nowrap">Import Inventory</span>
                         </a>
                         <a href="/admin/assets/registry" class="btn-gold">
                             <i class="ri-add-line mr-1.5"></i>

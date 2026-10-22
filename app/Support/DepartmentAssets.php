@@ -37,7 +37,17 @@ class DepartmentAssets
         return Inventory::excludeRemoved(DB::table('assets'))
             ->leftJoin('users', 'assets.user_id', '=', 'users.id')
             ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-            ->where('users.department_id', $departmentId)
+            // The department the asset belongs to, not only the holder's. An
+            // imported asset whose accountable person has no account yet has
+            // no holder to read a department from, and must still appear on
+            // its department's page and label sheet.
+            ->where(function ($query) use ($departmentId) {
+                $query->where('assets.department_id', $departmentId)
+                    ->orWhere(function ($fallback) use ($departmentId) {
+                        $fallback->whereNull('assets.department_id')
+                            ->where('users.department_id', $departmentId);
+                    });
+            })
             ->select(
                 'assets.id as db_id',
                 'assets.Asset_code as id',
@@ -172,8 +182,14 @@ class DepartmentAssets
     private static function departmentColumn(int|string|null $departmentId, string $column): Collection
     {
         return Inventory::excludeRemoved(DB::table('assets'))
-            ->whereIn('user_id', function ($q) use ($departmentId) {
-                $q->select('id')->from('users')->where('department_id', $departmentId);
+            ->where(function ($query) use ($departmentId) {
+                $query->where('assets.department_id', $departmentId)
+                    ->orWhere(function ($fallback) use ($departmentId) {
+                        $fallback->whereNull('assets.department_id')
+                            ->whereIn('user_id', function ($q) use ($departmentId) {
+                                $q->select('id')->from('users')->where('department_id', $departmentId);
+                            });
+                    });
             })
             ->whereNotNull($column)
             ->distinct()

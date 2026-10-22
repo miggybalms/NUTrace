@@ -136,7 +136,11 @@ class AssetQr
         return DB::table('assets')
             ->leftJoin('users', 'assets.user_id', '=', 'users.id')
             ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-            ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+            // The department recorded on the asset wins; the holder's department
+            // is the fallback for every asset registered before departments
+            // were stored on the asset itself.
+            ->leftJoin('departments', 'assets.department_id', '=', 'departments.id')
+            ->leftJoin('departments as holder_departments', 'users.department_id', '=', 'holder_departments.id')
             ->leftJoin('asset_files', 'assets.id', '=', 'asset_files.Asset_id')
             ->whereRaw($where, [$code])
             ->select(
@@ -150,9 +154,12 @@ class AssetQr
                 'assets.asset_location',
                 'assets.qr_code_path',
                 'assets.qr_revoked_at',
+                'assets.property_id_no',
+                'assets.completion_status',
                 'employee_numbers.Full_Name as owner_name',
-                'departments.Name as department_name',
-                'departments.id as department_id',
+                'assets.accountable_name',
+                DB::raw('COALESCE(departments.Name, holder_departments.Name) as department_name'),
+                DB::raw('COALESCE(departments.id, holder_departments.id) as department_id'),
                 DB::raw('MAX(asset_files.url) as image_url')
             )
             ->groupBy(
@@ -166,9 +173,12 @@ class AssetQr
                 'assets.asset_location',
                 'assets.qr_code_path',
                 'assets.qr_revoked_at',
+                'assets.property_id_no',
+                'assets.completion_status',
                 'employee_numbers.Full_Name',
-                'departments.Name',
-                'departments.id'
+                'assets.accountable_name',
+                DB::raw('COALESCE(departments.Name, holder_departments.Name)'),
+                DB::raw('COALESCE(departments.id, holder_departments.id)')
             )
             ->first();
     }
@@ -187,8 +197,11 @@ class AssetQr
             'category' => $row->Category ?? '-',
             'condition' => $row->Condition ?? '-',
             'department' => $row->department_name ?? '-',
-            'owner' => $row->owner_name ?? 'Unassigned',
+            // An imported asset keeps the name the office wrote down even while
+            // nobody has been assigned: "Unassigned" alone would lose it.
+            'owner' => $row->owner_name ?? ($row->accountable_name ?? 'Unassigned'),
             'location' => $row->asset_location ?? '-',
+            'property_id_no' => $row->property_id_no ?? null,
             'image_url' => Media::url($row->image_url ?? null),
             'revoked' => ! empty($row->qr_revoked_at),
             'revoked_at' => $row->qr_revoked_at,
