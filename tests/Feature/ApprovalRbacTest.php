@@ -7,6 +7,7 @@ use App\Support\Reviewers;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -83,10 +84,13 @@ class ApprovalRbacTest extends TestCase
     ): int {
         $submitter = $submitter ?? $this->employee;
 
+        Storage::fake('public');
+
         $this->actingAs($submitter)->post('/user/requests/store', [
             'request_type' => 'Repair',
             'asset_ids'    => [$assetId ?? $this->assetId],
             'notes'        => $note,
+            'attachment'   => $this->requestPhoto(),
         ])->assertRedirect();
 
         return (int) DB::table('requests')->max('id');

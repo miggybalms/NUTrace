@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Support\AssetLabel;
+use App\Support\QrPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -291,6 +292,49 @@ class AssetLabelPrintTest extends TestCase
         $this->assertStringContainsString('class="trace-label__code">AST-0001', $html);
     }
 
+    public function test_a_reprint_carries_the_payload_the_asset_already_holds(): void
+    {
+        // The record holds a signed payload minted when the sticker was first
+        // printed. A reprint has to carry that same payload: minting a fresh
+        // one (or, on an install without the signing keyring, a bare code)
+        // makes the sticker disagree with the asset it is printed for.
+        $payload = QrPayload::build('AST-0002', 'V2', str_repeat("\x01", 64));
+        DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $payload]);
+
+        $single = $this->actingAs($this->admin)
+            ->get('/admin/assets/department/1/labels?asset=AST-0002')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-qr-payload="'.$payload.'"', $single);
+        $this->assertStringNotContainsString('data-qr-payload="AST-0002"', $single);
+
+        // The registry's batch sheet reads the same record and prints the same
+        // sticker.
+        $batch = $this->actingAs($this->admin)
+            ->get('/admin/assets/labels?codes=AST-0002')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-qr-payload="'.$payload.'"', $batch);
+    }
+
+    public function test_a_stored_payload_for_another_code_is_never_printed(): void
+    {
+        // A payload naming a different asset would put the wrong sticker on the
+        // wrong object, so the asset's own code is printed instead.
+        $foreign = QrPayload::build('AST-0001', 'V2', str_repeat("\x02", 64));
+        DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $foreign]);
+
+        $html = $this->actingAs($this->admin)
+            ->get('/admin/assets/department/1/labels?asset=AST-0002')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString($foreign, $html);
+        $this->assertStringContainsString('data-qr-payload="AST-0002"', $html);
+    }
+
     public function test_the_pages_that_print_still_render(): void
     {
         // The registry and the replacement page lost their own sticker builders
@@ -461,10 +505,15 @@ class AssetLabelPrintTest extends TestCase
         $this->assertStringContainsString('grid-template-columns: 1fr var(--qr-col);', $html);
         $this->assertStringContainsString('--qr-col: calc(var(--qr-size) + 0.7mm);', $html);
 
-        // A long room name clips on one line inside its cell instead of
-        // pushing the footer off the sticker.
+        // Nothing the sticker exists to carry ends in an ellipsis: the code
+        // shrinks to fit its line, and a field wraps instead of being cut.
+        // (The ellipsis rules stay as the no-JS fallback only.)
         $this->assertStringContainsString('text-overflow: ellipsis', $html);
         $this->assertStringContainsString('white-space: nowrap', $html);
+        $this->assertStringContainsString('overflow-wrap: anywhere', $html);
+        $this->assertStringContainsString('font-size: var(--cell-pt, 4.1pt)', $html);
+        $this->assertStringContainsString('function fitLabelText', $html);
+        $this->assertStringContainsString('fitLabels();', $html);
     }
 
     public function test_the_sticker_size_is_configurable(): void

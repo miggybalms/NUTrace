@@ -102,6 +102,21 @@ class AssetImportController extends Controller
         return response()->json($result, $result['ok'] ? 200 : 422);
     }
 
+    /** Choose the accountable person for one line of the staged file. */
+    public function person(Request $request, int $batch): JsonResponse
+    {
+        $validated = $request->validate([
+            'line'    => 'required|integer|min:1',
+            'user_id' => 'nullable|integer|min:0',
+        ]);
+
+        $userId = $validated['user_id'] ?? null;
+
+        $result = AssetImport::assignPerson($batch, (int) $validated['line'], $userId === null ? null : (int) $userId, $request->user());
+
+        return response()->json($result, $result['ok'] ? 200 : 422);
+    }
+
     public function propose(Request $request, int $batch): JsonResponse
     {
         $result = AssetImport::proposeCodes($batch, (string) $request->input('pattern', ''), $request->user());

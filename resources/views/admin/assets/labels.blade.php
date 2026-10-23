@@ -7,10 +7,13 @@
       * the asset registry and replacement print buttons, which print values
         straight from their forms  (route: admin/assets/label-preview)
 
-    The sticker size comes from config/asset_label.php (env
+    The sticker size starts from config/asset_label.php (env
     ASSET_LABEL_WIDTH_MM / ASSET_LABEL_HEIGHT_MM / ASSET_LABEL_INSET_MM /
     ASSET_LABEL_QR_MM). The default is the stock loaded in the Zebra ZD230 —
-    50mm × 25mm, the driver's 1.969" × 0.984" media. Two layouts exist:
+    50mm × 25mm, the driver's 1.969" × 0.984" media — and the Asset Management
+    Office can change the size, QR square and layout for its own browser from
+    the "Print settings" panel on this page (web only; the mobile app never
+    prints labels). Two layouts exist:
 
       * roll (default, and the only one for a single asset) — each sticker is
         its own page at exactly the configured size with no margin, so the
@@ -39,6 +42,24 @@
     $labelH = \App\Support\AssetLabel::css(\App\Support\AssetLabel::heightMm());
     $inset  = \App\Support\AssetLabel::css(\App\Support\AssetLabel::insetMm());
     $qrMm   = \App\Support\AssetLabel::css(\App\Support\AssetLabel::qrMm());
+
+    // Print settings panel: sticker size, QR size and layout. Web only, and
+    // only for the Asset Management Office - it changes what a printout looks
+    // like, not what the system records.
+    $labelSettings = \App\Support\AssetLabel::settings();
+    $qrDots = \App\Support\AssetLabel::moduleDots($labelSettings['qr_mm']);
+    $minStickerW = \App\Support\AssetLabel::css(\App\Support\AssetLabel::minimumStickerWidthMm());
+    $minStickerH = \App\Support\AssetLabel::css(\App\Support\AssetLabel::minimumStickerHeightMm());
+    $minQrMm = \App\Support\AssetLabel::css(\App\Support\AssetLabel::minimumQrMm());
+    // The slider's ceiling follows the sticker, but never drops under its floor:
+    // a sticker too small for any readable code makes min > max, and then the
+    // server's clamp is the only bound that means anything.
+    $maxQrMm = \App\Support\AssetLabel::css(max(
+        \App\Support\AssetLabel::minimumQrMm(),
+        min($labelSettings['width_mm'], $labelSettings['height_mm'])
+    ));
+    $canLabelSettings = \App\Support\Access::isAssetOffice(auth()->user());
+    $labelSettingsFlash = session('label_settings');
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -126,6 +147,62 @@
             opacity: .85;
         }
         .sheet-bar .print-tip code { font-size: 11px; }
+
+        /* ---------- print settings (screen only, never printed) ---------- */
+        .sheet-bar .print-settings {
+            flex-basis: 100%;
+            padding: 10px 12px;
+            border: 1px solid rgba(255, 255, 255, .18);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, .06);
+            font-size: 12px;
+        }
+        .sheet-bar .print-settings summary { cursor: pointer; font-weight: 700; }
+        .sheet-bar .print-settings form {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .sheet-bar .print-settings label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 10.5px;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            opacity: .9;
+        }
+        .sheet-bar .print-settings input,
+        .sheet-bar .print-settings select {
+            width: 110px;
+            padding: 6px 8px;
+            border: 1px solid rgba(255, 255, 255, .35);
+            border-radius: 6px;
+            background: #fff;
+            color: #0A1830;
+            font-size: 13px;
+        }
+        .sheet-bar .print-settings select { width: auto; }
+        .sheet-bar .print-settings button {
+            padding: 8px 14px;
+            border: 0;
+            border-radius: 8px;
+            background: #C9A227;
+            color: #0A1830;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .sheet-bar .print-settings button.print-settings__reset {
+            background: rgba(255, 255, 255, .14);
+            color: #fff;
+        }
+        .sheet-bar .print-settings__msg { margin-top: 8px; color: #B6E8C4; }
+        .sheet-bar .print-settings__msg.is-warning { color: #F2CE62; }
+        .sheet-bar .print-settings__warning { margin-top: 4px; color: #F2CE62; }
+        .sheet-bar .print-settings__note { margin-top: 8px; font-size: 11px; opacity: .8; }
 
         /* On screen the stickers show at their real size, as a preview of the
            page that is about to print. */
@@ -232,36 +309,50 @@
             font-size: 6.6pt;
             line-height: 1.05;
             font-weight: 700;
-            letter-spacing: .2px;
+            /* No tracking: a 19-character code has to share the column with a
+               21mm QR, and the 0.2px per character was enough to push the end
+               of the identifier past the edge. */
+            letter-spacing: 0;
             white-space: nowrap;
             overflow: hidden;
+            /* Never reached while the script can measure the line: it shrinks
+               the code until the whole identifier fits (fitLabelText below).
+               Only a browser with JS disabled clips with the ellipsis. */
             text-overflow: ellipsis;
         }
+
+        /* The fields wrap instead of ending in "...": "Furnitures and
+           Fixtures" and a full room name are information the sticker exists to
+           carry. --cell-pt is stepped down on the sticker by the script when
+           two lines each still do not fit, so the rows always end above the
+           footer band. */
         .trace-label__cells { display: flex; flex-direction: column; gap: 0.45mm; min-width: 0; }
         .trace-label__cells .cell {
             display: grid;
             grid-template-columns: 7.4mm 1fr;
             align-items: baseline;
             gap: 0.5mm;
-            font-size: 4.1pt;
-            line-height: 1.1;
-            white-space: nowrap;
+            font-size: var(--cell-pt, 4.1pt);
+            line-height: 1.06;
             overflow: hidden;
+            overflow-wrap: anywhere;
         }
-        .trace-label__cells .cell span {
+        .trace-label__cells .cell span:not(.value) {
             display: block;
             font-size: 3.2pt;
             font-weight: 700;
             letter-spacing: .2px;
+            white-space: nowrap;
         }
         .trace-label__cells .cell .value {
             display: block;
             min-width: 0;
-            font-size: 4.1pt;
+            font-size: var(--cell-pt, 4.1pt);
             font-weight: 400;
             letter-spacing: 0;
+            /* The one thing a value must not inherit is the label's nowrap. */
+            white-space: normal;
             overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         .trace-label__foot {
@@ -406,6 +497,60 @@
                 <button type="button" onclick="window.print()">Print</button>
             @endif
         </div>
+        @if($canLabelSettings)
+            @if($labelSettingsFlash)
+                {{-- What the last save did, including anything that had to be
+                     adjusted so the sticker stays scannable. --}}
+                <p class="print-settings__msg {{ ! empty($labelSettingsFlash['warnings']) ? 'is-warning' : '' }}">
+                    {{ $labelSettingsFlash['message'] ?? '' }}
+                </p>
+                @foreach(($labelSettingsFlash['warnings'] ?? []) as $warning)
+                    <p class="print-settings__warning">{{ $warning }}</p>
+                @endforeach
+            @endif
+
+            <details class="print-settings">
+                <summary>Print settings — sticker size, QR size and layout</summary>
+
+                <form method="POST" action="{{ url('/admin/assets/labels/settings') }}">
+                    @csrf
+                    <input type="hidden" name="return_to" value="{{ request()->getRequestUri() }}">
+
+                    <label>Sticker width (mm)
+                        <input type="number" name="width_mm" step="0.1" required
+                               min="{{ $minStickerW }}" max="{{ \App\Support\AssetLabel::MAX_WIDTH_MM }}" value="{{ $labelW }}">
+                    </label>
+
+                    <label>Sticker height (mm)
+                        <input type="number" name="height_mm" step="0.1" required
+                               min="{{ $minStickerH }}" max="{{ \App\Support\AssetLabel::MAX_HEIGHT_MM }}" value="{{ $labelH }}">
+                    </label>
+
+                    <label>QR size (mm)
+                        <input type="number" name="qr_mm" step="0.1" required
+                               min="{{ $minQrMm }}" max="{{ $maxQrMm }}" value="{{ $qrMm }}">
+                    </label>
+
+                    <label>Layout
+                        <select name="layout">
+                            <option value="roll" @selected($isRoll)>Label roll (one sticker per page)</option>
+                            <option value="sheet" @selected(! $isRoll)>A4 sheet</option>
+                        </select>
+                    </label>
+
+                    <button type="submit">Save settings</button>
+                    <button type="submit" name="reset" value="1" class="print-settings__reset"
+                            title="Go back to the configured label stock">Reset to stock</button>
+                </form>
+
+                <p class="print-settings__note">
+                    QR at {{ $qrMm }} mm is {{ $qrDots }} printer dots per module on a 203 dpi head; below 2.5 the
+                    modules merge after printing. Sizes are kept for this browser only, and the printer driver's
+                    media size must still match the sticker size above.
+                </p>
+            </details>
+        @endif
+
         @if($labels !== [])
             <p class="print-tip">
                 @if($isRoll)
@@ -584,9 +729,58 @@
                 return true;
             }
 
+            // A sticker's box never grows, but nothing on it should be cut
+            // with an ellipsis: "AST-J5BH5BV-192…" is not an identifier anyone
+            // can type into the system, and a truncated room hides where the
+            // asset actually is. The code shrinks until the whole identifier
+            // fits its line; the fields wrap onto a second line first and are
+            // only stepped down when the three rows still overflow the band
+            // between the header and the footer.
+            function fitOneLine(el, minPt) {
+                el.style.fontSize = '';
+
+                var size = parseFloat(getComputedStyle(el).fontSize);
+                var floor = minPt * 4 / 3;
+                var guard = 0;
+
+                if (!size || !el.clientWidth) {
+                    return;
+                }
+
+                while (el.scrollWidth > el.clientWidth + 0.5 && size > floor && guard++ < 60) {
+                    size = Math.max(floor, size - 0.25);
+                    el.style.fontSize = size + 'px';
+                }
+            }
+
+            function fitLabelText(label) {
+                var code = label.querySelector('.trace-label__code');
+                var mid = label.querySelector('.trace-label__mid');
+
+                if (!code || !mid || !mid.clientHeight) {
+                    return;
+                }
+
+                fitOneLine(code, 3.6);
+
+                // Step the fields down one tenth of a point at a time, and stop
+                // at the first size the box holds — on a normal sticker the
+                // wrap alone is enough and nothing changes.
+                var pt = 4.1;
+
+                while (mid.scrollHeight > mid.clientHeight + 0.5 && pt > 2.9) {
+                    pt = Math.round((pt - 0.1) * 10) / 10;
+                    label.style.setProperty('--cell-pt', pt + 'pt');
+                }
+            }
+
+            function fitLabels() {
+                Array.prototype.forEach.call(document.querySelectorAll('.trace-label'), fitLabelText);
+            }
+
             // Last resort for a browser that cannot build the SVG: the stored
-            // PNG if there is one, otherwise the same QR service the rest of the
-            // app falls back to.
+            // PNG if there is one, otherwise the same QR service the rest of
+            // the app falls back to.
             function drawFallbackQr(root) {
                 var target = root.querySelector('.trace-label__qr-draw');
                 var payload = stickerText(root);
@@ -657,6 +851,11 @@
             }
 
             window.addEventListener('load', function () {
+                // Lay the text out before anything is measured: the sticker is
+                // about to be printed, and a clipped code is the one thing that
+                // cannot be fixed after the label leaves the printer.
+                fitLabels();
+
                 whenLabelsReady().then(function () {
                     window.print();
                 });

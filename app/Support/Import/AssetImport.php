@@ -820,6 +820,80 @@ class AssetImport
     }
 
     /**
+     * Choose the accountable person for one line of the file.
+     *
+     * A name on the spreadsheet often does not match the employee masterlist
+     * (a nickname, a resigned employee, a name with no account yet). Rather than
+     * leaving the office to fix the paper and re-upload, the review table lets
+     * them pick the account for that line here:
+     *
+     *   $userId = null  back to whatever the file's name resolves to
+     *   $userId = 0     deliberately unassigned, keeping the name that was read
+     *   $userId > 0     the user account they chose
+     *
+     * The choice is stored on the row, so re-checking the batch (or any later
+     * decision) keeps it, and the rest of the batch is re-planned around it.
+     */
+    public static function assignPerson(int $id, int $line, ?int $userId, ?User $actor): array
+    {
+        $batch = self::batch($id);
+
+        if (! $batch) {
+            return ['ok' => false, 'message' => 'That import no longer exists.'];
+        }
+
+        if (in_array($batch->status, ['importing', 'completed'], true)) {
+            return ['ok' => false, 'message' => 'The import has already started, so its rows can no longer change.'];
+        }
+
+        $row = DB::table('asset_import_rows')->where('batch_id', $id)->where('line', $line)->first();
+
+        if (! $row) {
+            return ['ok' => false, 'message' => 'That line is not part of this import.'];
+        }
+
+        if (in_array($row->status, [self::IMPORTED, self::FAILED], true)) {
+            return ['ok' => false, 'message' => 'That line has already been written, so its accountable person can only be changed on the asset page.'];
+        }
+
+        if ($userId !== null && $userId > 0) {
+            $valid = DB::table('users')
+                ->join('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+                ->where('users.id', $userId)
+                ->where('users.status', 'Active')
+                ->exists();
+
+            if (! $valid) {
+                return ['ok' => false, 'message' => 'That account is not active, so it cannot hold an asset. Choose another employee.'];
+            }
+        } else {
+            // null clears the override; 0 is the explicit "leave unassigned".
+            $userId = $userId === 0 ? 0 : null;
+        }
+
+        DB::table('asset_import_rows')->where('id', $row->id)->update([
+            'accountable_override' => $userId,
+            'updated_at'           => now(),
+        ]);
+
+        self::replan($id);
+
+        $fresh = DB::table('asset_import_rows')->where('id', $row->id)->first();
+
+        self::audit($actor, 'UPDATE',
+            'Chose the accountable person for line ' . $line . ' of inventory import #' . $id . '.',
+            'Inventory import accountable person changed');
+
+        return [
+            'ok'        => true,
+            'message'   => 'Accountable person updated for line ' . $line . '.',
+            'row'       => $fresh ? self::rowPayload($fresh) : null,
+            'summary'   => self::summary($id),
+            'decisions' => self::decisions($id),
+        ];
+    }
+
+    /**
      * Fill blank codes from a pattern such as `{property_id}` or `AST-{seq}`.
      *
      * Nothing is imported and no format is imposed: the office types the pattern
@@ -1258,7 +1332,8 @@ class AssetImport
         array &$existingCache,
         array $batchCodes,
         int $line,
-        string $fileName
+        string $fileName,
+        ?int $personOverride = null
     ): array {
         $errors = [];
         $warnings = [];
@@ -1344,7 +1419,11 @@ class AssetImport
             $errors[] = 'Type of asset "' . mb_substr((string) ($payload['category'] ?? ''), 0, 60) . '" is not one of the categories NU Trace uses. Choose the matching category before importing.';
         }
 
-        $person = self::resolvePerson($personRaw, $context, $options);
+        // An accountable person the office picked during review wins over the
+        // name in the file: they have seen the line, the name has not.
+        $person = $personOverride === null
+            ? self::resolvePerson($personRaw, $context, $options)
+            : self::overridePerson($personOverride, $personRaw, $context);
 
         if ($person['status'] === self::PERSON_AMBIGUOUS) {
             $errors[] = 'More than one employee matches "' . mb_substr($personRaw, 0, 60) . '". Choose the right person, or leave the asset unassigned, before importing.';
@@ -1418,7 +1497,7 @@ class AssetImport
             ],
             'department_id'       => $department['id'],
             'accountable_user_id' => $person['user_id'],
-            'accountable_name'    => $personRaw !== '' ? mb_substr($personRaw, 0, 150) : null,
+            'accountable_name'    => mb_substr((string) ($person['name'] ?? $personRaw), 0, 150) ?: null,
             'property_id_no'      => $propertyId !== '' ? mb_substr($propertyId, 0, 100) : null,
             'inventory_id_no'     => $inventoryId !== '' ? mb_substr($inventoryId, 0, 100) : null,
         ];
@@ -1464,7 +1543,17 @@ class AssetImport
             }
 
             $payload = json_decode((string) $row->payload, true) ?: [];
-            $plan = self::plan($payload, $row->asset_code, $context, $options, $existing, $codeMap, (int) $row->line, (string) $batch->original_name);
+            $plan = self::plan(
+                $payload,
+                $row->asset_code,
+                $context,
+                $options,
+                $existing,
+                $codeMap,
+                (int) $row->line,
+                (string) $batch->original_name,
+                $row->accountable_override !== null ? (int) $row->accountable_override : null
+            );
 
             $updates[] = [
                 'batch_id'            => $id,
@@ -2070,6 +2159,52 @@ class AssetImport
         ];
     }
 
+    /**
+     * The accountable person exactly as the office chose it for one line.
+     *
+     * `0` means "left unassigned on purpose" — the name from the file is still
+     * shown, so nothing the office wrote down is lost. A positive value is a
+     * user account they picked; the account is re-checked here because a batch
+     * may sit open for days, and an account can be deactivated in the meantime.
+     */
+    private static function overridePerson(int $userId, string $source, array $context): array
+    {
+        if ($userId <= 0) {
+            return [
+                'status'      => self::PERSON_UNASSIGNED,
+                'user_id'     => null,
+                'employee_id' => null,
+                'display'     => $source,
+                'candidates'  => [],
+            ];
+        }
+
+        foreach ($context['employees'] as $employee) {
+            foreach ($employee['users'] as $user) {
+                if ((int) $user['id'] !== $userId) {
+                    continue;
+                }
+
+                $active = $employee['active'] && $user['active'];
+
+                return [
+                    'status'      => $active ? self::PERSON_ASSIGNED : self::PERSON_INACTIVE_ACCOUNT,
+                    'user_id'     => $active ? $userId : null,
+                    'employee_id' => $employee['id'],
+                    'display'     => $employee['name'] . ' (' . $employee['number'] . ')',
+                    'candidates'  => [],
+                    // Stored on the asset, so the holder's name is the one that
+                    // was chosen rather than a name from the spreadsheet.
+                    'name'        => $employee['name'],
+                ];
+            }
+        }
+
+        // The account vanished between choosing it and re-checking the line:
+        // fall back to what the file says instead of failing the import.
+        return self::resolvePerson($source, $context, []);
+    }
+
     /* ═══════════════════════════ rows ═══════════════════════════ */
 
     private static function rowPayload(object $row): array
@@ -2096,6 +2231,7 @@ class AssetImport
             'category'            => $resolved['category'] ?? null,
             'category_raw'        => $payload['category'] ?? '',
             'accountable_name'    => $row->accountable_name,
+            'accountable_override' => $row->accountable_override !== null ? (int) $row->accountable_override : null,
             'accountable_status'  => $resolved['accountable_status'] ?? 'n/a',
             'accountable_display' => $resolved['accountable_display'] ?? '',
             'accountable_user_id' => $row->accountable_user_id ? (int) $row->accountable_user_id : null,

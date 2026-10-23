@@ -70,7 +70,11 @@ public function store(HttpRequest $request)
         'asset_ids'         => 'required|array|min:1',
         'asset_ids.*'       => 'required|integer|exists:assets,id',
         'notes'             => 'required|string|max:' . self::NOTE_MAX_LENGTH,
-        'attachment'        => 'nullable|image|max:10240',
+        // Required by the panel's recommendation: the Asset Management Office
+        // decides a request on evidence, and the photograph of the asset is
+        // that evidence. Both the employee and the department-head form post
+        // here, so the rule cannot be skipped by using the other page.
+        'attachment'        => 'required|image|max:10240',
         'assign_to_user_id' => 'nullable|exists:users,id',
     ];
 
@@ -79,7 +83,11 @@ public function store(HttpRequest $request)
     }
 
     $validated = $request->validate($rules, [
-        'notes.max' => 'Your request note cannot exceed ' . self::NOTE_MAX_LENGTH . ' characters.',
+        'notes.max'              => 'Your request note cannot exceed ' . self::NOTE_MAX_LENGTH . ' characters.',
+        'attachment.required'    => 'Attach a photo of the asset. The Asset Management Office needs it as evidence for this request.',
+        'attachment.image'       => 'The attachment must be a photo (PNG, JPG, GIF or WEBP).',
+        'attachment.max'         => 'That photo is too large to upload. Choose a smaller image and try again.',
+        'attachment.uploaded'    => 'The photo could not be uploaded. Check its size and try again.',
     ]);
 
     $user     = Auth::user();
@@ -128,6 +136,11 @@ public function store(HttpRequest $request)
             ->route($redirectRoute)
             ->with('success', 'Bulk asset request submitted successfully (' . count($assetIds) . ' asset(s)).');
 
+    } catch (\RuntimeException $e) {
+        // The photo is required, so a request whose photo never reached storage
+        // is not saved at all rather than saved with the evidence missing.
+        \Log::warning('Bulk request refused: ' . $e->getMessage());
+        return back()->withErrors(['attachment' => $e->getMessage()])->withInput();
     } catch (\Throwable $e) {
         \Log::error('Bulk request failed: ' . $e->getMessage());
         return back()->withErrors(['error' => 'Failed to submit request. Please try again.'])->withInput();
@@ -149,7 +162,7 @@ public function store(HttpRequest $request)
         $uploadedFile = null,
         ?int $assignToUserId = null
     ): int {
-        // Handle optional attachment
+        // Handle the required attachment
         $fileName = $filePath = $fileSize = $mimeType = $url = null;
 
         if ($uploadedFile) {
@@ -161,6 +174,12 @@ public function store(HttpRequest $request)
                 $fileSize = $uploadedFile->getSize();
                 $mimeType = $uploadedFile->getClientMimeType();
                 $url      = Media::url($filePath);
+            }
+
+            // A storage outage must not turn into a request that arrived with
+            // no evidence: the caller refuses and the person tries again.
+            if (! $filePath) {
+                throw new \RuntimeException('The photo could not be saved, so the request was not submitted. Please try again.');
             }
         }
 

@@ -176,15 +176,20 @@
                     <!-- Attach Photo -->
                     <div class="bg-white rounded-xl shadow-sm border border-[#DED2AE] p-6 mb-8">
                         <label class="block text-sm font-medium text-[#33425C] mb-2">
-                            Attach Photo (Optional)
+                            Attach Photo <span class="text-[#A23B32]" aria-hidden="true">*</span>
                         </label>
                         <div class="upload-area border-2 border-dashed border-[#CFC4A4] rounded-lg p-6 text-center cursor-pointer"
                              onclick="document.getElementById('photo-upload').click()">
                             <i class="ri-image-line text-3xl text-[#5C6474] mb-2 block"></i>
                             <p class="text-sm text-[#46536B]">Click to upload or drag and drop</p>
                             <p class="text-xs text-[#5C6474] mt-1">PNG, JPG up to 10MB</p>
-                            <input type="file" id="photo-upload" name="attachment" class="hidden" accept="image/*" onchange="previewPhoto(this)">
+                            <input type="file" id="photo-upload" name="attachment" class="hidden" accept="image/*"
+                                   aria-required="true" aria-describedby="photo-requirement" onchange="previewPhoto(this)">
                         </div>
+                        <p id="photo-requirement" class="text-xs text-[#5C6474] mt-2">
+                            Required. The Asset Management Office needs a photo of the asset as evidence for this request.
+                        </p>
+                        <p id="photo-error" class="text-xs mt-1 hidden" style="color:#A23B32;"></p>
                         <div id="photo-preview" class="mt-3 hidden">
                             <img id="photo-preview-img" class="h-32 w-auto rounded-lg border border-[#DED2AE]" alt="Photo Preview">
                         </div>
@@ -469,6 +474,20 @@
         // ─────────────────────────────────────────────
         // Photo preview
         // ─────────────────────────────────────────────
+        function showPhotoError(message) {
+            const error = document.getElementById('photo-error');
+            if (!error) return;
+            error.textContent = message;
+            error.classList.remove('hidden');
+        }
+
+        function clearPhotoError() {
+            const error = document.getElementById('photo-error');
+            if (error) error.classList.add('hidden');
+        }
+
+        document.getElementById('photo-upload')?.addEventListener('change', clearPhotoError);
+
         function previewPhoto(input) {
             const preview = document.getElementById('photo-preview');
             const previewImg = document.getElementById('photo-preview-img');
@@ -489,6 +508,16 @@
             if (draftAssets.size === 0) {
                 e.preventDefault();
                 alert('Please add at least one asset before submitting.');
+                return;
+            }
+
+            // The photo is required: it is the evidence the office decides on,
+            // so the browser refuses first and the server refuses again.
+            const photoInput = document.getElementById('photo-upload');
+            if (!photoInput || !photoInput.files || photoInput.files.length === 0) {
+                e.preventDefault();
+                showPhotoError('Attach a photo of the asset before submitting.');
+                photoInput?.closest('.upload-area')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
 

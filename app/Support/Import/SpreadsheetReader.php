@@ -35,6 +35,12 @@ class SpreadsheetReader
     /** Built-in Excel number formats that mean "date", with or without a time. */
     private const DATE_FORMATS = [14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47];
 
+    /** The spreadsheet namespace every worksheet element belongs to. */
+    private const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+    /** The package-relationship namespace (workbook.xml.rels). */
+    private const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
     private string $path;
 
     private string $type;
@@ -399,11 +405,7 @@ class SpreadsheetReader
 
         $customDate = [];
 
-        foreach ($document->getElementsByTagName('numFmt') as $format) {
-            if (! $format instanceof \DOMElement) {
-                continue;
-            }
-
+        foreach (self::elements($document, 'numFmt') as $format) {
             $code = strtolower($format->getAttribute('formatCode'));
 
             // A date format prints a day/month/year token; a plain number format
@@ -414,14 +416,7 @@ class SpreadsheetReader
             }
         }
 
-        $cellXfs = null;
-
-        foreach ($document->getElementsByTagName('cellXfs') as $node) {
-            if ($node instanceof \DOMElement) {
-                $cellXfs = $node;
-                break;
-            }
-        }
+        $cellXfs = self::firstElement($document, 'cellXfs');
 
         if (! $cellXfs) {
             return;
@@ -429,11 +424,7 @@ class SpreadsheetReader
 
         $index = 0;
 
-        foreach ($cellXfs->getElementsByTagName('xf') as $xf) {
-            if (! $xf instanceof \DOMElement) {
-                continue;
-            }
-
+        foreach (self::elements($cellXfs, 'xf') as $xf) {
             $formatId = (int) $xf->getAttribute('numFmtId');
 
             $this->dateStyles[$index] = in_array($formatId, self::DATE_FORMATS, true)
@@ -450,15 +441,17 @@ class SpreadsheetReader
 
         if ($workbook) {
             $document = $this->dom($workbook);
-            $sheet = $document?->getElementsByTagName('sheet')->item(0);
+            $sheet = $document ? self::firstElement($document, 'sheet') : null;
 
             if ($sheet instanceof \DOMElement) {
-                $relId = $sheet->getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id')
+                $relId = $sheet->getAttributeNS(self::REL_NS, 'id')
                     ?: $sheet->getAttribute('r:id');
 
                 if ($relId !== '' && ($rels = $this->zip?->getFromName('xl/_rels/workbook.xml.rels'))) {
-                    foreach ($this->dom($rels)?->getElementsByTagName('Relationship') ?? [] as $relationship) {
-                        if ($relationship instanceof \DOMElement && $relationship->getAttribute('Id') === $relId) {
+                    $relationships = $this->dom($rels);
+
+                    foreach ($relationships ? self::elements($relationships, 'Relationship') : [] as $relationship) {
+                        if ($relationship->getAttribute('Id') === $relId) {
                             $target = $relationship->getAttribute('Target');
                             break;
                         }
@@ -519,13 +512,16 @@ class SpreadsheetReader
             }
 
             // A self-closing row has no closing tag to split on; make it
-            // explicit so every row ends at exactly one boundary.
-            $buffer = preg_replace('/<row\b([^>]*)\/>/i', '<row$1></row>', $buffer) ?? $buffer;
+            // explicit so every row ends at exactly one boundary. The element
+            // may carry a namespace prefix (`<x:row>`), which is the same
+            // OOXML as Excel's `<row>`: writers such as PhpSpreadsheet prefix
+            // everything, so both spellings have to be found here.
+            $buffer = preg_replace('/<((?:[A-Za-z0-9_.-]+:)?row)\b([^>]*?)\/>/i', '<$1$2></$1>', $buffer) ?? $buffer;
 
             $extracted = 0;
 
-            while (($end = stripos($buffer, '</row>', $extracted)) !== false) {
-                $end += 6;
+            while (preg_match('/<\/(?:[A-Za-z0-9_.-]+:)?row>/i', $buffer, $closing, PREG_OFFSET_CAPTURE, $extracted)) {
+                $end = $closing[0][1] + strlen($closing[0][0]);
                 $fragment = substr($buffer, $extracted, $end - $extracted);
                 $extracted = $end;
 
@@ -579,20 +575,31 @@ class SpreadsheetReader
     {
         // The very first fragment still carries the XML declaration and the
         // unclosed <worksheet>/<sheetData> wrappers ahead of it, which is not a
-        // well-formed document on its own. Start at the <row> element.
-        $start = stripos($fragment, '<row');
-
-        if ($start === false) {
+        // well-formed document on its own. Start at the row element, whatever
+        // prefix the writer gave it.
+        if (! preg_match('/<((?:[A-Za-z0-9_.-]+:)?row)\b/i', $fragment, $opening, PREG_OFFSET_CAPTURE)) {
             return null;
         }
 
-        $document = $this->dom(substr($fragment, $start));
+        $qualified = $opening[1][0];
+        $prefix = substr($qualified, 0, -3);
+        $namespace = $prefix === '' ? '' : ' xmlns:'.rtrim($prefix, ':').'="'.self::MAIN_NS.'"';
+
+        // A row cut out of the worksheet loses the namespace declarations that
+        // live on the root element, so it is read inside a wrapper carrying
+        // them. Without this, a prefixed row is a namespace error and an empty
+        // row is all that comes back.
+        $document = $this->dom(
+            '<nutrace xmlns="'.self::MAIN_NS.'" xmlns:r="'.self::REL_NS.'"'.$namespace.'>'
+            .substr($fragment, $opening[0][1])
+            .'</nutrace>'
+        );
 
         if (! $document) {
             return null;
         }
 
-        $rowNode = $document->getElementsByTagName('row')->item(0);
+        $rowNode = self::firstElement($document, 'row');
 
         if (! $rowNode instanceof \DOMElement) {
             return null;
@@ -601,10 +608,7 @@ class SpreadsheetReader
         $cells = [];
         $position = 0;
 
-        foreach ($rowNode->getElementsByTagName('c') as $cell) {
-            if (! $cell instanceof \DOMElement) {
-                continue;
-            }
+        foreach (self::elements($rowNode, 'c') as $cell) {
 
             $reference = $cell->getAttribute('r');
             $index = $reference !== '' ? self::columnIndex($reference) : $position;
@@ -639,7 +643,7 @@ class SpreadsheetReader
             if ($child->localName === 'v') {
                 $value = $child->textContent;
             } elseif ($child->localName === 'is') {
-                foreach ($child->getElementsByTagName('t') as $text) {
+                foreach (self::elements($child, 't') as $text) {
                     $inline .= $text->textContent;
                 }
             }
@@ -896,7 +900,10 @@ class SpreadsheetReader
     /** Text of every <t> in a fragment (handles rich-text runs). */
     private function textOf(string $markup): string
     {
-        $document = $this->dom($markup);
+        // The fragment is a <si> (or <is>) cut out of the shared string table,
+        // so it arrives without the root element that declares the namespace
+        // prefix; wrapping it keeps a prefixed table readable.
+        $document = $this->dom('<nutrace xmlns="'.self::MAIN_NS.'" xmlns:x="'.self::MAIN_NS.'">'.$markup.'</nutrace>');
 
         if (! $document) {
             return '';
@@ -904,11 +911,40 @@ class SpreadsheetReader
 
         $text = '';
 
-        foreach ($document->getElementsByTagName('t') as $node) {
+        foreach (self::elements($document, 't') as $node) {
             $text .= $node->textContent;
         }
 
         return $text;
+    }
+
+    /**
+     * Every element with this local name, whatever namespace prefix the writer
+     * used.
+     *
+     * Excel writes the spreadsheet namespace as the default one (`<row>`);
+     * other writers — PhpSpreadsheet among them — prefix every element
+     * (`<x:row>`). Both are the same OOXML, and matching on the local name is
+     * what lets one reader take either.
+     *
+     * @return list<\DOMElement>
+     */
+    private static function elements(\DOMNode $scope, string $localName): array
+    {
+        $found = [];
+
+        foreach ($scope->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->localName === $localName) {
+                $found[] = $element;
+            }
+        }
+
+        return $found;
+    }
+
+    private static function firstElement(\DOMNode $scope, string $localName): ?\DOMElement
+    {
+        return self::elements($scope, $localName)[0] ?? null;
     }
 
     private function dom(string $markup): ?DOMDocument

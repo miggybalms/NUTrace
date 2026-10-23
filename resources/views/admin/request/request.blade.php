@@ -195,6 +195,77 @@
                 <div class="flex flex-col lg:flex-row gap-6">
                     <!-- Request List Section -->
                     <div class="flex-1 min-w-0 panel rounded-b-xl lg:rounded-b-xl overflow-hidden" style="border-top:0;">
+                        {{-- Period filter and sort. The status tab above is part of the
+                             same set, so it is carried in a hidden field: changing one
+                             never drops the other. Both reach the same SQL query the
+                             export uses (App\Support\RequestFilters). --}}
+                        @php
+                            $periodOptions = [
+                                'all'        => 'All time',
+                                'this_month' => 'This month',
+                                'last_month' => 'Last month',
+                                'this_year'  => 'This year',
+                                'last_year'  => 'Last year',
+                                'custom'     => 'Custom range',
+                            ];
+                            $sortOptions = [
+                                'pending' => 'Pending first (default)',
+                                'newest'  => 'Newest first',
+                                'oldest'  => 'Oldest first',
+                            ];
+                            $isCustomPeriod = ($filters['period'] ?? 'all') === 'custom';
+                        @endphp
+                        <form method="GET" class="flex flex-wrap items-end gap-3 px-4 sm:px-6 py-3"
+                              style="border-bottom:1px solid var(--line); background:var(--paper-2);">
+                            <input type="hidden" name="tab" value="{{ $activeTab }}">
+
+                            <label class="flex flex-col gap-1">
+                                <span class="eyebrow">Period</span>
+                                <select name="period" id="request-period"
+                                        onchange="document.getElementById('request-custom-range').classList.toggle('hidden', this.value !== 'custom')"
+                                        class="text-sm px-2 py-1.5 rounded-lg"
+                                        style="border:1px solid var(--line); background:#fff; color:var(--navy-900);">
+                                    @foreach($periodOptions as $value => $label)
+                                        <option value="{{ $value }}" @selected(($filters['period'] ?? 'all') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <div id="request-custom-range" class="flex items-end gap-2 {{ $isCustomPeriod ? '' : 'hidden' }}">
+                                <label class="flex flex-col gap-1">
+                                    <span class="eyebrow">From</span>
+                                    <input type="date" name="from" value="{{ $filters['from']?->toDateString() }}"
+                                           class="text-sm px-2 py-1.5 rounded-lg"
+                                           style="border:1px solid var(--line); background:#fff; color:var(--navy-900);">
+                                </label>
+                                <label class="flex flex-col gap-1">
+                                    <span class="eyebrow">To</span>
+                                    <input type="date" name="to" value="{{ $filters['to']?->toDateString() }}"
+                                           class="text-sm px-2 py-1.5 rounded-lg"
+                                           style="border:1px solid var(--line); background:#fff; color:var(--navy-900);">
+                                </label>
+                            </div>
+
+                            <label class="flex flex-col gap-1">
+                                <span class="eyebrow">Sort</span>
+                                <select name="sort" class="text-sm px-2 py-1.5 rounded-lg"
+                                        style="border:1px solid var(--line); background:#fff; color:var(--navy-900);">
+                                    @foreach($sortOptions as $value => $label)
+                                        <option value="{{ $value }}" @selected(($filters['sort'] ?? 'pending') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <button type="submit" class="btn-gold text-sm">
+                                <i class="ri-filter-3-line mr-1"></i>Apply
+                            </button>
+
+                            @if(\App\Support\RequestFilters::active($filters))
+                                <a href="{{ request()->fullUrlWithQuery(['period' => null, 'from' => null, 'to' => null, 'sort' => null, 'page' => 1]) }}"
+                                   class="text-xs underline" style="color:var(--ink-400);">Clear filters</a>
+                            @endif
+                        </form>
+
                         <div class="overflow-x-auto scrollbar-hide">
                             <table class="w-full">
                                 <thead class="sticky top-0" style="background:var(--paper-2); border-bottom:1px solid var(--line);">
@@ -280,7 +351,7 @@
                              style="border-top:1px solid var(--line);">
                             <p class="text-xs" style="color:var(--ink-400);">
                                 Showing {{ $requests->firstItem() ?? 0 }}–{{ $requests->lastItem() ?? 0 }}
-                                of {{ $requests->total() }} requests
+                                of {{ $requests->total() }} requests{{ $filterPeriodLabel ? ' in ' . $filterPeriodLabel : '' }}
                             </p>
                             @if($requests->hasPages())
                                 <div class="overflow-x-auto scrollbar-hide">{{ $requests->links() }}</div>

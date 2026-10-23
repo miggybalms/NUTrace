@@ -213,6 +213,37 @@ class QrSignatureTest extends TestCase
             ->assertJsonPath('verification.status', 'valid');
     }
 
+    /**
+     * The lookup must name the departments columns the way PostgreSQL folds
+     * them.
+     *
+     * `departments` is migrated with a quoted "Name" column. Raw SQL that says
+     * `departments.Name` is folded to `name` by PostgreSQL, the query errors,
+     * and the scan used to answer "Asset not found" for every asset in the
+     * database. SQLite resolves identifiers case-insensitively, so the rest of
+     * this file kept passing while the deployed site could not scan at all;
+     * this test inspects the SQL instead of the result.
+     */
+    public function test_the_scan_lookup_names_the_department_columns_as_postgresql_stores_them(): void
+    {
+        $queries = [];
+
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = $query->sql;
+        });
+
+        $this->scanAs($this->admin, 'AST-0001')->assertOk();
+
+        $lookup = collect($queries)->first(
+            fn (string $sql) => str_contains($sql, 'Asset_code') && str_contains($sql, 'asset_files')
+        );
+
+        $this->assertNotNull($lookup, 'A scan must look the asset up by its code.');
+        $this->assertStringContainsString('"departments"."Name"', $lookup);
+        $this->assertStringContainsString('"holder_departments"."Name"', $lookup);
+        $this->assertStringNotContainsString('departments.Name', $lookup);
+    }
+
     /* ── 2. altered payloads ───────────────────────────────────────────── */
 
     public function test_an_edited_asset_code_is_refused_and_never_looked_up(): void

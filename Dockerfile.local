@@ -1,0 +1,24 @@
+# Local development image: PHP 8.4 with pdo_pgsql and zip.
+#
+# pdo_pgsql talks to Postgres; zip is what lets the asset import read an .xlsx
+# (".xlsx" is a zip archive of XML parts, and the import opens it directly), so
+# without it "Import Existing Assets" fails with "Class ZipArchive not found".
+# The QR PNGs are fetched, not drawn, so no image extension is needed.
+#
+# The code itself is bind-mounted, so this image holds no application files and
+# a restart is not needed after an edit.
+FROM php:8.4-cli
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev libzip-dev \
+    && docker-php-ext-install pdo_pgsql zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+EXPOSE 8080
+
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]

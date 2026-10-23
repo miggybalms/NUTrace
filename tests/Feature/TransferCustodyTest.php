@@ -7,6 +7,7 @@ use App\Support\Disposals;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -85,11 +86,14 @@ class TransferCustodyTest extends TestCase
     /** Submit a transfer request through the employee's own form. */
     private function submitTransfer(array $assetIds): int
     {
+        Storage::fake('public');
+
         $this->actingAs($this->employee)->post('/user/requests/store', [
             'request_type'      => 'Transfer',
             'asset_ids'         => $assetIds,
             'assign_to_user_id' => $this->recipient->id,
             'notes'             => 'Moving these to the new custodian.',
+            'attachment'        => $this->requestPhoto(),
         ])->assertRedirect();
 
         return (int) DB::table('requests')->max('id');

@@ -18,7 +18,17 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <!-- The dev container exports APP_ENV=local, and Laravel reads the
+             environment from $_SERVER first, so the suite would otherwise run
+             as "local": CSRF stays on and every POST test answers 419. The
+             <server> entry is the one that actually overrides that copy. -->
+        <env name="APP_ENV" value="testing" force="true"/>
+        <server name="APP_ENV" value="testing" force="true"/>
+        <!-- Pin the app URL too: the dev container exports APP_URL with its
+             :8000 port, which would otherwise change every generated URL
+             under test. -->
+        <env name="APP_URL" value="http://localhost" force="true"/>
+        <server name="APP_URL" value="http://localhost" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
@@ -29,6 +39,14 @@
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
+        <!-- ...and never the live media bucket either. With a Supabase URL
+             and key present the "public" disk uploads over the network, so a
+             test that stores a QR image only passes while the network is up
+             (and quietly writes into the real bucket). Empty credentials make
+             config/filesystems.php fall back to the local disk. -->
+        <env name="SUPABASE_URL" value="" force="true"/>
+        <env name="SUPABASE_SERVICE_ROLE_KEY" value="" force="true"/>
+        <env name="SUPABASE_ANON_KEY" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

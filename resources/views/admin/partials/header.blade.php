@@ -108,9 +108,17 @@
                         </a>
                         @break
 
-                    {{-- Requests: export every request in the open tab, not just this page --}}
+                    {{-- Requests: export every request in the open tab and the
+                         chosen period, not just this page. The same parameters
+                         the list reads, so file and screen match. --}}
                     @case('requests')
-                        <a href="{{ url('/admin/requests/export') }}?tab={{ request()->query('tab', 'all') }}" class="btn-gold" download>
+                        <a href="{{ url('/admin/requests/export') }}?{{ http_build_query(array_filter([
+                                'tab' => request()->query('tab', 'all'),
+                                'period' => request()->query('period', ''),
+                                'from' => request()->query('from', ''),
+                                'to' => request()->query('to', ''),
+                                'sort' => request()->query('sort', ''),
+                            ], fn ($value) => $value !== '' && $value !== null)) }}" class="btn-gold" download>
                             <i class="ri-download-line mr-2"></i>
                             Export Report
                         </a>

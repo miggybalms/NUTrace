@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -22,6 +23,10 @@ use Tests\TestCase;
  *
  * The last one shipped broken: the department head's empty state pointed at
  * `/user/requests/create`, a route that has never existed.
+ *
+ * It also holds the photograph rule the panel asked for: both request forms
+ * require a photo of the asset, the server refuses a request without one, and
+ * the photo is stored on the request that is created.
  */
 class RequestPagesTest extends TestCase
 {
@@ -77,6 +82,71 @@ class RequestPagesTest extends TestCase
     }
 
     /* ── helpers ────────────────────────────────────────────────────────── */
+
+    /* ── the required photo ─────────────────────────────────────────────── */
+
+    public function test_the_employee_form_requires_a_photo_of_the_asset(): void
+    {
+        $this->actingAs($this->employee)
+            ->get('/user/request-asset')
+            ->assertOk()
+            ->assertSee('Attach Photo')
+            ->assertSee('needs a photo of the asset as evidence', false);
+
+        $this->actingAs($this->employee)
+            ->from('/user/request-asset')
+            ->post('/user/requests/store', [
+                'request_type' => 'Repair',
+                'asset_ids'    => [$this->assetId],
+                'notes'        => 'The hinge is broken.',
+            ])
+            ->assertRedirect('/user/request-asset')
+            ->assertSessionHasErrors('attachment');
+
+        $this->assertSame(0, DB::table('requests')->count(), 'No request may be saved without its evidence.');
+    }
+
+    public function test_the_department_head_form_requires_a_photo_too(): void
+    {
+        $this->actingAs($this->head)
+            ->get('/department-head/request-asset')
+            ->assertOk()
+            ->assertSee('Attach Photo')
+            ->assertSee('needs a photo of the asset as evidence', false);
+
+        $this->actingAs($this->head)
+            ->from('/department-head/request-asset')
+            ->post('/department-head/requests/store', [
+                'request_type' => 'Repair',
+                'asset_ids'    => [$this->assetId],
+                'notes'        => 'The hinge is broken.',
+            ])
+            ->assertRedirect('/department-head/request-asset')
+            ->assertSessionHasErrors('attachment');
+
+        $this->assertSame(0, DB::table('requests')->count());
+    }
+
+    public function test_the_photo_is_stored_on_the_request_it_was_submitted_with(): void
+    {
+        Storage::fake('public');
+
+        $this->actingAs($this->employee)
+            ->post('/user/requests/store', [
+                'request_type' => 'Repair',
+                'asset_ids'    => [$this->assetId],
+                'notes'        => 'The hinge is broken.',
+                'attachment'   => $this->requestPhoto('broken-hinge.png'),
+            ])
+            ->assertRedirect(route('user.request-asset'));
+
+        $request = DB::table('requests')->first();
+
+        $this->assertNotNull($request, 'A request with its photo is submitted.');
+        $this->assertSame('broken-hinge.png', $request->file_name);
+        $this->assertNotNull($request->url);
+        Storage::disk('public')->assertExists($request->file_path);
+    }
 
     /** A request plus the request_items row the forms always write. */
     private function makeRequest(User $owner, string $status, Carbon $createdAt, string $type = 'Repair'): int

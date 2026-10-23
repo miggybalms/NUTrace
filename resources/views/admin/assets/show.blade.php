@@ -188,7 +188,8 @@
                                 <span class="text-xs" style="color:var(--ink-400);">Correct or complete this record</span>
                             </summary>
 
-                            <form method="POST" action="{{ url('/admin/assets/' . $asset->id . '/details') }}" class="px-4 pb-4">
+                            <form method="POST" action="{{ url('/admin/assets/' . $asset->id . '/details') }}"
+                                  enctype="multipart/form-data" class="px-4 pb-4">
                                 @csrf
 
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -288,6 +289,33 @@
                                         <label class="field-label block mb-1" for="edit-person-name">Accountable name as written</label>
                                         <input id="edit-person-name" name="accountable_name" class="form-input" maxlength="150"
                                                value="{{ old('accountable_name', $asset->accountable_name) }}" placeholder="Kept when nobody is assigned yet">
+                                    </div>
+
+                                    {{-- Optional: an imported record usually has no photo.
+                                         One photo per asset - a new upload replaces the
+                                         current one, so the record page, the employee and
+                                         department pages and the scanner all show the same
+                                         image. --}}
+                                    <div class="md:col-span-2">
+                                        <label class="field-label block mb-1" for="edit-photo">Asset photo</label>
+                                        <div class="flex items-start gap-4">
+                                            @if($photo)
+                                                <img src="{{ $photo }}" alt="{{ $asset->Asset_name ?? 'Asset' }}"
+                                                     class="h-20 w-20 object-cover rounded-lg flex-shrink-0" style="border:1px solid var(--line);">
+                                            @else
+                                                <div class="h-20 w-20 rounded-lg flex items-center justify-center text-xs text-center flex-shrink-0"
+                                                     style="border:1px dashed var(--line); color:var(--ink-400); background:#fff;">
+                                                    No photo
+                                                </div>
+                                            @endif
+                                            <div class="flex-1">
+                                                <input id="edit-photo" name="asset_photo" type="file" accept="image/*" class="form-input">
+                                                <p class="text-xs mt-1" style="color:var(--ink-400);">
+                                                    PNG, JPG, GIF or WEBP up to {{ \App\Support\AssetEditing::photoMaxLabel() }}.
+                                                    {{ $photo ? 'Uploading a new photo replaces the current one.' : '' }}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 

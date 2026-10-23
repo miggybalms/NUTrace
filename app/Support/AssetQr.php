@@ -110,14 +110,15 @@ class AssetQr
         // the column.
         $needle = mb_strtolower($code);
 
+        $failure = null;
+
         foreach (['LOWER("Asset_code") = ?', 'LOWER(Asset_code) = ?'] as $where) {
             try {
                 $row = self::lookup($where, $needle);
             } catch (Throwable $e) {
                 // A driver that will not take the quoted form; the next
-                // spelling is tried instead of failing the scan. Reported, not
-                // swallowed: a lookup that silently finds nothing would be read
-                // as "unknown asset" and blame the sticker.
+                // spelling is tried instead of failing the scan.
+                $failure = $e;
                 report($e);
 
                 continue;
@@ -126,6 +127,20 @@ class AssetQr
             if ($row) {
                 return $row;
             }
+
+            // This spelling was accepted by the driver, so the code really is
+            // not in the table: no need to try the other one.
+            $failure = null;
+
+            break;
+        }
+
+        // Every spelling failed to even run - a broken query, not a missing
+        // asset. Reporting "unknown asset" here would blame the sticker for a
+        // server fault, which is exactly how a bad raw column name went
+        // unnoticed on PostgreSQL while SQLite kept resolving scans in tests.
+        if ($failure !== null) {
+            throw $failure;
         }
 
         return null;
@@ -158,8 +173,11 @@ class AssetQr
                 'assets.completion_status',
                 'employee_numbers.Full_Name as owner_name',
                 'assets.accountable_name',
-                DB::raw('COALESCE(departments.Name, holder_departments.Name) as department_name'),
-                DB::raw('COALESCE(departments.id, holder_departments.id) as department_id'),
+                // Quoted: the departments table is created with a quoted "Name"
+                // column, so an unquoted raw identifier is folded to `name` by
+                // PostgreSQL and the whole lookup fails.
+                DB::raw('COALESCE("departments"."Name", "holder_departments"."Name") as department_name'),
+                DB::raw('COALESCE("departments"."id", "holder_departments"."id") as department_id'),
                 DB::raw('MAX(asset_files.url) as image_url')
             )
             ->groupBy(
@@ -177,8 +195,8 @@ class AssetQr
                 'assets.completion_status',
                 'employee_numbers.Full_Name',
                 'assets.accountable_name',
-                DB::raw('COALESCE(departments.Name, holder_departments.Name)'),
-                DB::raw('COALESCE(departments.id, holder_departments.id)')
+                DB::raw('COALESCE("departments"."Name", "holder_departments"."Name")'),
+                DB::raw('COALESCE("departments"."id", "holder_departments"."id")')
             )
             ->first();
     }

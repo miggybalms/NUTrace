@@ -633,18 +633,20 @@ class DisposalWorkflowTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $listedOnAdminAssets = function (): bool {
+        // The office's Assets page is one card per department with a count; it
+        // does not list assets (View All opens the department's paged list), so
+        // an asset leaves it by leaving that count.
+        $countedOnAdminAssets = function (): int {
             $page = $this->actingAs($this->admin)->get('/admin/assets')->assertOk();
 
-            return collect($page->viewData('departments'))
-                ->flatMap(fn ($dept) => $dept->assets ?? [])
-                ->pluck('id')
-                ->contains($this->assetId);
+            return (int) collect($page->viewData('departments'))
+                ->sum(fn ($dept) => (int) ($dept->total_assets ?? 0));
         };
 
         // Control: before archiving, the office's own Assets page and the
         // institution's inventory export still carry the asset.
-        $this->assertTrue($listedOnAdminAssets());
+        $countedBeforeArchive = $countedOnAdminAssets();
+        $this->assertGreaterThanOrEqual(1, $countedBeforeArchive);
 
         // The disposal has been finalized, so the asset is Disposed, and a
         // disposed asset has always been off the holder's list. That rule now
@@ -665,7 +667,11 @@ class DisposalWorkflowTest extends TestCase
 
         // Gone from the admin Assets page, the employee's own list, the
         // department's list and the institution's inventory export.
-        $this->assertFalse($listedOnAdminAssets(), 'a removed asset must not be listed on the Assets page');
+        $this->assertSame(
+            $countedBeforeArchive - 1,
+            $countedOnAdminAssets(),
+            'a removed asset must not be counted on the Assets page'
+        );
         $this->assertTrue(
             collect($this->actingAs($this->employee)->get('/users/assets')->viewData('assignedAssets')->items())
                 ->where('id', $this->assetId)->isEmpty()

@@ -63,6 +63,10 @@ class DepartmentAssets
                 'assets.warranty_months as warranty_months',
                 'assets.Condition as condition',
                 'assets.qr_code_path',
+                // The payload this asset's sticker already carries, so a reprint
+                // prints the same signed code the record holds instead of
+                // minting a second one only this printout knows about.
+                'assets.qr_payload',
                 'employee_numbers.Full_Name as accountable'
             );
     }

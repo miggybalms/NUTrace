@@ -243,26 +243,18 @@
                             <div id="content-{{ $dept->id }}" class="collapse-content -mx-4 sm:-mx-6">
                                 <div class="px-4 sm:px-6 pt-6 pb-7 -mb-4 sm:-mb-6" style="background:var(--paper-2);">
                                     <!-- Status Summary Cards -->
+                                    {{-- Counted in SQL with the department total. The
+                                         page never holds the asset rows themselves: the
+                                         per-asset list lives behind View All. --}}
                                     @php
-                                        $acquired = 0;
-                                        $active = 0;
-                                        $forChecking = 0;
-                                        $forRepair = 0;
-                                        $forReplacement = 0;
-                                        $pulledOut = 0;
-                                        $disposed = 0;
-                                        
-                                        foreach($dept->assets as $asset) {
-                                            switch($asset->status) {
-                                                case 'acquired': $acquired++; break;
-                                                case 'active': $active++; break;
-                                                case 'for_checking': $forChecking++; break;
-                                                case 'for_repair': $forRepair++; break;
-                                                case 'for_replacement': $forReplacement++; break;
-                                                case 'pulled_out': $pulledOut++; break;
-                                                case 'disposed': $disposed++; break;
-                                            }
-                                        }
+                                        $counts         = $dept->counts ?? [];
+                                        $acquired       = (int) ($counts['acquired'] ?? 0);
+                                        $active         = (int) ($counts['active'] ?? 0);
+                                        $forChecking    = (int) ($counts['for_checking'] ?? 0);
+                                        $forRepair      = (int) ($counts['for_repair'] ?? 0);
+                                        $forReplacement = (int) ($counts['for_replacement'] ?? 0);
+                                        $pulledOut      = (int) ($counts['pulled_out'] ?? 0);
+                                        $disposed       = (int) ($counts['disposed'] ?? 0);
                                     @endphp
 
                                     <div class="mb-5">

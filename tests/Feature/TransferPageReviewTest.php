@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -542,12 +543,15 @@ class TransferPageReviewTest extends TestCase
 
     public function test_the_tab_lists_a_transfer_forwarded_from_the_requests_page(): void
     {
+        Storage::fake('public');
+
         // The employee's own request, approved by the office and forwarded.
         $this->actingAs($this->employee)->post('/user/requests/store', [
             'request_type'      => 'Transfer',
             'asset_ids'         => [$this->assetB],
             'assign_to_user_id' => $this->recipient->id,
             'notes'             => 'Handing this over after the reshuffle.',
+            'attachment'        => $this->requestPhoto(),
         ])->assertRedirect();
 
         $requestId = (int) DB::table('requests')->max('id');

@@ -39,6 +39,7 @@ use App\Support\EmployeeDirectory;
 use App\Support\Reviewers;
 use App\Support\Approval;
 use App\Support\TransferReviews;
+use App\Support\RequestFilters;
 use Carbon\Carbon;
 
 if (!function_exists('normalizePulloutAssetIds')) {
@@ -1290,98 +1291,96 @@ Route::post('/admin/department/{deptId}/assign-head', function (Request $request
     }
 });
 
-// Admin assets page - load assets grouped by department
+// Admin assets page — one summary card per department, each linking to that
+// department's own paged asset list.
+//
+// The page never lists assets itself, so it must not read them either: it used
+// to load every asset in the inventory and count them in PHP, which is a full
+// table scan in memory to draw nine numbers per department. The counts are now
+// one GROUP BY — the page costs the same whether the registry holds 60 assets
+// or 60,000, and the cards are unchanged. (The whole registry as a file is what
+// "Download Inventory" is for.)
 Route::get('/admin/assets', function () {
-    // Eager-load user + full name from employee_numbers
-    $assets = Asset::with(['user' => function ($q) {
-        $q->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-          ->addSelect(
-              'users.id',
-              'users.department_id',
-              'users.email',
-              'users.employee_numbers_id',
-              'employee_numbers.Full_Name as full_name'
-          );
-    }])->inInventory()->get();
+    // Every count on the page in one query: assets per department, split by
+    // lifecycle status. An asset belongs to its own department first — an
+    // imported asset can name one while its accountable person has no account
+    // yet — and to its holder's department otherwise. Assets with neither are
+    // left out, exactly as the PHP grouping left them out.
+    $countsQuery = DB::table('assets')
+        ->leftJoin('users', 'assets.user_id', '=', 'users.id')
+        ->selectRaw('COALESCE(assets.department_id, users.department_id) AS dept_id')
+        ->selectRaw('assets."Lifecycle_Status" AS status')
+        ->selectRaw('COUNT(*) AS total')
+        ->whereRaw('COALESCE(assets.department_id, users.department_id) IS NOT NULL')
+        ->groupByRaw('COALESCE(assets.department_id, users.department_id), assets."Lifecycle_Status"');
 
-    // Get all departments from database
-    $allDepartments = DB::table('departments')->orderBy('Name')->get();
+    // A disposed asset leaves the inventory; it must not be counted here either.
+    Inventory::excludeRemoved($countsQuery, 'assets');
 
-    // Initialize departments array with data from database
-    $departments = [];
-    foreach ($allDepartments as $dept) {
-        $departments[$dept->Name] = (object) [
-            'id' => $dept->id,
-            'name' => $dept->Name,
-            'head' => '',
-            'total_assets' => 0,
-            'assets' => [],
-        ];
+    $byDepartment = [];
+
+    foreach ($countsQuery->get() as $row) {
+        $deptId = (int) $row->dept_id;
+
+        // Same statuses the cards group by. Anything unknown keeps its own
+        // key, so a status added later still counts toward the department's
+        // total instead of vanishing from it.
+        $key = match ((string) $row->status) {
+            'Acquired'        => 'acquired',
+            'Active'          => 'active',
+            'For Checking'    => 'for_checking',
+            'For Repair'      => 'for_repair',
+            'For Replacement' => 'for_replacement',
+            'Pullout'         => 'pulled_out',
+            'Disposal',
+            'Disposed'        => 'disposed',
+            default           => strtolower(str_replace(' ', '_', (string) $row->status)),
+        };
+
+        $byDepartment[$deptId]['counts'][$key] = ($byDepartment[$deptId]['counts'][$key] ?? 0) + (int) $row->total;
+        $byDepartment[$deptId]['total'] = ($byDepartment[$deptId]['total'] ?? 0) + (int) $row->total;
     }
 
-    // Find department heads - users with Department Head role linked to each department
-    foreach ($departments as $deptName => $dept) {
-        $headUser = DB::table('users')
-            ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-            ->where('users.department_id', $dept->id)
-            ->where('users.role', 'Department Head')
-            ->select('users.id', 'users.email', 'employee_numbers.Full_Name as full_name')
-            ->first();
+    // Heads in one query too, first account per department (the old per-card
+    // lookup took the lowest id as well).
+    $heads = DB::table('users')
+        ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
+        ->where('users.role', 'Department Head')
+        ->orderBy('users.id')
+        ->select('users.id', 'users.email', 'users.department_id', 'employee_numbers.Full_Name as full_name')
+        ->get()
+        ->unique('department_id')
+        ->keyBy('department_id');
 
-        $dept->head_id = $headUser?->id ?? null;
-        $dept->head_email = $headUser?->email ?? '';
-        $dept->head = $headUser?->full_name ?? '';
-    }
+    $departments = DB::table('departments')
+        ->orderBy('Name')
+        ->get()
+        ->map(function ($dept) use ($byDepartment, $heads) {
+            $deptId = (int) $dept->id;
+            $counts = $byDepartment[$deptId]['counts'] ?? [];
+            $head   = $heads->get($deptId);
 
-    // Group assets by user's department
-    foreach ($assets as $asset) {
-        // The asset's own department first: an imported asset whose accountable
-        // person has not registered yet has no holder to read a department from.
-        $userDeptId = $asset->department_id ?? $asset->user?->department_id;
-        if (!$userDeptId) {
-            continue;
-        }
+            return (object) [
+                'id'           => $deptId,
+                'name'         => $dept->Name,
+                'head_id'      => $head->id ?? null,
+                'head_email'   => $head->email ?? '',
+                'head'         => $head->full_name ?? '',
+                'total_assets' => $byDepartment[$deptId]['total'] ?? 0,
+                'counts'       => [
+                    'acquired'        => $counts['acquired'] ?? 0,
+                    'active'          => $counts['active'] ?? 0,
+                    'for_checking'    => $counts['for_checking'] ?? 0,
+                    'for_repair'      => $counts['for_repair'] ?? 0,
+                    'for_replacement' => $counts['for_replacement'] ?? 0,
+                    'pulled_out'      => $counts['pulled_out'] ?? 0,
+                    'disposed'        => $counts['disposed'] ?? 0,
+                ],
+            ];
+        })
+        ->values();
 
-        // Find department by id
-        $deptObj = null;
-        foreach ($departments as $dept) {
-            if ($dept->id == $userDeptId) {
-                $deptObj = $dept;
-                break;
-            }
-        }
-        if (!$deptObj) continue;
-
-        // Map status for the view
-        $statusRaw = $asset->Lifecycle_Status ?? '';
-        switch ($statusRaw) {
-            case 'Acquired':        $status = 'acquired'; break;
-            case 'Active':          $status = 'active'; break;
-            case 'For Checking':    $status = 'for_checking'; break;
-            case 'For Repair':      $status = 'for_repair'; break;
-            case 'For Replacement': $status = 'for_replacement'; break;
-            case 'Pullout':         $status = 'pulled_out'; break;
-            case 'Disposal':
-            case 'Disposed':        $status = 'disposed'; break;
-            default:                $status = strtolower(str_replace(' ', '_', $statusRaw));
-        }
-
-        $deptObj->assets[] = (object) [
-            'id'               => $asset->id,
-            'name'             => $asset->Asset_name ?? '',
-            'asset_code'       => $asset->Asset_code ?? '',
-            'status'           => $status,
-            'accountable'      => $asset->user?->full_name ?? ($asset->accountable_name ?: 'Unassigned'),
-            'acquisition_date' => $asset->accusion_date ? (string) $asset->accusion_date : null,
-            'url'              => $asset->url ?? null,
-        ];
-        $deptObj->total_assets++;
-    }
-
-    // Convert to indexed array
-    $ordered = array_values($departments);
-
-    return view('admin.assets.asset', ['departments' => $ordered]);
+    return view('admin.assets.asset', ['departments' => $departments]);
 });
 
 // Admin audit logs page
@@ -2224,6 +2223,13 @@ Route::get('/admin/assets/{id}', function ($id) {
         }
     }
 
+    // The asset's photo. Read here because the view takes it off the model, and
+    // photos live in asset_files rather than in a column of their own. Newest
+    // first, so a photo uploaded from the edit form is the one on display.
+    $asset->image_url = Media::url(
+        DB::table('asset_files')->where('Asset_id', $asset->id)->orderByDesc('Asset_file_ID')->value('url')
+    );
+
     return view('admin.assets.show', [
         'asset'       => $asset,
         'departments' => \App\Support\AssetEditing::departments(),
@@ -2239,7 +2245,11 @@ Route::get('/admin/assets/{id}', function ($id) {
 // on a sticker and inside that sticker's signed payload, so changing it is a
 // reissue, not an edit.
 Route::post('/admin/assets/{id}/details', function (Request $request, $id) {
-    $result = \App\Support\AssetEditing::update((int) $id, $request->all(), Auth::user());
+    // The photo never appears in $request->all(); the file itself is handed to
+    // the editor alongside the text fields so one call saves the whole record.
+    $result = \App\Support\AssetEditing::update((int) $id, array_merge($request->all(), [
+        'asset_photo' => $request->file('asset_photo'),
+    ]), Auth::user());
 
     if (! ($result['ok'] ?? false)) {
         return back()->withErrors($result['errors'] ?? ['Asset_name' => 'That change could not be saved.'])->withInput();
@@ -2345,7 +2355,9 @@ Route::get('/admin/assets/labels', function (Request $request) {
                 'assets.Category',
                 'assets.asset_location',
                 'assets.accusion_date',
-                'assets.qr_code_path'
+                'assets.qr_code_path',
+                // Reprint the sticker's existing signed payload, not a new one.
+                'assets.qr_payload'
             )
             ->orderBy('assets.Asset_name')
             ->get();
@@ -2360,6 +2372,53 @@ Route::get('/admin/assets/labels', function (Request $request) {
         'subtitle'     => $count.' '.($count === 1 ? 'label' : 'labels').' · registered assets',
         'emptyMessage' => 'None of the selected assets could be found, so there is nothing to print.',
     ]);
+})->middleware('auth');
+
+// Printing settings for the label sheet (panel recommendation: sticker
+// dimensions, code size, page layout, asset selection).
+//
+// Web only: the mobile app scans stickers, it never prints them. The values are
+// kept in the office's own browser session, so a roll measured at one
+// workstation does not silently change what every other administrator prints,
+// and sizes that cannot carry a scannable code are clamped with a warning
+// instead of printed unreadable. Asset selection stays where it already is: the
+// filters on the department page and the codes a sheet is opened with.
+Route::post('/admin/assets/labels/settings', function (Request $request) {
+    if (! Access::isAssetOffice(Auth::user())) {
+        abort(403);
+    }
+
+    if ($request->boolean('reset')) {
+        AssetLabel::resetSettings();
+
+        $result = [
+            'ok'       => true,
+            'message'  => 'Print settings reset to the configured label stock.',
+            'warnings' => [],
+        ];
+    } else {
+        $result = AssetLabel::saveSettings($request->only(['width_mm', 'height_mm', 'qr_mm']));
+    }
+
+    // Back to the sheet that was open, never to some other origin: only paths
+    // inside the label pages are accepted.
+    $target = (string) $request->input('return_to', '');
+
+    if (! str_starts_with($target, '/admin/assets/') || str_starts_with($target, '//')) {
+        $target = '/admin/assets/registry';
+    }
+
+    $layout = (string) $request->input('layout', '');
+
+    if (in_array($layout, ['roll', 'sheet'], true)) {
+        [$path, $query] = array_pad(explode('?', $target, 2), 2, '');
+        parse_str($query, $params);
+        $params['layout'] = $layout;
+
+        $target = $path . '?' . http_build_query($params);
+    }
+
+    return redirect($target)->with('label_settings', $result);
 })->middleware('auth');
 
 // Admin department assets page
@@ -2444,6 +2503,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/assets/import/{batch}/decisions', [AssetImportController::class, 'decisions'])->whereNumber('batch');
     Route::post('/admin/assets/import/{batch}/decisions', [AssetImportController::class, 'saveDecisions'])->whereNumber('batch');
     Route::post('/admin/assets/import/{batch}/codes', [AssetImportController::class, 'codes'])->whereNumber('batch');
+    Route::post('/admin/assets/import/{batch}/person', [AssetImportController::class, 'person'])->whereNumber('batch');
     Route::post('/admin/assets/import/{batch}/propose', [AssetImportController::class, 'propose'])->whereNumber('batch');
     Route::post('/admin/assets/import/{batch}/commit', [AssetImportController::class, 'commit'])->whereNumber('batch');
     Route::post('/admin/assets/import/{batch}/retry', [AssetImportController::class, 'retry'])->whereNumber('batch');
@@ -3683,16 +3743,16 @@ Route::get('/admin/requests', function () {
         $requests->whereRaw('LOWER(requests.status) = ?', [$tab]);
     }
 
-    // Pending requests stay on top — they are the only rows that carry the
-    // Approve / Reject actions — oldest waiting first, so the request that has
-    // been sitting in the queue longest is the first row. Decided requests
-    // follow, newest first. 15 rows per page.
-    $requests = $requests
-        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
-        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.created_at END ASC', ['pending'])
-        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
-        ->orderByDesc('requests.created_at')
-        ->orderByDesc('requests.id')
+    // The period (this month, last month, a year, or a custom range) narrows
+    // the same SQL query, before the page is cut, so a page of 15 rows always
+    // contains requests that fall inside the chosen month. The sort control
+    // then orders them: pending-first by default — the only rows carrying
+    // Approve / Reject come first, longest wait first — or strictly by date.
+    // Shared with the CSV export below, so both cover exactly the same rows.
+    $filters = RequestFilters::fromQuery(request()->all());
+
+    $requests = RequestFilters::apply($requests, $filters);
+    $requests = RequestFilters::order($requests, $filters)
         ->paginate(15)
         ->withQueryString();
 
@@ -3815,7 +3875,11 @@ Route::get('/admin/requests', function () {
 
     return view('admin.request.request', array_merge(
         compact('requests', 'totalRequests', 'pendingRequests', 'approvedRequests', 'rejectedRequests'),
-        ['disposalReasons' => DisposalReason::VALUES]
+        [
+            'disposalReasons'   => DisposalReason::VALUES,
+            'filters'           => $filters,
+            'filterPeriodLabel' => RequestFilters::periodLabel($filters),
+        ]
     ));
 });
 
@@ -3849,13 +3913,11 @@ Route::get('/admin/requests/export', function () {
         $requests->whereRaw('LOWER(requests.status) = ?', [$tab]);
     }
 
-    $requests = $requests
-        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN 0 ELSE 1 END ASC', ['pending'])
-        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.created_at END ASC', ['pending'])
-        ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
-        ->orderByDesc('requests.created_at')
-        ->orderByDesc('requests.id')
-        ->get();
+    // The period and sort chosen on screen apply here too: the file is the
+    // screen's list, not a different list that happens to share its tabs.
+    $filters = RequestFilters::fromQuery(request()->all());
+
+    $requests = RequestFilters::order(RequestFilters::apply($requests, $filters), $filters)->get();
 
     // A bulk request names every asset it carries — the table's
     // "Demo asset +1 more" is shorthand for this full list.

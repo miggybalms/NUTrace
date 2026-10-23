@@ -24,3 +24,7 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Demo environment files carry a QR signing key.
+.env.demo
+.env.demo.bak

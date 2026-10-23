@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -107,11 +108,14 @@ class ExecutiveReviewTest extends TestCase
         $from = $from ?? $this->employee;
         $to   = $to ?? $this->recipient;
 
+        Storage::fake('public');
+
         $this->actingAs($from)->post('/user/requests/store', [
             'request_type'      => 'Transfer',
             'asset_ids'         => $assetIds,
             'assign_to_user_id' => $to->id,
             'notes'             => 'These should move to the new custodian.',
+            'attachment'        => $this->requestPhoto(),
         ])->assertRedirect();
 
         return (int) DB::table('requests')->max('id');
@@ -1369,12 +1373,15 @@ class ExecutiveReviewTest extends TestCase
 
         $head = $this->account(9, 1, 'head@nu-lipa.edu.ph', 'Department Head');
 
+        Storage::fake('public');
+
         // The asset is held by another employee of the head's department.
         $this->actingAs($head)->post('/user/requests/store', [
             'request_type'      => 'Transfer',
             'asset_ids'         => [$this->assetA],
             'assign_to_user_id' => $this->recipient->id,
             'notes'             => 'The projector should move to the new custodian.',
+            'attachment'        => $this->requestPhoto(),
         ])->assertRedirect();
 
         $requestId = (int) DB::table('requests')->max('id');

@@ -6,11 +6,13 @@ use App\Models\Asset;
 use App\Models\User;
 use App\Support\Import\AssetImport;
 use App\Support\Import\SpreadsheetReader;
+use App\Support\Media;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -350,6 +352,86 @@ class AssetImportTest extends TestCase
         $this->assertSame('Cruz, Juan', $asset->accountable_name);
     }
 
+    public function test_the_office_can_choose_the_accountable_person_for_one_line(): void
+    {
+        // The name in the file matches nobody, so the line arrives as a review
+        // row that would be imported unassigned. The office picks a real
+        // account for it during review instead of fixing the workbook.
+        $rows = [$this->sourceRow(1, ['property' => '30019400', 'person' => 'Ghost Person', 'code' => 'AST-5005'])];
+
+        $batch = $this->check($rows);
+
+        $this->assertSame(AssetImport::REVIEW, $this->row($batch, 2)['status']);
+        $this->assertSame(AssetImport::PERSON_NO_EMPLOYEE, $this->row($batch, 2)['accountable_status']);
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/assets/import/{$batch}/person", ['line' => 2, 'user_id' => $this->rio->id])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $row = $this->row($batch, 2);
+
+        $this->assertSame($this->rio->id, $row['accountable_user_id']);
+        $this->assertSame($this->rio->id, $row['accountable_override']);
+        $this->assertSame(AssetImport::PERSON_ASSIGNED, $row['accountable_status']);
+        $this->assertSame(AssetImport::READY, $row['status'], 'The only warning is gone, so the line is ready.');
+
+        $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/commit")->assertOk();
+
+        $asset = Asset::where('Asset_code', 'AST-5005')->firstOrFail();
+
+        $this->assertSame($this->rio->id, (int) $asset->user_id);
+        $this->assertSame('Rio Atienza', $asset->accountable_name);
+        $this->assertDatabaseHas('asset_accountability', [
+            'asset_id' => $asset->id,
+            'user_id'  => $this->rio->id,
+            'Is_Current' => 1,
+        ]);
+    }
+
+    public function test_a_line_can_be_left_unassigned_by_hand_and_keeps_the_name_from_the_file(): void
+    {
+        $rows = [$this->sourceRow(1, ['property' => '30019500', 'person' => 'Atienza, Rio', 'code' => 'AST-5006'])];
+
+        $batch = $this->check($rows);
+
+        // The file's name resolves to a real account on its own.
+        $this->assertSame($this->rio->id, $this->row($batch, 2)['accountable_user_id']);
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/assets/import/{$batch}/person", ['line' => 2, 'user_id' => 0])
+            ->assertOk();
+
+        $row = $this->row($batch, 2);
+
+        $this->assertNull($row['accountable_user_id'], 'The chosen account was removed.');
+        $this->assertSame(0, $row['accountable_override']);
+        $this->assertSame('Atienza, Rio', $row['accountable_name'], 'The name in the file is not thrown away.');
+
+        $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/commit")->assertOk();
+
+        $asset = Asset::where('Asset_code', 'AST-5006')->firstOrFail();
+
+        $this->assertNull($asset->user_id);
+        $this->assertSame('Atienza, Rio', $asset->accountable_name);
+    }
+
+    public function test_an_inactive_account_cannot_be_chosen_for_a_line(): void
+    {
+        $rows = [$this->sourceRow(1, ['property' => '30019600', 'person' => 'Ghost Person', 'code' => 'AST-5007'])];
+
+        $batch = $this->check($rows);
+
+        $inactive = $this->makeUser(2, 2, 'maria@nu-lipa.edu.ph', 'Employee');
+        DB::table('users')->where('id', $inactive->id)->update(['status' => 'Inactive']);
+
+        $this->actingAs($this->admin)
+            ->postJson("/admin/assets/import/{$batch}/person", ['line' => 2, 'user_id' => $inactive->id])
+            ->assertStatus(422);
+
+        $this->assertNull($this->row($batch, 2)['accountable_user_id']);
+    }
+
     /* ═══════════════════════════ custom codes ═══════════════════════════ */
 
     public function test_a_missing_asset_code_blocks_the_line_and_can_be_filled_in(): void
@@ -466,6 +548,31 @@ class AssetImportTest extends TestCase
         @unlink($path);
     }
 
+    public function test_a_workbook_that_prefixes_its_elements_is_read_the_same_way(): void
+    {
+        // Excel writes the spreadsheet namespace as the default one (<row>),
+        // but other writers prefix every element (<x:row>) — PhpSpreadsheet,
+        // which produced the office's test download, is one of them. Both are
+        // the same OOXML and must arrive as the same rows, dates included.
+        $path = $this->prefixedXlsx();
+
+        $reader = SpreadsheetReader::open($path, 'xlsx');
+
+        $this->assertSame('ID NO.', $reader->headers()[0]);
+        $this->assertSame('PROPERTY ID NO', $reader->headers()[1]);
+
+        $rows = iterator_to_array($reader->rowsFrom($reader->dataOffset()), false);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('001', $rows[0]['cells'][0]);
+        $this->assertSame('Mobile Pedestal', $rows[0]['cells'][1]);
+        $this->assertSame('2022-01-19', $rows[0]['cells'][2], 'A prefixed cell style must still be read as a date.');
+        $this->assertSame(2, $rows[0]['line']);
+
+        $reader->close();
+        @unlink($path);
+    }
+
     /* ═════════════════ completing a record after the import ═════════════════ */
 
     public function test_an_imported_record_is_corrected_from_its_own_page(): void
@@ -574,6 +681,83 @@ class AssetImportTest extends TestCase
         $this->assertSame('Desk', $asset->fresh()->Asset_name);
     }
 
+    public function test_a_photo_can_be_uploaded_while_completing_the_record(): void
+    {
+        Storage::fake('public');
+
+        $asset = $this->makeAsset('AST-0500', 'Mobile Pedestal');
+
+        $this->assertSame(0, DB::table('asset_files')->count());
+
+        $this->actingAs($this->admin)
+            ->post('/admin/assets/' . $asset->id . '/details', $this->editFields($asset) + [
+                'asset_photo' => $this->photo('pedestal.png'),
+            ])
+            ->assertRedirect('/admin/assets/' . $asset->id)
+            ->assertSessionHasNoErrors();
+
+        $file = DB::table('asset_files')->where('Asset_id', $asset->id)->first();
+
+        $this->assertNotNull($file, 'The uploaded photo must be recorded against the asset.');
+        $this->assertSame('pedestal.png', $file->file_name);
+        Storage::disk('public')->assertExists($file->file_path);
+
+        // The record page now shows the photo instead of the empty frame.
+        $this->actingAs($this->admin)
+            ->get('/admin/assets/' . $asset->id)
+            ->assertOk()
+            ->assertSee($file->url, false)
+            ->assertDontSee('No photo')
+            ->assertSee('enctype="multipart/form-data"', false)
+            ->assertSee('name="asset_photo"', false)
+            // The hint under the field names the server's real limit, not a
+            // ceiling PHP would throw the file away for exceeding.
+            ->assertSee('up to ' . \App\Support\AssetEditing::photoMaxLabel() . '.', false);
+
+        $this->assertDatabaseHas('audit_logs', ['asset_id' => $asset->id, 'action_type' => 'UPDATE']);
+    }
+
+    public function test_a_new_photo_replaces_the_previous_one_instead_of_stacking_up(): void
+    {
+        Storage::fake('public');
+
+        $asset = $this->makeAsset('AST-0501', 'Desk');
+        $this->givePhoto($asset, 'assets/old-photo.png');
+
+        $this->actingAs($this->admin)
+            ->post('/admin/assets/' . $asset->id . '/details', $this->editFields($asset) + [
+                'asset_photo' => $this->photo('new-photo.png'),
+            ])
+            ->assertRedirect('/admin/assets/' . $asset->id);
+
+        $files = DB::table('asset_files')->where('Asset_id', $asset->id)->get();
+
+        $this->assertCount(1, $files, 'An asset keeps one photo, so every page shows the same one.');
+        $this->assertSame('new-photo.png', $files->first()->file_name);
+        Storage::disk('public')->assertExists($files->first()->file_path);
+        Storage::disk('public')->assertMissing('assets/old-photo.png');
+    }
+
+    public function test_a_file_that_is_not_an_image_is_refused_and_the_current_photo_is_kept(): void
+    {
+        Storage::fake('public');
+
+        $asset = $this->makeAsset('AST-0502', 'Chair');
+        $this->givePhoto($asset, 'assets/keep.png');
+
+        $this->actingAs($this->admin)
+            ->from('/admin/assets/' . $asset->id)
+            ->post('/admin/assets/' . $asset->id . '/details', $this->editFields($asset) + [
+                'asset_photo' => UploadedFile::fake()->create('notes.txt', 4, 'text/plain'),
+            ])
+            ->assertRedirect('/admin/assets/' . $asset->id)
+            ->assertSessionHasErrors('asset_photo');
+
+        $this->assertSame(1, DB::table('asset_files')->count());
+        $this->assertSame('assets/keep.png', DB::table('asset_files')->value('file_path'));
+        Storage::disk('public')->assertExists('assets/keep.png');
+    }
+
     /* ═══════════════════════════ helpers ═══════════════════════════ */
 
     private function makeUser(int $employeeId, int $departmentId, string $email, string $role): User
@@ -599,6 +783,59 @@ class AssetImportTest extends TestCase
             'Lifecycle_Status' => 'Active',
             'created_at'       => now(),
             'updated_at'       => now(),
+        ]);
+    }
+
+    /**
+     * The text fields the edit form posts. A test that is about the photo adds
+     * only the file, so nothing else in the record changes underneath it.
+     */
+    private function editFields(Asset $asset): array
+    {
+        return [
+            'Asset_name'          => $asset->Asset_name,
+            'Category'            => $asset->Category ?? 'General and Office Equipment',
+            'Condition'           => $asset->Condition ?? 'Good',
+            'asset_location'      => '',
+            'accusion_date'       => '',
+            'purchase_Price'      => '',
+            'property_id_no'      => '',
+            'inventory_id_no'     => '',
+            'po_no'               => '',
+            'department_id'       => '',
+            'accountable_user_id' => '',
+            'accountable_name'    => '',
+            'completion_status'   => 'Complete',
+        ];
+    }
+
+    /**
+     * A real 1x1 PNG. The `image` rule reads the file itself and this container
+     * has no GD, so the bytes have to be a genuine image.
+     */
+    private function photo(string $name = 'asset.png'): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent(
+            $name,
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF+g7oAAAAASUVORK5CYII=')
+        );
+    }
+
+    /** An asset that already has a photo, as the registry and imports create them. */
+    private function givePhoto(Asset $asset, string $path): void
+    {
+        Storage::disk('public')->put($path, 'photo-bytes');
+
+        DB::table('asset_files')->insert([
+            'Asset_id'    => $asset->id,
+            'file_name'   => basename($path),
+            'file_path'   => $path,
+            'file_size'   => 11,
+            'mime_type'   => 'image/png',
+            'url'         => Media::url($path),
+            'uploaded_at' => now()->toDateTimeString(),
+            'created_at'  => now(),
+            'updated_at'  => now(),
         ]);
     }
 
@@ -691,6 +928,74 @@ class AssetImportTest extends TestCase
         }
 
         $this->fail("Line {$line} was not staged.");
+    }
+
+    /**
+     * The same workbook written the way PhpSpreadsheet writes it: every
+     * element carries an `x:` prefix, strings live in a shared table, and the
+     * date column points at a style.
+     */
+    private function prefixedXlsx(): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'workbook-prefixed') . '.xlsx';
+
+        $zip = new ZipArchive();
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                <Default Extension="xml" ContentType="application/xml"/>
+                <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+            </Types>');
+
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+            </Relationships>');
+
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                <x:sheets><x:sheet name="Fixed Asset Registry" sheetId="1" r:id="rId1"/></x:sheets>
+            </x:workbook>');
+
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+            </Relationships>');
+
+        // Style 1 is the built-in date format (numFmtId 14), prefixed.
+        $zip->addFromString('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <x:styleSheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+                <x:cellXfs count="2">
+                    <x:xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+                    <x:xf numFmtId="14" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
+                </x:cellXfs>
+            </x:styleSheet>');
+
+        $zip->addFromString('xl/sharedStrings.xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <x:sst xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+                <x:si><x:t>ID NO.</x:t></x:si>
+                <x:si><x:t>PROPERTY ID NO</x:t></x:si>
+                <x:si><x:t>001</x:t></x:si>
+                <x:si><x:t>Mobile Pedestal</x:t></x:si>
+            </x:sst>');
+
+        $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheetData>
+                <x:row r="1">
+                    <x:c r="A1" t="s"><x:v>0</x:v></x:c>
+                    <x:c r="B1" t="s"><x:v>1</x:v></x:c>
+                </x:row>
+                <x:row r="2">
+                    <x:c r="A2" t="s"><x:v>2</x:v></x:c>
+                    <x:c r="B2" t="s"><x:v>3</x:v></x:c>
+                    <x:c r="C2" s="1"><x:v>44580</x:v></x:c>
+                </x:row>
+            </x:sheetData></x:worksheet>');
+
+        $zip->close();
+
+        return $path;
     }
 
     /** A minimal but genuine .xlsx: shared strings are not used, dates get a style. */

@@ -450,8 +450,14 @@
         const mapping = batch.mapping || {};
 
         grid.innerHTML = Object.entries(FIELDS).map(([field, label]) => {
-            const options = ['<option value="">— not in this file —</option>'].concat(
-                headings.map((heading, index) => `<option value="${index}" ${Number(mapping[field]) === index ? 'selected' : ''}>${escapeHtml(heading || ('Column ' + (index + 1)))}</option>`)
+            // A field the app could not find has to read "— not in this file —".
+            // An unselected <select> shows its first option anyway, and
+            // Number(null) is 0, so every unmatched field used to look (and be
+            // saved) as the first column of the file.
+            const chosen = mapping[field];
+            const detected = chosen !== null && chosen !== undefined && chosen !== '';
+            const options = [`<option value="" ${detected ? '' : 'selected'}>— not in this file —</option>`].concat(
+                headings.map((heading, index) => `<option value="${index}" ${detected && Number(chosen) === index ? 'selected' : ''}>${escapeHtml(heading || ('Column ' + (index + 1)))}</option>`)
             ).join('');
 
             return `<div>
@@ -770,10 +776,32 @@
                        ${row.department_status === 'unmatched' ? '<span class="badge badge-blocked ml-1">no match</span>' : ''}`
                     : '<span class="text-xs text-[#5C6474]">—</span>';
 
-                const personCell = row.accountable_name
-                    ? `<span class="text-xs">${escapeHtml(row.accountable_name)}</span>
-                       <p class="text-[.65rem] text-[#5C6474]">${escapeHtml(personLabel(row.accountable_status))}</p>`
-                    : '<span class="text-xs text-[#5C6474]">—</span>';
+                // The accountable person is the one value the office often has to
+                // correct by hand: the heading in the workbook may be a nickname,
+                // a resigned employee, or someone with no account. The select lets
+                // them choose the account for this line, or confirm it stays
+                // unassigned, without fixing and re-uploading the workbook.
+                const personCell = editable
+                    ? (() => {
+                        const chosen = row.accountable_user_id ? String(row.accountable_user_id) : '';
+                        // Exactly one option is selected: the "use the file"
+                        // entry only when nothing else applies.
+                        const options = [
+                            `<option value="" ${chosen === '' && row.accountable_override !== 0 ? 'selected' : ''}>— use the name in the file —</option>`,
+                            `<option value="0" ${row.accountable_override === 0 ? 'selected' : ''}>— leave unassigned —</option>`,
+                        ].concat(ASSIGNABLE.map(person =>
+                            `<option value="${person.id}" ${chosen === String(person.id) ? 'selected' : ''}>${escapeHtml(person.label)}</option>`
+                        )).join('');
+
+                        return `<select class="field person-select" data-person-line="${row.line}" style="min-width:13rem;">${options}</select>
+                                <p class="text-[.65rem] text-[#5C6474] mt-1">
+                                    ${row.accountable_name ? 'file: ' + escapeHtml(row.accountable_name) + ' · ' : ''}${escapeHtml(personLabel(row.accountable_status))}
+                                </p>`;
+                    })()
+                    : (row.accountable_name
+                        ? `<span class="text-xs">${escapeHtml(row.accountable_name)}</span>
+                           <p class="text-[.65rem] text-[#5C6474]">${escapeHtml(personLabel(row.accountable_status))}</p>`
+                        : '<span class="text-xs text-[#5C6474]">—</span>');
 
                 return `<tr class="hover:bg-[#FBF7EC] align-top">
                     <td class="px-3 py-3 text-xs text-[#5C6474]">${row.line}</td>
@@ -807,6 +835,10 @@
 
         body.querySelectorAll('input[data-code-line]').forEach(input => {
             input.addEventListener('change', () => saveCode(input.dataset.codeLine, input.value, input));
+        });
+
+        body.querySelectorAll('select[data-person-line]').forEach(select => {
+            select.addEventListener('change', () => savePerson(select.dataset.personLine, select.value));
         });
     }
 
@@ -867,6 +899,23 @@
         renderSummary(batch.summary);
         renderTabs(batch.summary);
         await loadRows();
+    }
+
+    async function savePerson(line, value) {
+        const result = await post(`/admin/assets/import/${batch.id}/person`, {
+            line: Number(line),
+            user_id: value === '' ? null : Number(value),
+        });
+
+        if (!result.ok) {
+            notify(false, result.data.message || 'That accountable person could not be saved.');
+            await loadRows();
+            return;
+        }
+
+        batch = { ...batch, summary: result.data.summary };
+        notify(true, result.data.message || 'Accountable person updated.');
+        await refreshAll();
     }
 
     async function proposeCodes() {

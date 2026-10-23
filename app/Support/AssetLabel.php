@@ -52,19 +52,73 @@ class AssetLabel
     private const MAX_CELL_CHARS = 60;
 
     /**
-     * Sticker width in mm, from config with a sane fallback.
+     * Session key holding the office's label print settings for this browser.
+     *
+     * Kept per session on purpose: the sheet is printed from one workstation,
+     * and a size that fits this office's roll must not silently change every
+     * other administrator's printout.
      */
-    public static function widthMm(): float
-    {
-        return self::configuredMm('width_mm', self::DEFAULT_WIDTH_MM, 30, 200);
-    }
+    public const SETTINGS_KEY = 'asset_label.print_settings';
+
+    /** Sticker bounds the print settings panel accepts, in millimetres. */
+    public const MIN_WIDTH_MM = 30.0;
+
+    public const MAX_WIDTH_MM = 200.0;
+
+    public const MIN_HEIGHT_MM = 12.0;
+
+    public const MAX_HEIGHT_MM = 120.0;
 
     /**
-     * Sticker height in mm, from config with a sane fallback.
+     * A signed payload is 45 modules across; with the 4-module quiet zone on
+     * each side the printed square is 53 modules wide.
      */
+    private const MODULES_ACROSS = 53;
+
+    /** A 203 dpi thermal head lays down 8 dots per millimetre. */
+    private const DOTS_PER_MM = 8.0;
+
+    /**
+     * Below this many printer dots per module the grey edges of neighbouring
+     * modules merge on thermal stock and a reader stops seeing the code.
+     */
+    private const MIN_DOTS_PER_MODULE = 2.5;
+
+    /** Width the printed text column needs beside the QR, in millimetres. */
+    private const TEXT_COLUMN_MM = 12.0;
+
+    /**
+     * The settings in force for this print: the office's saved choices when
+     * there are any, otherwise the configured label stock.
+     *
+     * Everything is clamped here, so a saved value that cannot be printed (a
+     * sticker too small to hold a readable code, for instance) can never reach
+     * the page: `safeSettings()` clamps, and this is the only way the view reads
+     * a size.
+     *
+     * @return array{width_mm: float, height_mm: float, inset_mm: float, qr_mm: float}
+     */
+    public static function settings(): array
+    {
+        $saved = self::savedSettings();
+
+        return self::resolve([
+            'width_mm'  => $saved['width_mm'] ?? null,
+            'height_mm' => $saved['height_mm'] ?? null,
+            'qr_mm'     => $saved['qr_mm'] ?? null,
+        ])['settings'];
+    }
+
+    /** Sticker width in mm: the office's choice, else the configured stock. */
+    public static function widthMm(): float
+    {
+        return self::settings()['width_mm'];
+    }
+
+    /** Sticker height in mm: the office's choice, else the configured stock. */
     public static function heightMm(): float
     {
-        return self::configuredMm('height_mm', self::DEFAULT_HEIGHT_MM, 12, 120);
+        return self::settings()['height_mm'];
     }
 
     /**
@@ -73,23 +127,210 @@ class AssetLabel
      */
     public static function insetMm(): float
     {
-        $inset = self::configuredMm('inset_mm', self::DEFAULT_INSET_MM, 0, 10);
-
-        return min($inset, min(self::widthMm(), self::heightMm()) / 4);
+        return self::settings()['inset_mm'];
     }
 
     /**
      * Width of the QR square in mm, quiet zone included.
      *
-     * Clamped to the printable height: a QR taller than the sticker would be
+     * Clamped to the room the sticker has: a QR taller than the label is
      * clipped by the label box, and a clipped finder pattern never scans.
      */
     public static function qrMm(): float
     {
-        $room = self::heightMm() - 2 * self::insetMm() - 0.5;
-        $qr = self::configuredMm('qr_mm', self::DEFAULT_QR_MM, 8, 120);
+        return self::settings()['qr_mm'];
+    }
 
-        return max(8.0, min($qr, $room));
+    /**
+     * The smallest QR worth printing: enough dots per module to survive a
+     * thermal print head, in millimetres.
+     */
+    public static function minimumQrMm(): float
+    {
+        return ceil(self::MODULES_ACROSS * self::MIN_DOTS_PER_MODULE / self::DOTS_PER_MM);
+    }
+
+    /**
+     * The narrowest sticker that still carries a readable QR beside its text.
+     */
+    public static function minimumStickerWidthMm(): float
+    {
+        $inset = self::configuredMm('inset_mm', self::DEFAULT_INSET_MM, 0, 10);
+
+        return round(max(self::MIN_WIDTH_MM, self::minimumQrMm() + 2 * $inset + self::TEXT_COLUMN_MM), 1);
+    }
+
+    /**
+     * The shortest sticker that still carries a readable QR.
+     */
+    public static function minimumStickerHeightMm(): float
+    {
+        $inset = self::configuredMm('inset_mm', self::DEFAULT_INSET_MM, 0, 10);
+
+        return round(max(self::MIN_HEIGHT_MM, self::minimumQrMm() + 2 * $inset + 0.5), 1);
+    }
+
+    /**
+     * How many printer dots each QR module gets at a given square size.
+     *
+     * Shown by the print settings panel so the office can see why a size is
+     * refused: 3 dots per module reads reliably, under ~2.5 does not.
+     */
+    public static function moduleDots(float $qrMm): float
+    {
+        return round($qrMm / self::MODULES_ACROSS * self::DOTS_PER_MM, 1);
+    }
+
+    /**
+     * Save the office's print settings for this browser session.
+     *
+     * Returns the warnings for anything that had to be adjusted instead of
+     * silently printing a sticker whose code will not scan.
+     *
+     * @return array{ok: bool, message: string, warnings: array<int, string>, settings?: array}
+     */
+    public static function saveSettings(array $input): array
+    {
+        $resolved = self::resolve([
+            'width_mm'  => $input['width_mm'] ?? null,
+            'height_mm' => $input['height_mm'] ?? null,
+            'qr_mm'     => $input['qr_mm'] ?? null,
+        ]);
+
+        $settings = $resolved['settings'];
+
+        try {
+            session([self::SETTINGS_KEY => [
+                'width_mm'  => $settings['width_mm'],
+                'height_mm' => $settings['height_mm'],
+                'qr_mm'     => $settings['qr_mm'],
+            ]]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return ['ok' => false, 'message' => 'These print settings could not be saved for this browser.', 'warnings' => []];
+        }
+
+        return [
+            'ok'       => true,
+            'message'  => 'Print settings saved for this browser: '
+                . self::css($settings['width_mm']) . ' × ' . self::css($settings['height_mm']) . ' mm sticker, '
+                . self::css($settings['qr_mm']) . ' mm QR (' . self::moduleDots($settings['qr_mm']) . ' dots per module).',
+            'warnings' => $resolved['warnings'],
+            'settings' => $settings,
+        ];
+    }
+
+    /** Drop the session's print settings, going back to the configured stock. */
+    public static function resetSettings(): void
+    {
+        try {
+            session()->forget(self::SETTINGS_KEY);
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * Clamp a set of requested sizes into something printable, collecting a
+     * sentence for every value that had to move.
+     *
+     * @return array{settings: array{width_mm: float, height_mm: float, inset_mm: float, qr_mm: float}, warnings: array<int, string>}
+     */
+    private static function resolve(array $input): array
+    {
+        $warnings = [];
+
+        $inset = self::configuredMm('inset_mm', self::DEFAULT_INSET_MM, 0, 10);
+
+        $configuredWidth  = self::configuredMm('width_mm', self::DEFAULT_WIDTH_MM, self::MIN_WIDTH_MM, self::MAX_WIDTH_MM);
+        $configuredHeight = self::configuredMm('height_mm', self::DEFAULT_HEIGHT_MM, self::MIN_HEIGHT_MM, self::MAX_HEIGHT_MM);
+        $configuredQr     = self::configuredMm('qr_mm', self::DEFAULT_QR_MM, 8, 120);
+
+        $minimumQr = self::minimumQrMm();
+
+        // A sticker smaller than this cannot carry a readable code next to its
+        // text, so the requested size is raised rather than printed unscannable.
+        $minimumWidth  = self::minimumStickerWidthMm();
+        $minimumHeight = self::minimumStickerHeightMm();
+
+        $requestedWidth  = self::number($input['width_mm']);
+        $requestedHeight = self::number($input['height_mm']);
+
+        $width  = self::clampFloat($requestedWidth ?? $configuredWidth, $minimumWidth, self::MAX_WIDTH_MM);
+        $height = self::clampFloat($requestedHeight ?? $configuredHeight, $minimumHeight, self::MAX_HEIGHT_MM);
+
+        $inset = min($inset, min($width, $height) / 4);
+
+        if ($requestedWidth !== null && abs($requestedWidth - $width) > 0.05) {
+            $warnings[] = $requestedWidth < $width
+                ? 'Sticker width raised to ' . self::css($width) . ' mm: narrower than that, the QR and its text no longer both fit.'
+                : 'Sticker width lowered to ' . self::css($width) . ' mm, the widest the label layout supports.';
+        }
+
+        if ($requestedHeight !== null && abs($requestedHeight - $height) > 0.05) {
+            $warnings[] = $requestedHeight < $height
+                ? 'Sticker height raised to ' . self::css($height) . ' mm: shorter than that, a readable QR no longer fits.'
+                : 'Sticker height lowered to ' . self::css($height) . ' mm, the tallest the label layout supports.';
+        }
+
+        $roomHeight = $height - 2 * $inset - 0.5;
+        $roomWidth  = $width - 2 * $inset - self::TEXT_COLUMN_MM;
+        $maximumQr  = max($minimumQr, min($roomHeight, $roomWidth));
+
+        $requestedQr = self::number($input['qr_mm']);
+        $qr = round(self::clampFloat($requestedQr ?? $configuredQr, $minimumQr, $maximumQr), 1);
+
+        if ($requestedQr !== null && abs($requestedQr - $qr) > 0.05) {
+            $warnings[] = $requestedQr < $qr
+                ? 'QR size raised to ' . self::css($qr) . ' mm: below ' . self::css($minimumQr)
+                    . ' mm the modules merge on a 203 dpi thermal head (' . self::moduleDots($qr) . ' dots per module).'
+                : 'QR size lowered to ' . self::css($qr) . ' mm, the largest square a '
+                    . self::css($width) . ' × ' . self::css($height) . ' mm sticker can hold beside its text.';
+        }
+
+        return [
+            'settings' => [
+                'width_mm'  => $width,
+                'height_mm' => $height,
+                'inset_mm'  => $inset,
+                'qr_mm'     => $qr,
+            ],
+            'warnings' => $warnings,
+        ];
+    }
+
+    /** @return array<string, float> */
+    private static function savedSettings(): array
+    {
+        try {
+            $saved = session(self::SETTINGS_KEY);
+        } catch (Throwable) {
+            // No session (a console command): the configured stock is in force.
+            return [];
+        }
+
+        return is_array($saved) ? $saved : [];
+    }
+
+    private static function clampFloat(float $value, float $min, float $max): float
+    {
+        return round(max($min, min($value, $max)), 1);
+    }
+
+    private static function number(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $number = (float) $value;
+
+        return $number > 0 ? $number : null;
     }
 
     /**
@@ -131,10 +372,8 @@ class AssetLabel
             'category' => self::clean($row->category ?? $row->Category ?? ''),
             'acquired' => self::formatAcquired($row->accusion_date ?? $row->date_acquired ?? null),
             'qr'       => Media::url($row->qr_code_path ?? null),
-            // What the sticker's QR encodes when the browser has to draw it:
-            // the asset's signed payload, or its plain code on an install
-            // without signing keys.
-            'qr_payload' => AssetQr::textFor($code),
+            // What the sticker's QR encodes when the browser has to draw it.
+            'qr_payload' => self::payloadFor($row, $code),
             'logo'     => self::logoUrl(),
             'logo_fallback' => self::logoFallbackUrl(),
         ];
@@ -161,6 +400,38 @@ class AssetLabel
             'logo'     => self::logoUrl(),
             'logo_fallback' => self::logoFallbackUrl(),
         ];
+    }
+
+    /**
+     * The exact text the sticker's QR carries for a saved asset.
+     *
+     * An asset that already holds a payload prints *that* payload: it is what
+     * its record, its stored QR image and the sticker already on the shelf
+     * carry, so a reprint is the same code rather than a second one that only
+     * looks alike. Minting a fresh payload here was how a label printed on an
+     * install without the signing keyring (a fresh checkout, a server whose
+     * QR_SIGNING_KEYS is not set) ended up with a bare code while the asset's
+     * own record still held a signed one — the sticker and the system then
+     * disagreed about the same asset.
+     *
+     * A stored payload is used only when it names this asset's code: anything
+     * else would put one asset's sticker on another's record.
+     */
+    private static function payloadFor(object $row, string $code): string
+    {
+        $stored = trim((string) ($row->qr_payload ?? ''));
+
+        if ($stored !== '' && $code !== '') {
+            $parsed = QrPayload::parse($stored);
+
+            if ($parsed['code'] === $code && in_array($parsed['type'], ['signed', 'legacy'], true)) {
+                return $stored;
+            }
+        }
+
+        // No payload on record yet: sign one now, or fall back to the plain
+        // code on an install with no signing keys.
+        return AssetQr::textFor($code);
     }
 
     /**

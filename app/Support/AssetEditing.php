@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\User;
 use App\Support\Import\AssetImport;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -30,6 +31,56 @@ class AssetEditing
     public const COMPLETION_STATUSES = ['Complete', 'Needs completion', 'Under review'];
 
     public const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair', 'Existing'];
+
+    /** Largest asset photo the edit form will ever accept, in kilobytes (10 MB). */
+    public const PHOTO_MAX_KB = 10240;
+
+    /**
+     * The largest photo this server will actually accept, in kilobytes.
+     *
+     * PHP discards a file larger than upload_max_filesize/post_max_size before
+     * Laravel ever validates it, so the rule and the hint under the field both
+     * read this: telling the office "up to 10 MB" over a 2 MB limit leaves them
+     * with an upload that silently never happens.
+     */
+    public static function photoMaxKb(): int
+    {
+        $limits = array_filter([
+            self::iniBytes((string) ini_get('upload_max_filesize')),
+            self::iniBytes((string) ini_get('post_max_size')),
+            self::PHOTO_MAX_KB * 1024,
+        ], fn (int $bytes) => $bytes > 0);
+
+        return max(1, (int) floor(min($limits) / 1024));
+    }
+
+    /** The same limit in words, e.g. "2 MB" or "800 KB". */
+    public static function photoMaxLabel(): string
+    {
+        $kb = self::photoMaxKb();
+
+        return $kb >= 1024
+            ? rtrim(rtrim(number_format($kb / 1024, 1), '0'), '.') . ' MB'
+            : $kb . ' KB';
+    }
+
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return 0;
+        }
+
+        $number = (int) $value;
+
+        return match (strtolower(substr($value, -1))) {
+            'g' => $number * 1024 ** 3,
+            'm' => $number * 1024 ** 2,
+            'k' => $number * 1024,
+            default => $number,
+        };
+    }
 
     /** Departments an asset may belong to. */
     public static function departments()
@@ -113,6 +164,24 @@ class AssetEditing
             return ['ok' => false, 'errors' => $validator->errors()->toArray()];
         }
 
+        // The photo is optional: the record can be corrected without one. It
+        // is checked here rather than inside the field validator because the
+        // file never travels in `$input` as a plain value.
+        $photo = ($input['asset_photo'] ?? null) instanceof UploadedFile ? $input['asset_photo'] : null;
+
+        if ($photo !== null) {
+            $photoCheck = Validator::make(
+                ['asset_photo' => $photo],
+                ['asset_photo' => ['image', 'max:' . self::photoMaxKb()]],
+                [],
+                ['asset_photo' => 'photo']
+            );
+
+            if ($photoCheck->fails()) {
+                return ['ok' => false, 'errors' => $photoCheck->errors()->toArray()];
+            }
+        }
+
         // The property number identifies the same physical asset; two rows may
         // not answer to it. The database index says the same thing, but the
         // office gets a sentence instead of a 500.
@@ -142,6 +211,18 @@ class AssetEditing
                     'accountable_user_id' => 'That account is not active, or its employee record is not active, so the asset cannot be assigned to it.',
                 ]];
             }
+        }
+
+        // Stored before the transaction: file storage is not transactional, and
+        // a saved row must never point at an image that was never written. If
+        // storage refuses the upload, nothing else is changed either, so the
+        // office is never told the photo was saved when it was not.
+        $storedPhoto = $photo !== null ? Media::storeUploadedFile($photo, 'assets') : null;
+
+        if ($photo !== null && $storedPhoto === null) {
+            return ['ok' => false, 'errors' => [
+                'asset_photo' => 'The photo could not be saved to storage, so nothing was changed. Check the media disk and try again.',
+            ]];
         }
 
         $updates = [
@@ -184,9 +265,40 @@ class AssetEditing
             $updates['Lifecycle_Status'] = 'Acquired';
         }
 
+        // The photos this upload replaces. Their files are removed from the
+        // media disk only after the transaction commits, so a failed save
+        // leaves the asset with the image it already had.
+        $previousPhotos = $storedPhoto !== null
+            ? DB::table('asset_files')->where('Asset_id', $assetId)->get(['Asset_file_ID', 'file_path'])
+            : collect();
+
+        if ($storedPhoto !== null) {
+            $changed[] = 'photo';
+        }
+
         try {
-            DB::transaction(function () use ($assetId, $asset, $updates, $user, $actor, $changed) {
+            DB::transaction(function () use ($assetId, $asset, $updates, $user, $actor, $changed, $storedPhoto, $photo) {
                 DB::table('assets')->where('id', $assetId)->update($updates);
+
+                // One photo per asset: a new upload replaces the one every page
+                // already reads (the registry card, the employee and department
+                // pages, the scanner), instead of stacking rows that different
+                // screens would pick from differently.
+                if ($storedPhoto !== null) {
+                    DB::table('asset_files')->where('Asset_id', $assetId)->delete();
+
+                    DB::table('asset_files')->insert([
+                        'Asset_id'    => $assetId,
+                        'file_name'   => $photo->getClientOriginalName(),
+                        'file_path'   => $storedPhoto,
+                        'file_size'   => $photo->getSize(),
+                        'mime_type'   => $photo->getClientMimeType(),
+                        'url'         => Media::url($storedPhoto),
+                        'uploaded_at' => now()->toDateTimeString(),
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
+                    ]);
+                }
 
                 // Assignment history is the accountability table's job. Moving
                 // the holder closes the old row and opens a new one; it never
@@ -214,9 +326,19 @@ class AssetEditing
                 self::audit($actor, $assetId, $asset->Asset_code, $user, $changed);
             });
         } catch (Throwable $e) {
+            // The row was not saved, so the stored file has no owner: remove it
+            // rather than leaving an orphan on the disk.
+            if ($storedPhoto !== null) {
+                Media::delete($storedPhoto);
+            }
+
             report($e);
 
             return ['ok' => false, 'errors' => ['Asset_name' => 'That change could not be saved: ' . mb_substr($e->getMessage(), 0, 200)]];
+        }
+
+        foreach ($previousPhotos as $previous) {
+            Media::delete($previous->file_path);
         }
 
         return ['ok' => true, 'message' => $changed === []
