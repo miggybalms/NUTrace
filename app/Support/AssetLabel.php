@@ -70,10 +70,12 @@ class AssetLabel
     public const MAX_HEIGHT_MM = 120.0;
 
     /**
-     * A signed payload is 45 modules across; with the 4-module quiet zone on
-     * each side the printed square is 53 modules wide.
+     * A sealed payload (NUT2, ~190 characters) is 49 modules across; with the
+     * 4-module quiet zone on each side the printed square is 57 modules wide.
+     * Sizing is computed from this, so a sticker too small to hold a readable
+     * code is refused instead of printed unscannable.
      */
-    private const MODULES_ACROSS = 53;
+    private const MODULES_ACROSS = 57;
 
     /** A 203 dpi thermal head lays down 8 dots per millimetre. */
     private const DOTS_PER_MM = 8.0;
@@ -405,17 +407,17 @@ class AssetLabel
     /**
      * The exact text the sticker's QR carries for a saved asset.
      *
-     * An asset that already holds a payload prints *that* payload: it is what
-     * its record, its stored QR image and the sticker already on the shelf
-     * carry, so a reprint is the same code rather than a second one that only
-     * looks alike. Minting a fresh payload here was how a label printed on an
-     * install without the signing keyring (a fresh checkout, a server whose
-     * QR_SIGNING_KEYS is not set) ended up with a bare code while the asset's
-     * own record still held a signed one — the sticker and the system then
-     * disagreed about the same asset.
+     * An asset that already holds a *sealed* payload prints that payload: it
+     * is what its record, its stored QR image and the sticker on the shelf
+     * carry, so a reprint is the same sticker rather than a second one that
+     * only looks alike.
      *
-     * A stored payload is used only when it names this asset's code: anything
-     * else would put one asset's sticker on another's record.
+     * A stored payload of the old readable format (version 1) is deliberately
+     * not reused: printing it again would put the asset code back on the paper,
+     * which is the whole thing version 2 exists to stop. The reprint carries a
+     * freshly sealed one instead. Either way the code printed is this asset's
+     * own: a stored payload naming a different code is never used, which would
+     * put one asset's sticker on another's record.
      */
     private static function payloadFor(object $row, string $code): string
     {
@@ -424,13 +426,15 @@ class AssetLabel
         if ($stored !== '' && $code !== '') {
             $parsed = QrPayload::parse($stored);
 
-            if ($parsed['code'] === $code && in_array($parsed['type'], ['signed', 'legacy'], true)) {
+            $sealed = (int) ($parsed['version'] ?? 0) >= QrPayload::VERSION;
+
+            if ($sealed && $parsed['code'] === $code && $parsed['type'] === 'signed') {
                 return $stored;
             }
         }
 
-        // No payload on record yet: sign one now, or fall back to the plain
-        // code on an install with no signing keys.
+        // No sealed payload on record yet: seal one now, or fall back to the
+        // plain code on an install with no signing keys.
         return AssetQr::textFor($code);
     }
 

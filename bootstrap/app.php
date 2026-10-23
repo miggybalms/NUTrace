@@ -49,6 +49,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // produces. Global, not part of the web group, so downloads and JSON
         // endpoints carry them too.
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
+        // The phone app has no session and therefore no CSRF token: it posts a
+        // scanned sticker to /qr/resolve to have the server open it. That route
+        // only reads a payload and records the scan, so exempting it from the
+        // token keeps the mobile scanner working without touching the
+        // protection on any session-backed form.
+        $middleware->validateCsrfTokens(except: ['qr/resolve']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // An error response never travels back through the middleware stack, so

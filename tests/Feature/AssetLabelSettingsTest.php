@@ -130,15 +130,16 @@ class AssetLabelSettingsTest extends TestCase
 
         $html = $this->sheet();
 
-        // 17mm is the smallest square that still gives 2.5 dots per module at 203
-        // dpi; the sticker is raised around it rather than clipping the code.
-        $this->assertStringContainsString('--qr-size: 17mm;', $html);
-        $this->assertStringContainsString('--label-w: 31mm;', $html);
-        $this->assertStringContainsString('--label-h: 19.5mm;', $html);
+        // 18mm is the smallest square that still gives 2.5 dots per module at
+        // 203 dpi for a sealed 57-module code; the sticker is raised around it
+        // rather than clipping the code.
+        $this->assertStringContainsString('--qr-size: 18mm;', $html);
+        $this->assertStringContainsString('--label-w: 32mm;', $html);
+        $this->assertStringContainsString('--label-h: 20.5mm;', $html);
 
-        $this->assertStringContainsString('Sticker width raised to 31 mm', $html);
-        $this->assertStringContainsString('Sticker height raised to 19.5 mm', $html);
-        $this->assertStringContainsString('QR size raised to 17 mm', $html);
+        $this->assertStringContainsString('Sticker width raised to 32 mm', $html);
+        $this->assertStringContainsString('Sticker height raised to 20.5 mm', $html);
+        $this->assertStringContainsString('QR size raised to 18 mm', $html);
     }
 
     public function test_a_qr_too_large_for_the_sticker_is_lowered_but_stays_scannable(): void

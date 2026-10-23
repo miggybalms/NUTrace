@@ -97,16 +97,21 @@ class AssetDetailAndAdminHeaderTest extends TestCase
 
     public function test_the_detail_qr_is_drawn_from_the_current_asset_code(): void
     {
+        // Pin an install with no signing key, so the page falls back to the
+        // plain code deterministically (a deployment with a keyring draws the
+        // sealed payload instead; see QrSignatureTest).
+        config(['qr.keys' => '', 'qr.active_key_id' => null]);
+        \App\Support\QrSigner::flush();
+        \App\Support\AssetQr::clearCache();
+
         $page = $this->actingAs($this->head)
             ->get('/department-head/assets/' . $this->assetId)
             ->assertOk();
 
         $html = $page->getContent();
 
-        // The text drawn is the asset's own sticker text. This install has no
-        // signing key configured, so that is the plain asset code - the same
-        // string a sticker printed before signing carries (with a key present it
-        // is the signed payload; see QrSignatureTest).
+        // The text drawn is the asset's own sticker text: the plain asset code
+        // here, the same string a sticker printed before signing carries.
         $page->assertSee('var assetCode', false);
         $page->assertSee('"AST-0001"', false);
         $page->assertSee('var qrPayload   = "AST-0001"', false);

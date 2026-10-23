@@ -46,22 +46,53 @@ window.NUTraceQr = (function () {
      * Read scanned text. Mirrors App\Support\QrPayload::parse: signed payload,
      * plain (legacy) code, or something that is not a NU Trace sticker / is
      * damaged.
+     *
+     * A version 2 sticker carries its code sealed, so the browser cannot read
+     * it - `code` is null and `sealed` is true. The code comes back from
+     * /qr/verify, which is where the key for the seal lives; screens that need
+     * it must await verify() instead of reading it off the text.
      */
     function parse(value) {
         var raw = text(value);
+        var blank = { code: null, keyId: null, signed: false, version: null, sealed: false };
 
         if (raw === '') {
-            return { type: 'malformed', code: null, keyId: null, signed: false };
+            return Object.assign({}, blank, { type: 'malformed' });
         }
 
         if (!FAMILY.test(raw)) {
-            return { type: 'legacy', code: raw, keyId: null, signed: false };
+            return Object.assign({}, blank, { type: 'legacy', code: raw });
         }
 
-        var parts = raw.toUpperCase().split('-');
+        var upper = raw.toUpperCase();
+        var match = /^NUT([0-9]{1,2})[-:]/i.exec(upper);
+        var version = match ? parseInt(match[1], 10) : 0;
+        var parts = upper.split('-');
+
+        if (version === 2) {
+            // NUT2, key id, sealed body, signature - none of them hold a dash.
+            if (parts.length !== 4 || !parts[1] || !parts[2] || !parts[3]) {
+                return Object.assign({}, blank, { type: 'malformed', version: 2 });
+            }
+
+            return {
+                type: 'signed',
+                code: null,
+                keyId: parts[1],
+                body: parts[2],
+                signature: parts[3],
+                signed: true,
+                version: 2,
+                sealed: true
+            };
+        }
+
+        if (version !== 1) {
+            return Object.assign({}, blank, { type: 'unsupported', version: version });
+        }
 
         if (parts.length < 4) {
-            return { type: 'malformed', code: null, keyId: null, signed: false };
+            return Object.assign({}, blank, { type: 'malformed', version: 1 });
         }
 
         var signature = parts.pop();
@@ -69,10 +100,10 @@ window.NUTraceQr = (function () {
         var code = parts.slice(1).join('-');
 
         if (!code || !keyId || !signature) {
-            return { type: 'malformed', code: null, keyId: null, signed: false };
+            return Object.assign({}, blank, { type: 'malformed', version: 1 });
         }
 
-        return { type: 'signed', code: code, keyId: keyId, signed: true };
+        return { type: 'signed', code: code, keyId: keyId, signed: true, version: 1, sealed: false };
     }
 
     /** The asset code inside any scanned text, signed or not. */
@@ -200,7 +231,37 @@ window.NUTraceQr = (function () {
             + '<div style="min-width:0;">'
             + '<div style="font-weight:600;color:' + palette.color + ';font-size:.875rem;">' + escape(verification.label) + '</div>'
             + '<div style="color:#5B6678;font-size:.8rem;margin-top:.15rem;">' + escape(verification.detail) + '</div>'
-            + '</div></div>';
+            + '</div></div>'
+            + duplicateBanner(verification.duplicate);
+    }
+
+    /**
+     * The "same sticker, two places" warning.
+     *
+     * A copy carries the original's bytes, so nothing in the scan can prove it
+     * is a copy; what the ledger can say is that this one sticker has been
+     * presented from another account or network recently. The scan still works
+     * - this asks for a physical check, which is the only thing that settles
+     * it - and revocation is how the office makes every copy dead at once.
+     */
+    function duplicateBanner(duplicate) {
+        if (!duplicate || !duplicate.suspected) {
+            return '';
+        }
+
+        var palette = tone('warning');
+        var others = duplicate.others > 1 ? duplicate.others + ' other sources' : 'another account or network';
+
+        return '<div style="display:flex;gap:.6rem;align-items:flex-start;background:' + palette.bg
+            + ';border:1px solid ' + palette.border + ';border-radius:.6rem;padding:.65rem .8rem;margin-top:.5rem;">'
+            + '<i class="ri-alert-line" style="color:' + palette.color + ';font-size:1.15rem;line-height:1.3;"></i>'
+            + '<div style="min-width:0;">'
+            + '<div style="font-weight:600;color:' + palette.color + ';font-size:.875rem;">Possible duplicate sticker</div>'
+            + '<div style="color:#5B6678;font-size:.8rem;margin-top:.15rem;">'
+            + 'This exact sticker was also presented from ' + escape(others) + ' in the last '
+            + escape(duplicate.window_minutes) + ' minutes. A reprinted code works like the original — '
+            + 'check the object physically, and revoke the sticker if it is a copy.'
+            + '</div></div></div>';
     }
 
     return {
@@ -213,6 +274,7 @@ window.NUTraceQr = (function () {
         draw: draw,
         tone: tone,
         banner: banner,
+        duplicateBanner: duplicateBanner,
         escape: escape,
         OFFLINE: OFFLINE
     };

@@ -1037,11 +1037,13 @@ Route::get('/admin', function () {
 // API: lookup asset by scanned code (used by admin scanner modal)
 //
 // What arrives here is whatever the camera decoded, and since stickers are
-// signed that is a payload - NUT1-<code>-<key>-<signature> - not a bare code.
-// Both shapes are answered, but not alike: a signed payload is verified before
-// any asset is reported, a plain code is reported as the unsigned legacy
-// sticker it is, and an altered or revoked sticker is refused outright rather
-// than dressed up with genuine asset details.
+// signed that is a payload - NUT2-<key>-<sealed body>-<signature> for a current
+// sticker, NUT1-<code>-<key>-<signature> for one printed before the code was
+// sealed - not a bare code. Every shape is answered, but not alike: a signed
+// payload is verified (and a sealed body opened) before any asset is reported,
+// a plain code is reported as the unsigned legacy sticker it is, and an altered
+// or revoked sticker is refused outright rather than dressed up with genuine
+// asset details.
 Route::get('/admin/assets/scan', function (Request $request) {
     $scanned = trim((string) $request->query('code', ''));
 
@@ -1107,6 +1109,42 @@ Route::get('/qr/public-keys', function () {
     return response()->json([
         'configured' => QrSigner::keys() !== [],
         'keys' => QrSigner::publicKeyring(),
+    ]);
+});
+
+// API: open a sealed sticker for the phone app.
+//
+// Version 2 stickers carry the asset code sealed, so the phone cannot read it
+// by itself the way it reads a printed v1 payload; it checks the signature on
+// the device (public keys) and asks here for the code behind the blob. Only
+// the identifier and the sticker's verdict come back - never asset details,
+// which the phone still resolves and scopes for itself.
+//
+// This is the one place a sticker's text can be turned into a code without a
+// session. It is not what stops a photocopy (nothing can): a printed copy of
+// the same blob resolves here just as well, which is why the same scan is
+// fingerprinted and checked for a second source. (No throttle middleware here:
+// this deployment's cache store is the database and has no `cache` table, so a
+// rate limiter would answer 500 instead of the sticker's verdict.)
+Route::post('/qr/resolve', function (Request $request) {
+    $scanned = trim((string) $request->input('payload', ''));
+
+    if ($scanned === '') {
+        return response()->json(['message' => 'payload missing'], 422);
+    }
+
+    $verification = QrVerification::verify($scanned, null);
+
+    return response()->json([
+        'status'    => $verification['status'],
+        'label'     => $verification['label'],
+        'tone'      => $verification['tone'],
+        'detail'    => $verification['detail'],
+        'signed'    => $verification['signed'],
+        'sealed'    => $verification['sealed'],
+        'key_id'    => $verification['key_id'],
+        'code'      => $verification['code'],
+        'duplicate' => $verification['duplicate'],
     ]);
 });
 

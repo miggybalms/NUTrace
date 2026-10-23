@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Support\AssetLabel;
+use App\Support\AssetQr;
 use App\Support\QrPayload;
+use App\Support\QrSigner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -292,13 +294,32 @@ class AssetLabelPrintTest extends TestCase
         $this->assertStringContainsString('class="trace-label__code">AST-0001', $html);
     }
 
-    public function test_a_reprint_carries_the_payload_the_asset_already_holds(): void
+    /** Put one signing key in the ring and make it active. */
+    private function useSigningKey(): void
     {
-        // The record holds a signed payload minted when the sticker was first
-        // printed. A reprint has to carry that same payload: minting a fresh
-        // one (or, on an install without the signing keyring, a bare code)
-        // makes the sticker disagree with the asset it is printed for.
-        $payload = QrPayload::build('AST-0002', 'V2', str_repeat("\x01", 64));
+        $key = QrSigner::generate(QrSigner::ED25519, 'V1');
+
+        config([
+            'qr.algorithm' => 'auto',
+            'qr.keys' => 'V1:' . QrSigner::ED25519 . ':' . $key['secret'],
+            'qr.active_key_id' => 'V1',
+        ]);
+
+        QrSigner::flush();
+        \App\Support\QrSeal::flush();
+        AssetQr::clearCache();
+    }
+
+    public function test_a_reprint_carries_the_sealed_payload_the_asset_already_holds(): void
+    {
+        $this->useSigningKey();
+
+        // The record holds a sealed payload minted when the sticker was first
+        // printed. A reprint has to carry that same payload, so the paper and
+        // the record agree.
+        $payload = (string) AssetQr::payloadFor('AST-0002');
+        $this->assertStringStartsWith('NUT2-', $payload);
+
         DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $payload]);
 
         $single = $this->actingAs($this->admin)
@@ -319,8 +340,41 @@ class AssetLabelPrintTest extends TestCase
         $this->assertStringContainsString('data-qr-payload="'.$payload.'"', $batch);
     }
 
+    public function test_a_reprint_replaces_an_old_readable_payload_with_a_sealed_one(): void
+    {
+        $this->useSigningKey();
+
+        // A sticker printed before sealing stored a readable payload. Printing
+        // that again would put the asset code back on the paper, so the sheet
+        // mints a sealed one instead for the same asset.
+        $readable = QrPayload::build('AST-0002', 'V1', str_repeat("\x01", 64));
+        DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $readable]);
+
+        $html = $this->actingAs($this->admin)
+            ->get('/admin/assets/department/1/labels?asset=AST-0002')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString($readable, $html);
+
+        preg_match('/data-qr-payload="([^"]+)"/', $html, $matches);
+        $printed = $matches[1] ?? '';
+
+        $this->assertStringStartsWith('NUT2-', $printed);
+        $this->assertStringNotContainsString('AST-0002', $printed);
+        $this->assertSame('AST-0002', QrPayload::parse($printed)['code']);
+    }
+
     public function test_a_stored_payload_for_another_code_is_never_printed(): void
     {
+        // This test is about the *fallback*: pin an install that cannot mint a
+        // fresh payload, so the sticker has to carry its own plain code. (A
+        // deployment with a keyring seals a new one instead, which is also
+        // its own code and is covered by QrSignatureTest.)
+        config(['qr.keys' => '', 'qr.active_key_id' => null]);
+        QrSigner::flush();
+        AssetQr::clearCache();
+
         // A payload naming a different asset would put the wrong sticker on the
         // wrong object, so the asset's own code is printed instead.
         $foreign = QrPayload::build('AST-0001', 'V2', str_repeat("\x02", 64));

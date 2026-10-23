@@ -57,7 +57,22 @@ class AssetQr
             return self::$cache[$code];
         }
 
-        $signed = QrSigner::sign(QrPayload::message($code, (string) QrSigner::activeKeyId()));
+        // Sealed sticker: the code travels encrypted, so nothing can be read
+        // off the paper and retyped into a QR generator. An install without a
+        // payload key falls back to the readable v1 format so it can still
+        // print a signed sticker; both formats verify.
+        $body = QrPayload::sealFor($code);
+        $keyId = (string) QrSigner::activeKeyId();
+
+        if ($body !== null && $keyId !== '') {
+            $signed = QrSigner::sign(QrPayload::messageFor($keyId, $body));
+
+            if ($signed !== null) {
+                return self::$cache[$code] = QrPayload::compose($signed['key_id'], $body, $signed['signature']);
+            }
+        }
+
+        $signed = QrSigner::sign(QrPayload::message($code, $keyId));
 
         self::$cache[$code] = $signed === null
             ? null

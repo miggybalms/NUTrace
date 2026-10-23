@@ -812,13 +812,18 @@ document.querySelectorAll('.view-qr-btn').forEach((btn) => {
             }
         };
 
-        if (qrUrl && qrUrl.trim() !== '') {
-            // If the stored image cannot be loaded, draw the code instead of
-            // showing a broken image.
+        // The live drawing is preferred over the stored image: it is the
+        // sticker this asset holds *now*, which for a sealed payload carries no
+        // readable asset code. A stored PNG may still be the old readable
+        // sticker (or a bare code), and showing it would put that back on
+        // screen - and back on a reprint. The stored image stays the fallback
+        // for when the browser has nothing to draw from.
+        if (qrPayload) {
+            drawQrInBrowser();
+        } else if (qrUrl && qrUrl.trim() !== '') {
             img.onerror = function () {
                 this.onerror = null;
                 this.classList.add('hidden');
-                drawQrInBrowser();
             };
             img.src = qrUrl;
             img.classList.remove('hidden');

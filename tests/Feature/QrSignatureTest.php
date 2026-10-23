@@ -173,8 +173,12 @@ class QrSignatureTest extends TestCase
         $payload = $this->payloadFor('AST-0001');
 
         // The payload stays inside the QR's alphanumeric character set, which
-        // is what keeps the code small enough for a 20mm sticker.
-        $this->assertMatchesRegularExpression('/^NUT1-[A-Z0-9.\-\/_]+-V1-[A-Z2-7]+$/', $payload);
+        // is what keeps the code small enough for a 20mm sticker - and it no
+        // longer carries the asset code in the open, so a camera or a
+        // QR-generator website has nothing to read off the paper.
+        $this->assertMatchesRegularExpression('/^NUT2-V1-[A-Z2-7]+-[A-Z2-7]+$/', $payload);
+        $this->assertStringNotContainsString('AST-0001', $payload);
+        $this->assertTrue($this->verifyAs($this->admin, $payload)['sealed']);
 
         $result = $this->verifyAs($this->admin, $payload);
 
@@ -246,15 +250,41 @@ class QrSignatureTest extends TestCase
 
     /* ── 2. altered payloads ───────────────────────────────────────────── */
 
-    public function test_an_edited_asset_code_is_refused_and_never_looked_up(): void
+    /** Swap one character of a payload's sealed body, leaving its shape intact. */
+    private function tamperBody(string $payload): string
     {
-        $tampered = str_replace('AST-0001', 'AST-0002', $this->payloadFor('AST-0001'));
+        $parts = explode('-', $payload);
+        $body = $parts[2];
+        $body[0] = $body[0] === 'A' ? 'B' : 'A';
+        $parts[2] = $body;
+
+        return implode('-', $parts);
+    }
+
+    /**
+     * Swap one character inside a payload's signature, leaving its body and its
+     * encoding intact. (The final character is avoided: base32's trailing bits
+     * must stay zero, so flipping it would make the signature unreadable
+     * rather than wrong.)
+     */
+    private function tamperSignature(string $payload): string
+    {
+        $position = strlen($payload) - 10;
+
+        return substr($payload, 0, $position)
+            . (substr($payload, $position, 1) === 'A' ? 'B' : 'A')
+            . substr($payload, $position + 1);
+    }
+
+    public function test_an_edited_sealed_body_is_refused_and_never_looked_up(): void
+    {
+        $tampered = $this->tamperBody($this->payloadFor('AST-0001'));
 
         $result = $this->verifyAs($this->admin, $tampered);
 
         $this->assertSame('invalid_signature', $result['status']);
-        // AST-0002 exists, but a payload that fails its check must not be
-        // rewarded with that asset's details.
+        // Other assets exist, but a payload that fails its check must not be
+        // rewarded with any asset's details.
         $this->assertNull($result['asset']);
         $this->assertFalse($result['permitted']);
 
@@ -264,15 +294,28 @@ class QrSignatureTest extends TestCase
             ->assertJsonPath('verification.status', 'invalid_signature');
     }
 
+    /**
+     * One asset's genuine body under another asset's sticker: the seal is
+     * intact and the signature is real, but they belong to different stickers,
+     * so the payload must be refused rather than resolving to either asset.
+     */
+    public function test_a_body_grafted_onto_another_sticker_is_refused(): void
+    {
+        $mine = explode('-', $this->payloadFor('AST-0001'));
+        $theirs = explode('-', $this->payloadFor('AST-0002'));
+
+        $grafted = implode('-', [$mine[0], $mine[1], $theirs[2], $mine[3]]);
+
+        $result = $this->verifyAs($this->admin, $grafted);
+
+        $this->assertSame('invalid_signature', $result['status']);
+        $this->assertNull($result['asset']);
+        $this->assertFalse($result['permitted']);
+    }
+
     public function test_an_edited_signature_is_refused(): void
     {
-        $payload = $this->payloadFor('AST-0001');
-        $middle = (int) (strlen($payload) / 2);
-        $flipped = substr($payload, 0, $middle)
-            . (substr($payload, $middle, 1) === 'A' ? 'B' : 'A')
-            . substr($payload, $middle + 1);
-
-        $this->assertSame('invalid_signature', $this->verifyAs($this->admin, $flipped)['status']);
+        $this->assertSame('invalid_signature', $this->verifyAs($this->admin, $this->tamperSignature($this->payloadFor('AST-0001')))['status']);
     }
 
     public function test_a_fabricated_signature_is_refused(): void
@@ -347,7 +390,7 @@ class QrSignatureTest extends TestCase
         $cases = [
             'NUT1-AST-0001-V1-XXXX' => 'malformed',      // truncated signature
             'NUT1-' . str_repeat('AST-0001-', 60) => 'malformed', // oversized
-            'NUT2-AST-0001-V1-AAAA' => 'unsupported',    // a payload version we do not know
+            'NUT3-AST-0001-V1-AAAA' => 'unsupported',    // a payload version we do not know
             'https://example.com/asset/AST-0001' => 'unsupported', // not a NU Trace sticker
         ];
 
@@ -506,7 +549,7 @@ class QrSignatureTest extends TestCase
         $this->assertSame('valid', $this->verifyAs($this->admin, $payload)['status']);
 
         $stored = (string) DB::table('assets')->where('id', $this->ownAsset)->value('qr_payload');
-        $this->assertStringStartsWith('NUT1-AST-0001-V1-', $stored);
+        $this->assertStringStartsWith('NUT2-V1-', $stored);
     }
 
     /* ── 8. keys, printing, registration ───────────────────────────────── */
@@ -577,12 +620,13 @@ class QrSignatureTest extends TestCase
         $row = DB::table('assets')->where('Asset_code', 'NU-9001')->first();
 
         $this->assertNotNull($row);
-        $this->assertStringStartsWith('NUT1-NU-9001-V1-', (string) $row->qr_payload);
+        $this->assertStringStartsWith('NUT2-V1-', (string) $row->qr_payload);
+        $this->assertStringNotContainsString('NU-9001', (string) $row->qr_payload);
         $this->assertNotNull($row->qr_code_path);
 
         // The image that was stored encodes that same payload, at the error
         // correction level a long signed payload needs.
-        Http::assertSent(fn ($request) => str_contains($request->url(), 'data=NUT1-NU-9001-V1-')
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'data=NUT2-V1-')
             && str_contains($request->url(), 'ecc=M'));
     }
 
@@ -615,15 +659,10 @@ class QrSignatureTest extends TestCase
 
         $payload = $this->payloadFor('AST-0001');
 
-        $this->assertStringStartsWith('NUT1-AST-0001-E1-', $payload);
+        $this->assertStringStartsWith('NUT2-E1-', $payload);
         $this->assertMatchesRegularExpression('/^[A-Z0-9.\-\/_]+$/', $payload);
         $this->assertSame('valid', $this->verifyAs($this->admin, $payload)['status']);
 
-        $middle = (int) (strlen($payload) / 2);
-        $flipped = substr($payload, 0, $middle)
-            . (substr($payload, $middle, 1) === 'A' ? 'B' : 'A')
-            . substr($payload, $middle + 1);
-
-        $this->assertSame('invalid_signature', $this->verifyAs($this->admin, $flipped)['status']);
+        $this->assertSame('invalid_signature', $this->verifyAs($this->admin, $this->tamperSignature($payload))['status']);
     }
 }

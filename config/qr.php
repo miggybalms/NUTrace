@@ -62,4 +62,43 @@ return [
     */
     'keys' => env('QR_SIGNING_KEYS'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Payload key
+    |--------------------------------------------------------------------------
+    |
+    | A sticker's asset code is sealed (AES-256-GCM) before it is signed, so the
+    | text on the paper is opaque: no code for a camera or a QR-generator
+    | website to read. This is the key that opens it again.
+    |
+    | Set the same value on every deployment that has to read the same stickers
+    | (for example your laptop and Railway), otherwise one cannot open the
+    | other's payloads and those scans report "verification unavailable".
+    | Generate one with `php artisan qr:keygen --payload`;
+    |
+    |     QR_PAYLOAD_KEY="<base64, 32 bytes>"
+    |
+    | Left empty, the key is derived from APP_KEY - fine for a single install,
+    | but it ties your stickers to that one application key.
+    |
+    */
+    'payload_key' => env('QR_PAYLOAD_KEY'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Copy detection window
+    |--------------------------------------------------------------------------
+    |
+    | Every verified sticker is recorded by a fingerprint of its payload. When
+    | the same sticker shows up from a different account or network inside this
+    | window, the scan is flagged as a possible copy: a reprinted sticker, a
+    | photocopy, or the same sticker scanned by a second person.
+    |
+    | This is a warning, not a guarantee. A copy carries the same text as the
+    | original, so no scan can tell the two apart on its own - only that one
+    | sticker is being used from two places at once.
+    |
+    */
+    'duplicate_window_minutes' => (int) env('QR_DUPLICATE_WINDOW_MINUTES', 30),
+
 ];

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\AssetQr;
 use App\Support\QrPayload;
+use App\Support\QrSeal;
 use App\Support\QrSigner;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +17,15 @@ use Illuminate\Support\Facades\DB;
  *   php artisan qr:resign --all       re-mint every asset's sticker image
  *
  * Nothing here changes what a sticker printed months ago does: those carry a
- * plain asset code, they keep resolving, and every scan of them is labelled
- * "unsigned". Re-minting only refreshes the *stored* image (the one an asset
- * page or a label sheet draws), so the office knows exactly which assets need
- * a reprint when that is convenient - a controlled migration instead of a
- * silent one.
+ * plain asset code or the old readable payload, they keep resolving, and every
+ * scan of them is labelled accordingly. Re-minting only refreshes the *stored*
+ * image (the one an asset page or a label sheet draws), so the office knows
+ * exactly which assets need a reprint when that is convenient - a controlled
+ * migration instead of a silent one.
+ *
+ * Assets whose stored sticker is the old readable payload are reported as
+ * `readable`: the sticker works, but the asset code is printed on the paper,
+ * which is the thing version 2 seals.
  */
 class ResignAssetQrCodes extends Command
 {
@@ -47,13 +52,18 @@ class ResignAssetQrCodes extends Command
 
         $this->line('Signing with key <info>'.QrSigner::activeKeyId().'</info> ('.QrSigner::algorithm().')');
 
+        if (! QrSeal::available()) {
+            $this->warn('No payload key: new stickers will keep the readable format, so the asset code stays on the paper.');
+            $this->line('Set <info>QR_PAYLOAD_KEY</info> (see config/qr.php) to print sealed payloads.');
+        }
+
         $rows = DB::table('assets')
             ->whereNotNull('Asset_code')
             ->where('Asset_code', '!=', '')
             ->orderBy('id')
             ->get(['id', 'Asset_code', 'qr_code_path', 'qr_payload', 'qr_revoked_at']);
 
-        $reasons = ['unsigned' => [], 'retired' => [], 'missing' => []];
+        $reasons = ['unsigned' => [], 'retired' => [], 'readable' => [], 'missing' => []];
         $revoked = 0;
 
         foreach ($rows as $row) {
@@ -82,6 +92,7 @@ class ResignAssetQrCodes extends Command
         foreach ([
             'unsigned' => 'no signed payload recorded (printed before signing)',
             'retired' => 'signed with a key this install no longer holds',
+            'readable' => 'readable payload: the asset code is printed on the sticker',
             'missing' => 'no stored sticker image',
         ] as $key => $description) {
             if (! empty($reasons[$key])) {
@@ -165,6 +176,13 @@ class ResignAssetQrCodes extends Command
 
         if (! QrSigner::known((string) $parsed['key_id'])) {
             return 'retired';
+        }
+
+        // A readable v1 payload still verifies, but anyone with a camera can
+        // read the asset code off the paper and print it again. Re-minting
+        // seals it.
+        if ((int) ($parsed['version'] ?? 0) < QrPayload::VERSION) {
+            return 'readable';
         }
 
         return null;

@@ -1039,7 +1039,8 @@ function toggleEditActionFields() {
             const reader = window.NUTraceQr;
             const parsed = reader
                 ? reader.parse(decodedText)
-                : { type: 'legacy', code: decodedText, signed: false };
+                : { type: 'legacy', code: decodedText, signed: false, sealed: false };
+            let verification = null;
 
             if (parsed.type === 'malformed') {
                 showToast('Damaged sticker payload — nothing was recorded.', 'error');
@@ -1048,7 +1049,7 @@ function toggleEditActionFields() {
             }
 
             if (parsed.signed) {
-                const verification = await reader.verify(decodedText);
+                verification = await reader.verify(decodedText);
 
                 if (reader.blocking(verification.status)) {
                     showToast(verification.label + ': ' + verification.detail, 'error');
@@ -1059,9 +1060,27 @@ function toggleEditActionFields() {
                 if (verification.status !== 'valid') {
                     showToast(verification.label + ' — continuing with the code only.');
                 }
+
+                // The same sticker presented from another account or network
+                // recently is worth a look: a reprinted code scans exactly
+                // like the original. The pullout still proceeds.
+                if (verification.duplicate && verification.duplicate.suspected) {
+                    showToast('Possible duplicate sticker — this one was also used from another account or network in the last '
+                        + verification.duplicate.window_minutes + ' minutes. Check the object physically.');
+                }
             }
 
-            const code = parsed.code || decodedText;
+            // A sealed sticker (NUT2) carries no readable code: the server
+            // opens it and returns the code with the verdict. A sticker the
+            // server cannot open has no asset to record, so it is refused
+            // rather than selected by its blob.
+            const code = (verification && verification.code) || parsed.code || (parsed.sealed ? '' : decodedText);
+
+            if (!code) {
+                showToast('This sticker could not be read by the server — nothing was recorded.', 'error');
+                if (statusEl) statusEl.textContent = '✕ Sticker could not be read.';
+                return;
+            }
 
             if (scannerAutoMode) {
                 handleAutoPullout(code);

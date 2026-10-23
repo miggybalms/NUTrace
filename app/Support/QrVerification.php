@@ -20,9 +20,12 @@ use Illuminate\Support\Facades\Log;
  *
  * The asset's live row is always the source of truth for anything shown: the
  * payload proves the code was minted here, not that the sticker is on the right
- * object. A copied genuine sticker still verifies - see the class's own
- * limitation notes in the project report - and a server with no signing key
- * reports "unavailable", never "fake".
+ * object. A copied genuine sticker still verifies - a QR code is only text
+ * drawn as squares, so a copy carries the same bytes - which is why
+ * Support\QrScans also records the scan and flags a sticker that turns up in
+ * two places. A server with no signing key reports "unavailable", never
+ * "fake"; the same is true of a sticker sealed with a payload key this
+ * deployment does not hold.
  */
 class QrVerification
 {
@@ -142,6 +145,15 @@ class QrVerification
 
             case 'signed':
                 [$status, $detail] = self::checkSignature($parsed);
+
+                // A sealed sticker whose code this server cannot open: the
+                // signature may be perfectly good, but the asset behind it is
+                // unreadable here (a different payload key). That is a server
+                // limitation, not an accusation against the sticker.
+                if ($status === self::VALID && $parsed['code'] === null) {
+                    $status = self::UNAVAILABLE;
+                    $detail = 'This sticker is sealed with a payload key this server does not hold, so its asset could not be read. It is neither confirmed nor rejected.';
+                }
                 break;
         }
 
@@ -150,8 +162,9 @@ class QrVerification
         // A sticker whose signature failed is not looked up: the identifier in
         // it cannot be trusted, so reporting an asset for it would dress up a
         // forgery with genuine details.
-        if (! in_array($status, [self::INVALID_SIGNATURE, self::UNKNOWN_KEY, self::MALFORMED, self::UNSUPPORTED], true)) {
-            $row = $parsed['code'] !== null ? AssetQr::findByCode($parsed['code']) : null;
+        if ($parsed['code'] !== null
+            && ! in_array($status, [self::INVALID_SIGNATURE, self::UNKNOWN_KEY, self::MALFORMED, self::UNSUPPORTED], true)) {
+            $row = AssetQr::findByCode($parsed['code']);
 
             if ($row === null) {
                 $status = self::UNKNOWN_ASSET;
@@ -169,6 +182,7 @@ class QrVerification
             'tone' => $state['tone'],
             'detail' => $detail ?? $state['detail'],
             'signed' => $parsed['type'] === 'signed',
+            'sealed' => $parsed['sealed'],
             'key_id' => $parsed['key_id'],
             'code' => $parsed['code'],
             'permitted' => $permitted,
@@ -177,13 +191,19 @@ class QrVerification
 
         self::log($result, $viewer);
 
+        // One sticker, one label on one object: if the same payload arrives
+        // from somewhere else around the same time, it is worth checking the
+        // object physically. The scan itself still resolves - this is a
+        // warning, never a refusal.
+        $result['duplicate'] = QrScans::record($scanned, $result, $viewer);
+
         return $result;
     }
 
     /**
      * The signature half of a scan.
      *
-     * @param  array{code: string|null, key_id: string|null, signature: string|null}  $parsed
+     * @param  array{code: string|null, key_id: string|null, signature: string|null, message: string|null}  $parsed
      * @return array{0: string, 1: string|null} status and (when it needs saying) detail
      */
     private static function checkSignature(array $parsed): array
@@ -206,8 +226,12 @@ class QrVerification
         // with it, so rotation does not invalidate paper. A key whose
         // signature does not match its own message is the one case that is
         // reported as tampering, which is what it is.
+        //
+        // The message is what the payload's own prefix built - `NUT2-<key>-<body>`
+        // for a sealed sticker - so the signature is judged on the exact text
+        // that was signed, not on a code this server had to open first.
         $verified = QrSigner::verify(
-            QrPayload::message((string) $parsed['code'], $keyId),
+            (string) $parsed['message'],
             (string) $parsed['signature'],
             $keyId
         );
