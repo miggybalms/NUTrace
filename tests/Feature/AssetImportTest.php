@@ -237,8 +237,11 @@ class AssetImportTest extends TestCase
         $this->actingAs($this->admin)
             ->get('/admin/assets/import')
             ->assertOk()
-            ->assertSee('PROPERTY ID NO is used as the Asset Code')
-            ->assertSee('defaults to');
+            ->assertSee('PROPERTY ID NO is the Asset Code')
+            ->assertSee('Asset Code (Property ID No.)')
+            ->assertDontSee('Fill blank codes')
+            ->assertDontSee('Propose codes from a pattern')
+            ->assertDontSee('Asset codes');
     }
 
     public function test_the_import_page_does_not_announce_a_size_cap(): void
@@ -631,6 +634,35 @@ class AssetImportTest extends TestCase
         );
     }
 
+    public function test_the_page_no_longer_sends_an_asset_code_and_the_property_number_is_used(): void
+    {
+        $rows = [$this->sourceRow(1, ['property' => '30019999', 'code' => ''])];
+
+        $upload = $this->actingAs($this->admin)->postJson('/admin/assets/import', [
+            'file' => $this->csv($rows, false),
+        ])->assertOk();
+
+        $batch = (int) $upload->json('batch.id');
+        $mapping = $upload->json('batch.mapping');
+
+        // What the page posts now: only the fields it still shows.
+        unset($mapping['asset_code']);
+
+        $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/mapping", [
+            'mapping' => $mapping,
+        ])->assertOk();
+
+        for ($guard = 0; $guard < 20; $guard++) {
+            if ($this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/step")->assertOk()->json('done')) {
+                break;
+            }
+        }
+
+        $row = $this->row($batch, 2);
+        $this->assertSame(AssetImport::READY, $row['status']);
+        $this->assertSame('30019999', $row['asset_code']);
+    }
+
     public function test_a_line_with_no_number_at_all_takes_a_code_by_hand(): void
     {
         $rows = [$this->sourceRow(1, ['property' => '', 'code' => ''])];
@@ -639,7 +671,7 @@ class AssetImportTest extends TestCase
 
         $row = $this->row($batch, 2);
         $this->assertSame(AssetImport::BLOCKED, $row['status']);
-        $this->assertStringContainsString('No asset code yet', implode(' ', array_column($row['issues'], 'text')));
+        $this->assertStringContainsString('No asset code', implode(' ', array_column($row['issues'], 'text')));
 
         $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/codes", [
             'codes' => [2 => 'nu-2026-0001'],

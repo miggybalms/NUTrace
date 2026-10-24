@@ -618,10 +618,20 @@ class AssetImport
         }
 
         $header = json_decode((string) $batch->header, true) ?: [];
+        $stored = json_decode((string) $batch->mapping, true) ?: [];
         $clean = array_fill_keys(array_keys(self::FIELDS), null);
 
         foreach (self::FIELDS as $field => $definition) {
-            $value = $mapping[$field] ?? null;
+            // The page no longer shows an Asset Code choice — it is the property
+            // number — so a field missing from the request keeps the column
+            // detection picked instead of being cleared.
+            if (! array_key_exists($field, $mapping)) {
+                $clean[$field] = $stored[$field] ?? null;
+
+                continue;
+            }
+
+            $value = $mapping[$field];
 
             if ($value === null || $value === '' || $value === 'none') {
                 continue;
@@ -1655,7 +1665,7 @@ class AssetImport
         $code = $code !== null ? AssetCode::normalize($code) : '';
 
         if ($code === '') {
-            $errors[] = 'No asset code yet: this line has neither a Property ID No. nor an Asset Code. Enter the office\'s code for it, or propose codes from a pattern.';
+            $errors[] = 'No asset code: this line has no Property ID No. (and no ASSET CODE column in the file), so there is no number to print on its sticker. Add the property number and check the file again.';
         } elseif (! AssetCode::isValid($code)) {
             $errors[] = '“' . mb_substr($code, 0, 50) . '” is not a usable asset code. Use letters, numbers, dot, dash, slash or underscore (2–' . AssetCode::MAX_LENGTH . ' characters).';
         } else {

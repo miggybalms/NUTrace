@@ -82,12 +82,11 @@ number they keep on the asset. So that number becomes `assets.Asset_code`:
 * the sticker prints the PROPERTY ID NO, and scanning it finds the asset by that
   code;
 * a line with a property number never blocks for a missing code, and the page
-  maps *Asset Code* onto the property column automatically;
-* a separate `ASSET CODE` column, when the workbook has one, wins over the
-  property number;
-* only a line with neither (no property number and no code cell) is listed under
-  *Decisions*, where a code can be typed or proposed from a pattern
-  (`{property_id}`, `{inventory_id}`, `{seq}`, `{index}`, `{year}`);
+  has no *Asset Code* field to choose: the property column supplies it;
+* a separate `ASSET CODE` column, when the workbook has one, is read as the
+  code instead — but there is no mapping choice for it on the page;
+* a line with no property number and no code cell is held, because it has no
+  number to print on a sticker, until the property number is put in the file;
 * every code is checked against `Asset_code` (existing assets, other lines in the
   same file, and the formats `AssetCode` rejects);
 * a code cannot be changed later from the asset page — that is a sticker reissue.
@@ -194,9 +193,9 @@ unrecorded. Re-running finishes the job instead of failing on "already exists".
 1. **Assets → Import Inventory**, choose the file, **Read headers**.
 2. Check the detected columns, fix any that are wrong, **Check the rows**. Asset
    Code arrives already pointed at PROPERTY ID NO.
-3. Work through *Decisions*: departments, `TYPE OF ASSET`, ambiguous names. A
-   code only has to be entered for a line that has no property number either.
-   Apply and re-check.
+3. Work through *Decisions*: departments, `TYPE OF ASSET`, ambiguous names.
+   There is no code to enter — a line whose property number is blank is held
+   until the file carries one. Apply and re-check.
 4. Filter by **Blocked / Review / Exists**, inspect the lines, then **Import**.
 5. Print the stickers from the result card, or open Assets to see them listed.
 6. **Retry failed lines** / **Generate missing stickers** are safe to repeat;
@@ -204,9 +203,9 @@ unrecorded. Re-running finishes the job instead of failing on "already exists".
 
 ## 11. Tests
 
-`tests/Feature/AssetImportTest.php` — 42 tests covering column detection (and
-Asset Code defaulting to PROPERTY ID NO), an upload split into parts (joined
-into one file, cleaned up, resumed by fingerprint), the
+`tests/Feature/AssetImportTest.php` — 44 tests covering column detection (and
+PROPERTY ID NO being the Asset Code), an upload split into parts (joined into
+one file, cleaned up, resumed by fingerprint), the
 template, access control, a full import, duplicate and same-file skips, blank
 property numbers, department/category matching and decisions, the five
 accountable-person outcomes, custom codes and collisions, code patterns,

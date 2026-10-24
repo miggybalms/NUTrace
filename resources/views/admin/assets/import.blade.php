@@ -43,8 +43,6 @@
     .step-dot.done{ background:var(--forest); color:#fff; }
     .spinner{ width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:999px;animation:spin .7s linear infinite; }
     @keyframes spin{ to{ transform:rotate(360deg);} }
-    .code-input{ width:11rem; font-family:'IBM Plex Mono',monospace; font-size:.72rem; text-transform:uppercase; }
-    .code-input.is-bad{ border-color:var(--brick); background:#FFF8F7; }
 </style>
 
 @include('admin.partials.header', [
@@ -94,8 +92,8 @@
             </div>
             <div class="rounded-lg p-3" style="background:var(--gold-100);">
                 <p class="font-semibold" style="color:#7E5E0E;"><i class="ri-price-tag-3-line mr-1"></i>Codes come from the file</p>
-                PROPERTY ID NO is used as the Asset Code, so no code is invented or filled in. An ASSET CODE column
-                overrides it when the office keeps one.
+                PROPERTY ID NO is the Asset Code — nothing to choose, type or invent. Each imported asset is filed and
+                stickered under that number.
             </div>
             <div class="rounded-lg p-3" style="background:var(--steel-tint);">
                 <p class="font-semibold" style="color:var(--steel);"><i class="ri-qr-code-line mr-1"></i>Sticker included</p>
@@ -147,8 +145,8 @@
             <span class="step-dot active" id="dotMapping">2</span>
             <div>
                 <h3 class="font-display text-base font-semibold text-[#0F2143]">Confirm the columns</h3>
-                <p class="text-xs text-[#5C6474]">Detected automatically from the headings — change any that are wrong. <strong>Asset Code</strong>
-                    defaults to <strong>PROPERTY ID NO</strong>; leave it there unless the file has its own code column.</p>
+                <p class="text-xs text-[#5C6474]">Detected automatically from the headings — change any that are wrong.
+                    <strong>PROPERTY ID NO</strong> is the <strong>Asset Code</strong>, so there is no code column to map.</p>
             </div>
         </div>
         <div class="p-5 sm:p-6">
@@ -229,29 +227,6 @@
             </div>
         </div>
 
-        {{-- Codes --}}
-        <div class="px-5 sm:px-6 pb-4">
-            <p class="eyebrow mb-2">Asset codes</p>
-            <p class="text-xs text-[#5C6474] mb-2 max-w-2xl">
-                A line with a PROPERTY ID NO already has its code — the same number the sticker will carry. This is
-                only for the rare line that has neither a property number nor an ASSET CODE cell.
-            </p>
-            <div class="flex flex-wrap items-end gap-2">
-                <div>
-                    <label class="text-xs text-[#5C6474] block mb-1" for="codePattern">Propose codes from a pattern</label>
-                    <input id="codePattern" class="field font-mono" placeholder="{property_id}" style="width:16rem">
-                </div>
-                <button type="button" class="btn-ghost !py-2 !text-xs" onclick="proposeCodes()">
-                    <i class="ri-magic-line mr-1"></i>Fill blank codes
-                </button>
-                <p class="text-xs text-[#5C6474] max-w-md">
-                    Tokens: <span class="font-mono">{property_id}</span>, <span class="font-mono">{inventory_id}</span>,
-                    <span class="font-mono">{seq}</span>, <span class="font-mono">{index}</span>, <span class="font-mono">{year}</span>.
-                    Codes are checked against NU Trace and against each other; edit any line by hand in the table.
-                </p>
-            </div>
-        </div>
-
         {{-- Filter tabs --}}
         <div class="px-5 sm:px-6 pb-2 flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap gap-1" id="statusTabs"></div>
@@ -263,9 +238,8 @@
                 <thead>
                     <tr class="bg-[#F5F0E2] text-[#5B6678] uppercase text-[.62rem] tracking-wider">
                         <th class="px-3 py-3 text-left font-semibold">Line</th>
-                        <th class="px-3 py-3 text-left font-semibold">Property ID / ID No.</th>
+                        <th class="px-3 py-3 text-left font-semibold">Asset Code (Property ID No.)</th>
                         <th class="px-3 py-3 text-left font-semibold">Description</th>
-                        <th class="px-3 py-3 text-left font-semibold">Asset code</th>
                         <th class="px-3 py-3 text-left font-semibold hidden lg:table-cell">Department</th>
                         <th class="px-3 py-3 text-left font-semibold hidden xl:table-cell">Accountable</th>
                         <th class="px-3 py-3 text-left font-semibold hidden md:table-cell">Date / Cost</th>
@@ -459,7 +433,9 @@
         const grid = $('mappingGrid');
         const mapping = batch.mapping || {};
 
-        grid.innerHTML = Object.entries(FIELDS).map(([field, label]) => {
+        // The Asset Code is the Property ID No., so it is not offered as a
+        // column to choose.
+        grid.innerHTML = Object.entries(FIELDS).filter(([field]) => field !== 'asset_code').map(([field, label]) => {
             // A field the app could not find has to read "— not in this file —".
             // An unselected <select> shows its first option anyway, and
             // Number(null) is 0, so every unmatched field used to look (and be
@@ -494,7 +470,7 @@
             return;
         }
 
-        const mappedFields = Object.keys(FIELDS);
+        const mappedFields = Object.keys(FIELDS).filter(field => field !== 'asset_code');
         table.innerHTML = `<thead><tr class="bg-[#F5F0E2] text-[#5B6678] uppercase text-[.6rem] tracking-wider">
                 <th class="px-3 py-2 text-left">Line</th>
                 ${mappedFields.map(f => `<th class="px-3 py-2 text-left">${escapeHtml(FIELDS[f])}</th>`).join('')}
@@ -868,13 +844,10 @@
         const body = $('rowsBody');
 
         if (!rowView.rows.length) {
-            body.innerHTML = `<tr><td colspan="8" class="px-5 py-8 text-center text-sm text-[#5C6474]">No line matches this filter.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="7" class="px-5 py-8 text-center text-sm text-[#5C6474]">No line matches this filter.</td></tr>`;
         } else {
             body.innerHTML = rowView.rows.map(row => {
                 const editable = ['ready', 'review', 'blocked'].includes(row.status);
-                const codeCell = editable
-                    ? `<input class="field code-input" value="${escapeHtml(row.asset_code || '')}" data-code-line="${row.line}" placeholder="enter code" ${row.status === 'blocked' && !row.asset_code ? 'style="border-color:var(--brick);"' : ''}>`
-                    : `<span class="font-mono text-xs">${escapeHtml(row.asset_code || '—')}</span>`;
 
                 const issues = (row.issues || []).map(issue =>
                     `<p class="text-[.68rem] leading-snug" style="color:${issue.level === 'error' ? 'var(--brick)' : (issue.level === 'warning' ? 'var(--bronze)' : 'var(--ink-400)')}">
@@ -924,7 +897,6 @@
                         <p class="text-xs font-medium text-[#0F2143]">${escapeHtml(row.name) || '—'}</p>
                         <p class="text-[.65rem] text-[#5C6474]">${escapeHtml(row.location) || 'no location'}${row.category_raw ? ' · ' + escapeHtml(row.category_raw) : ''}</p>
                     </td>
-                    <td class="px-3 py-3">${codeCell}</td>
                     <td class="px-3 py-3 hidden lg:table-cell">${deptCell}</td>
                     <td class="px-3 py-3 hidden xl:table-cell">${personCell}</td>
                     <td class="px-3 py-3 hidden md:table-cell text-xs whitespace-nowrap">
@@ -943,10 +915,6 @@
         $('pageLabel').textContent = `Page ${rowView.page} of ${rowView.pages} · ${rowView.total} line(s)`;
         $('prevPage').disabled = rowView.page <= 1;
         $('nextPage').disabled = rowView.page >= rowView.pages;
-
-        body.querySelectorAll('input[data-code-line]').forEach(input => {
-            input.addEventListener('change', () => saveCode(input.dataset.codeLine, input.value, input));
-        });
 
         body.querySelectorAll('select[data-person-line]').forEach(select => {
             select.addEventListener('change', () => savePerson(select.dataset.personLine, select.value));
@@ -998,20 +966,6 @@
         loadRows();
     }
 
-    async function saveCode(line, code, input) {
-        const result = await post(`/admin/assets/import/${batch.id}/codes`, { codes: { [line]: code } });
-
-        if (!result.ok) {
-            notify(false, result.data.message || 'That code could not be saved.');
-            return;
-        }
-
-        batch = { ...batch, summary: result.data.summary };
-        renderSummary(batch.summary);
-        renderTabs(batch.summary);
-        await loadRows();
-    }
-
     async function savePerson(line, value) {
         const result = await post(`/admin/assets/import/${batch.id}/person`, {
             line: Number(line),
@@ -1026,20 +980,6 @@
 
         batch = { ...batch, summary: result.data.summary };
         notify(true, result.data.message || 'Accountable person updated.');
-        await refreshAll();
-    }
-
-    async function proposeCodes() {
-        const pattern = $('codePattern').value.trim();
-
-        if (!pattern) { notify(false, 'Type a pattern first, for example {property_id}.'); return; }
-
-        const result = await post(`/admin/assets/import/${batch.id}/propose`, { pattern });
-
-        if (!result.ok) { notify(false, result.data.message || 'Codes could not be proposed.'); return; }
-
-        batch = { ...batch, summary: result.data.summary };
-        notify(true, result.data.message);
         await refreshAll();
     }
 
