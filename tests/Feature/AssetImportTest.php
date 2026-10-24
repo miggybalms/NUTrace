@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\User;
+use App\Support\AssetQr;
 use App\Support\Import\AssetImport;
 use App\Support\Import\SpreadsheetReader;
 use App\Support\Media;
+use App\Support\QrPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -228,6 +230,15 @@ class AssetImportTest extends TestCase
 
         $this->actingAs($employee)->get('/admin/assets/import')->assertForbidden();
         $this->actingAs($employee)->postJson('/admin/assets/import', ['file' => $this->csv($this->rows())])->assertForbidden();
+    }
+
+    public function test_the_import_page_says_the_property_number_is_the_code(): void
+    {
+        $this->actingAs($this->admin)
+            ->get('/admin/assets/import')
+            ->assertOk()
+            ->assertSee('PROPERTY ID NO is used as the Asset Code')
+            ->assertSee('defaults to');
     }
 
     public function test_the_import_page_does_not_announce_a_size_cap(): void
@@ -567,22 +578,78 @@ class AssetImportTest extends TestCase
 
     /* ═══════════════════════════ custom codes ═══════════════════════════ */
 
-    public function test_a_missing_asset_code_blocks_the_line_and_can_be_filled_in(): void
+    public function test_a_blank_asset_code_cell_still_uses_the_property_number(): void
     {
+        // The client's file leaves any code column empty: that must not hold a
+        // line whose PROPERTY ID NO is right there.
         $rows = [$this->sourceRow(1, ['property' => '30020000', 'code' => ''])];
 
         $batch = $this->check($rows);
 
-        $this->assertSame(AssetImport::BLOCKED, $this->row($batch, 2)['status']);
-        $this->assertStringContainsString('No asset code yet', implode(' ', array_column($this->row($batch, 2)['issues'], 'text')));
+        $row = $this->row($batch, 2);
+        $this->assertSame(AssetImport::READY, $row['status']);
+        $this->assertSame('30020000', $row['asset_code']);
+    }
+
+    public function test_the_property_number_is_the_asset_code_and_the_sticker_code(): void
+    {
+        $rows = [$this->sourceRow(1, ['property' => '30014399', 'code' => ''])];
+
+        // No ASSET CODE heading at all, as in the client's workbook.
+        $upload = $this->actingAs($this->admin)->postJson('/admin/assets/import', [
+            'file' => $this->csv($rows, false),
+        ])->assertOk();
+
+        $mapping = $upload->json('batch.mapping');
+        $this->assertSame(
+            $mapping['property_id_no'],
+            $mapping['asset_code'],
+            'Asset Code must default to the PROPERTY ID NO column.'
+        );
+
+        $batch = $this->check($rows, false);
+
+        $row = $this->row($batch, 2);
+        $this->assertSame(AssetImport::READY, $row['status']);
+        $this->assertSame('30014399', $row['asset_code']);
+
+        $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/commit")->assertOk();
+
+        $asset = Asset::where('Asset_code', '30014399')->firstOrFail();
+        $this->assertSame('30014399', $asset->property_id_no);
+
+        // That code is what the sticker encodes: the QR is minted from the
+        // asset code, and the asset code is the client's property number.
+        $this->assertSame('30014399', QrPayload::parse(AssetQr::textFor($asset->Asset_code))['code']);
+
+        // The image needs media storage, which tests do not have; when it was
+        // produced, it must carry the same number.
+        $this->assertTrue(
+            $asset->qr_payload === null
+                || QrPayload::parse((string) $asset->qr_payload)['code'] === '30014399',
+            'A generated sticker must encode the property number.'
+        );
+    }
+
+    public function test_a_line_with_no_number_at_all_takes_a_code_by_hand(): void
+    {
+        $rows = [$this->sourceRow(1, ['property' => '', 'code' => ''])];
+
+        $batch = $this->check($rows);
+
+        $row = $this->row($batch, 2);
+        $this->assertSame(AssetImport::BLOCKED, $row['status']);
+        $this->assertStringContainsString('No asset code yet', implode(' ', array_column($row['issues'], 'text')));
 
         $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/codes", [
             'codes' => [2 => 'nu-2026-0001'],
         ])->assertOk();
 
         $row = $this->row($batch, 2);
-        $this->assertSame(AssetImport::READY, $row['status']);
         $this->assertSame('NU-2026-0001', $row['asset_code']);
+
+        // A code does not invent a property number, so the line is still held.
+        $this->assertSame(AssetImport::BLOCKED, $row['status']);
     }
 
     public function test_a_code_already_used_in_nu_trace_blocks_the_line(): void
@@ -597,19 +664,20 @@ class AssetImportTest extends TestCase
 
     public function test_codes_can_be_proposed_from_a_pattern_without_imposing_a_format(): void
     {
+        // Neither a property number nor a code: the only case that needs one.
         $rows = [
-            $this->sourceRow(1, ['property' => '30021000', 'code' => '']),
-            $this->sourceRow(2, ['property' => '30021001', 'code' => '']),
+            $this->sourceRow(1, ['property' => '', 'code' => '']),
+            $this->sourceRow(2, ['property' => '', 'code' => '']),
         ];
 
         $batch = $this->check($rows);
 
         $this->actingAs($this->admin)->postJson("/admin/assets/import/{$batch}/propose", [
-            'pattern' => 'NU-{property_id}',
+            'pattern' => 'NU-{seq}',
         ])->assertOk();
 
-        $this->assertSame('NU-30021000', $this->row($batch, 2)['asset_code']);
-        $this->assertSame(AssetImport::READY, $this->row($batch, 2)['status']);
+        $this->assertSame('NU-2', $this->row($batch, 2)['asset_code']);
+        $this->assertSame('NU-3', $this->row($batch, 3)['asset_code']);
     }
 
     /* ═══════════════════════════ re-import ═══════════════════════════ */
@@ -996,23 +1064,38 @@ class AssetImportTest extends TestCase
         return [$this->sourceRow(1), $this->sourceRow(2), $this->sourceRow(3)];
     }
 
-    private function csv(array $rows): UploadedFile
+    /**
+     * A registry file. The client's real file has no ASSET CODE column — its
+     * PROPERTY ID NO is the code — so that shape is what $withCodeColumn=false
+     * builds; the column stays here to cover files that do keep a separate code.
+     */
+    private function csv(array $rows, bool $withCodeColumn = true): UploadedFile
     {
         $headings = ['ID NO.', 'PO NO', 'PROPERTY ID NO', 'DESCRIPTION', 'DATE ACQUIRED', 'LOCATION', 'DEPARTMENT', 'TYPE OF ASSET', 'UNIT COST', 'ACCOUNTABLE PERSON', 'ASSET CODE'];
+
+        if (! $withCodeColumn) {
+            array_pop($headings);
+        }
 
         $lines = [implode(',', $headings)];
 
         foreach ($rows as $row) {
+            $cells = [
+                $row['inventory'], $row['po'], $row['property'], $row['description'], $row['date'],
+                $row['location'], $row['department'], $row['category'], $row['cost'], $row['person'], $row['code'],
+            ];
+
+            if (! $withCodeColumn) {
+                array_pop($cells);
+            }
+
             $lines[] = implode(',', array_map(function ($value) {
                 $value = (string) $value;
 
                 return str_contains($value, ',') || str_contains($value, '"')
                     ? '"' . str_replace('"', '""', $value) . '"'
                     : $value;
-            }, [
-                $row['inventory'], $row['po'], $row['property'], $row['description'], $row['date'],
-                $row['location'], $row['department'], $row['category'], $row['cost'], $row['person'], $row['code'],
-            ]));
+            }, $cells));
         }
 
         $path = tempnam(sys_get_temp_dir(), 'inventory') . '.csv';
@@ -1049,10 +1132,10 @@ class AssetImportTest extends TestCase
     }
 
     /** Upload, confirm the mapping, check every row, and hand back the batch id. */
-    private function check(array $rows): int
+    private function check(array $rows, bool $withCodeColumn = true): int
     {
         $upload = $this->actingAs($this->admin)->postJson('/admin/assets/import', [
-            'file' => $this->csv($rows),
+            'file' => $this->csv($rows, $withCodeColumn),
         ])->assertOk();
 
         $batch = (int) $upload->json('batch.id');

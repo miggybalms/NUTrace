@@ -23,10 +23,14 @@ use Throwable;
  * depends on them:
  *
  *   - `assets.id`         NU Trace's own row id
- *   - `assets.Asset_code` the code that is printed on the sticker
  *   - `assets.property_id_no`  the client's PROPERTY ID NO, which is what the
  *                               Asset Management Office uses to recognise the
- *                               same physical asset again
+ *                               same physical asset again — and which is also
+ *                               the code printed on the sticker, because the
+ *                               client's own numbering is the asset code
+ *   - `assets.Asset_code` the code on the sticker and in the QR payload; the
+ *                               property number, unless the file keeps a
+ *                               separate ASSET CODE column
  *
  * A row is checked against the property number first (that is the primary
  * duplicate key), with ID NO. only ever used as a secondary warning. Nothing is
@@ -232,6 +236,15 @@ class AssetImport
             if (count($candidates) === 1) {
                 $mapping[$field] = (int) array_key_first($candidates);
             }
+        }
+
+        // The office's PROPERTY ID NO is the number they already write on the
+        // asset, and it is what goes on our sticker as the Asset Code. A file
+        // that keeps no separate ASSET CODE column therefore already carries
+        // its codes; pointing the mapping at that column shows the truth in the
+        // review page instead of asking for codes that exist.
+        if ($mapping['asset_code'] === null && $mapping['property_id_no'] !== null) {
+            $mapping['asset_code'] = $mapping['property_id_no'];
         }
 
         return $mapping;
@@ -1642,7 +1655,7 @@ class AssetImport
         $code = $code !== null ? AssetCode::normalize($code) : '';
 
         if ($code === '') {
-            $errors[] = 'No asset code yet. Enter the office\'s code for this line, or propose codes from a pattern.';
+            $errors[] = 'No asset code yet: this line has neither a Property ID No. nor an Asset Code. Enter the office\'s code for it, or propose codes from a pattern.';
         } elseif (! AssetCode::isValid($code)) {
             $errors[] = '“' . mb_substr($code, 0, 50) . '” is not a usable asset code. Use letters, numbers, dot, dash, slash or underscore (2–' . AssetCode::MAX_LENGTH . ' characters).';
         } else {
@@ -2454,6 +2467,13 @@ class AssetImport
             $value = $index === null ? '' : trim((string) ($cells[(int) $index] ?? ''));
 
             $payload[$field] = $value;
+        }
+
+        // No separate code means the property number is the code — that is the
+        // number the client already keeps on the asset, so nothing has to be
+        // invented. A blank ASSET CODE cell means the same thing.
+        if ($payload['asset_code'] === '' && $payload['property_id_no'] !== '') {
+            $payload['asset_code'] = $payload['property_id_no'];
         }
 
         return $payload;

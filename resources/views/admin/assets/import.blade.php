@@ -67,8 +67,9 @@
                 <h3 class="font-display text-lg font-semibold text-[#0F2143] mb-1">Bring the fixed asset registry in</h3>
                 <p class="text-sm text-[#5C6474]">
                     Upload the office's Excel or CSV file, confirm which column is which, and check every line before
-                    anything is written. <strong>PROPERTY ID NO</strong> is the duplicate key: an asset already in
-                    NU&nbsp;Trace is skipped, never overwritten. <strong>ID NO.</strong> is only a second opinion.
+                    anything is written. <strong>PROPERTY ID NO</strong> is both the duplicate key and the
+                    <strong>Asset Code</strong> printed on the sticker: an asset already in NU&nbsp;Trace is skipped,
+                    never overwritten. <strong>ID NO.</strong> is only a second opinion.
                 </p>
                 <p class="text-sm text-[#5C6474] mt-2">
                     Rows are checked in windows, so a large workbook is fine. Each imported asset gets its own signed
@@ -92,8 +93,9 @@
                 A second upload of the same file skips everything already registered instead of duplicating it.
             </div>
             <div class="rounded-lg p-3" style="background:var(--gold-100);">
-                <p class="font-semibold" style="color:#7E5E0E;"><i class="ri-price-tag-3-line mr-1"></i>Custom codes only</p>
-                Missing Asset Codes are listed for you to fill in or propose from a pattern — nothing is invented.
+                <p class="font-semibold" style="color:#7E5E0E;"><i class="ri-price-tag-3-line mr-1"></i>Codes come from the file</p>
+                PROPERTY ID NO is used as the Asset Code, so no code is invented or filled in. An ASSET CODE column
+                overrides it when the office keeps one.
             </div>
             <div class="rounded-lg p-3" style="background:var(--steel-tint);">
                 <p class="font-semibold" style="color:var(--steel);"><i class="ri-qr-code-line mr-1"></i>Sticker included</p>
@@ -145,7 +147,8 @@
             <span class="step-dot active" id="dotMapping">2</span>
             <div>
                 <h3 class="font-display text-base font-semibold text-[#0F2143]">Confirm the columns</h3>
-                <p class="text-xs text-[#5C6474]">Detected automatically from the headings — change any that are wrong.</p>
+                <p class="text-xs text-[#5C6474]">Detected automatically from the headings — change any that are wrong. <strong>Asset Code</strong>
+                    defaults to <strong>PROPERTY ID NO</strong>; leave it there unless the file has its own code column.</p>
             </div>
         </div>
         <div class="p-5 sm:p-6">
@@ -229,6 +232,10 @@
         {{-- Codes --}}
         <div class="px-5 sm:px-6 pb-4">
             <p class="eyebrow mb-2">Asset codes</p>
+            <p class="text-xs text-[#5C6474] mb-2 max-w-2xl">
+                A line with a PROPERTY ID NO already has its code — the same number the sticker will carry. This is
+                only for the rare line that has neither a property number nor an ASSET CODE cell.
+            </p>
             <div class="flex flex-wrap items-end gap-2">
                 <div>
                     <label class="text-xs text-[#5C6474] block mb-1" for="codePattern">Propose codes from a pattern</label>

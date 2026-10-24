@@ -18,25 +18,26 @@ then be scanned and edited anywhere else in NU Trace, including the mobile app.
 | `employee_numbers.Department_id → departments.id` | where the person is posted (not necessarily where the asset is). |
 | `users.department_id → departments.id` | the account's department, used for access. |
 | `asset_accountability` | assignment history. An import writes one `Is_Current = 1` row when it assigns somebody. |
-| `assets.Asset_code` | the code printed on the sticker and signed into its payload. **Never** a property number. |
+| `assets.Asset_code` | the code printed on the sticker and signed into its payload. It is the client's **PROPERTY ID NO** unless the file carries its own `ASSET CODE` column. |
 | `assets.department_id` (new) | the department the *asset* belongs to, independent of who holds it. |
 
 Three identifiers are kept apart on purpose:
 
 1. `assets.id` — NU Trace's own row id.
-2. `assets.Asset_code` — the office's custom code, printed on the sticker.
-3. `assets.property_id_no` — the client's **PROPERTY ID NO**, the identifier used
-   to recognise the same physical asset again. `assets.inventory_id_no` keeps the
-   spreadsheet's **ID NO.** as a secondary check only.
+2. `assets.property_id_no` — the client's **PROPERTY ID NO**, the identifier used
+   to recognise the same physical asset again. It is also written to
+   `assets.Asset_code` (§4), so the sticker carries the number the office already
+   keeps on the asset.
+3. `assets.inventory_id_no` — the spreadsheet's **ID NO.**, a secondary check only.
 
-The spreadsheet's `ID NO.` is not `assets.id`, and `PROPERTY ID NO` is never
-written into `Asset_code`.
+The spreadsheet's `ID NO.` is not `assets.id` and is never used as the asset code.
+`PROPERTY ID NO` is.
 
 ## 2. What the file's columns map to
 
 | Source column | NU Trace field | Notes |
 |---|---|---|
-| `PROPERTY ID NO` | `assets.property_id_no` | kept as text (`00014399` stays as written), lower-cased only for comparison |
+| `PROPERTY ID NO` | `assets.property_id_no` **and** `assets.Asset_code` | kept as text (`00014399` stays as written), lower-cased only for comparison; it is the code printed on the sticker |
 | `ID NO.` | `assets.inventory_id_no` | text, secondary identity check |
 | `PO NO` | `assets.po_no` | text; values such as `Donation` are kept verbatim |
 | `DESCRIPTION` | `assets.Asset_name` | this is the asset name |
@@ -46,7 +47,7 @@ written into `Asset_code`.
 | `TYPE OF ASSET` | `assets.Category` | matched to the eight categories the schema accepts |
 | `UNIT COST` | `assets.purchase_Price` | parsed as a number; `accusion_cost` is left empty |
 | `ACCOUNTABLE PERSON` | `assets.user_id` + `assets.accountable_name` | see §6 |
-| *(optional)* `ASSET CODE` | `assets.Asset_code` | only when the workbook already carries the office's custom codes |
+| *(optional)* `ASSET CODE` | `assets.Asset_code` | overrides the property number when the workbook keeps a separate code of its own |
 
 Headings are detected through a normalised alias list (`PROPERTY ID NO`,
 `Property No.`, `PROPERTY ID NO. (old)` …) and every mapping can be corrected on
@@ -73,17 +74,23 @@ on what is still missing.
 * Re-uploading the same workbook therefore imports nothing new and creates no
   new stickers.
 
-## 4. Custom asset codes
+## 4. Asset codes come from the file
 
-The client's sheet has no Asset Code column. For every line without a code:
+The client's sheet has no Asset Code column — its **PROPERTY ID NO** *is* the
+number they keep on the asset. So that number becomes `assets.Asset_code`:
 
-* the line is **Blocked** and listed under *Decisions the file needs from you*;
-* the page offers a pattern (`{property_id}`, `{inventory_id}`, `{seq}`,
-  `{index}`, `{year}`) to fill the blanks, or the code can be typed per line;
+* the sticker prints the PROPERTY ID NO, and scanning it finds the asset by that
+  code;
+* a line with a property number never blocks for a missing code, and the page
+  maps *Asset Code* onto the property column automatically;
+* a separate `ASSET CODE` column, when the workbook has one, wins over the
+  property number;
+* only a line with neither (no property number and no code cell) is listed under
+  *Decisions*, where a code can be typed or proposed from a pattern
+  (`{property_id}`, `{inventory_id}`, `{seq}`, `{index}`, `{year}`);
 * every code is checked against `Asset_code` (existing assets, other lines in the
-  same file, and the reserved/unusable formats `AssetCode` already rejects);
-* nothing is invented without the office pressing the button, and a code cannot
-  be changed later from the asset page — that is a sticker reissue.
+  same file, and the formats `AssetCode` rejects);
+* a code cannot be changed later from the asset page — that is a sticker reissue.
 
 ## 5. Department matching
 
@@ -121,8 +128,8 @@ active accounts) — that is the existing editing path, not a second one.
 ## 7. QR stickers and the scanners
 
 Each imported asset goes through the same `AssetQr::saveSticker()` used by normal
-registration, so it gets the same signed payload (`QrPayload`), the same 50 × 25 mm
-sticker, and it appears in
+registration, so it gets the same signed payload (`QrPayload`) — carrying the
+PROPERTY ID NO as the asset code — the same 50 × 25 mm sticker, and it appears in
 
 * the Admin Asset Scanner and asset page,
 * `/admin/assets/labels?codes=…` — the "Print stickers for this import" link,
@@ -185,9 +192,11 @@ unrecorded. Re-running finishes the job instead of failing on "already exists".
 ## 10. Routine
 
 1. **Assets → Import Inventory**, choose the file, **Read headers**.
-2. Check the detected columns, fix any that are wrong, **Check the rows**.
-3. Work through *Decisions*: departments, `TYPE OF ASSET`, ambiguous names, and
-   fill Asset Codes (pattern or by hand). Apply and re-check.
+2. Check the detected columns, fix any that are wrong, **Check the rows**. Asset
+   Code arrives already pointed at PROPERTY ID NO.
+3. Work through *Decisions*: departments, `TYPE OF ASSET`, ambiguous names. A
+   code only has to be entered for a line that has no property number either.
+   Apply and re-check.
 4. Filter by **Blocked / Review / Exists**, inspect the lines, then **Import**.
 5. Print the stickers from the result card, or open Assets to see them listed.
 6. **Retry failed lines** / **Generate missing stickers** are safe to repeat;
@@ -195,9 +204,9 @@ unrecorded. Re-running finishes the job instead of failing on "already exists".
 
 ## 11. Tests
 
-`tests/Feature/AssetImportTest.php` — 40 tests covering column detection, an
-upload split into parts (joined into one file, cleaned up, resumed by
-fingerprint), the
+`tests/Feature/AssetImportTest.php` — 42 tests covering column detection (and
+Asset Code defaulting to PROPERTY ID NO), an upload split into parts (joined
+into one file, cleaned up, resumed by fingerprint), the
 template, access control, a full import, duplicate and same-file skips, blank
 property numbers, department/category matching and decisions, the five
 accountable-person outcomes, custom codes and collisions, code patterns,
