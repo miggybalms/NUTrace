@@ -147,6 +147,18 @@ Nothing loads the whole file:
 
 * an `.xlsx` is unzipped once into `storage/app/asset-imports/<batch>/`, then read
   in `</row>` windows; a `.csv` is streamed;
+* while it is unzipped, the worksheet is **compacted**: every empty cell is
+  dropped as it is copied. Excel writes one `<c>` element per *styled* column,
+  so the client's registry (320 MB on disk, dimension `A1:XEZ7989`) is nearly
+  3 GB of sheet XML for 7,989 rows of ten real columns. The cached sheet ends up
+  around 4 MB instead of filling the disk, and a 400-row window is read in
+  milliseconds instead of seconds. Nothing with a value is touched, and the copy
+  is only cut at `</row>` boundaries;
+* that one unpack is the only slow step, and it happens inside the request that
+  finishes the upload: on the 320 MB registry it takes roughly a minute here.
+  The page says *Reading the workbook now* while it runs. `nginx.template.conf`
+  raises `fastcgi_read_timeout` to 600 s for it — nginx's default 60 s would cut
+  the connection with a 504 while PHP is still working;
 * each request checks up to `ASSET_IMPORT_CHECK_ROWS` (default 400) rows or
   `ASSET_IMPORT_CHECK_SECONDS` (8 s), then the page asks for the next window;
 * each request writes up to `ASSET_IMPORT_IMPORT_ROWS` (100) assets or
@@ -166,6 +178,17 @@ a value left in a deployment's environment changes nothing). The real ceiling is
 the disk the staging file is written to — staging is removed when the import
 finishes, and parts of an abandoned upload are pruned after `stale_hours`
 (48 hours by default).
+
+Reading an `.xlsx` needs PHP's **zip** extension (`php-zip`), because an `.xlsx`
+is a zip archive. It is installed by `nixpacks.toml` (`php84Extensions.zip`, the
+Railway build) and by both Dockerfiles; without it the page answers
+`Class "ZipArchive" not found` and nothing is imported. The reader now checks for
+the extension itself and says so, instead of failing in the middle of an upload.
+
+The review table pages through the staged lines 50 at a time
+(`ASSET_IMPORT_PREVIEW_ROWS`), with **Previous**, numbered pages, **Next** and the
+line count. A 7,989-line registry is 160 pages, so the pager shows the first,
+the last and the two either side of the current page rather than every number.
 
 ## 9. Migrations
 
@@ -203,13 +226,14 @@ unrecorded. Re-running finishes the job instead of failing on "already exists".
 
 ## 11. Tests
 
-`tests/Feature/AssetImportTest.php` — 44 tests covering column detection (and
+`tests/Feature/AssetImportTest.php` — 46 tests covering column detection (and
 PROPERTY ID NO being the Asset Code), an upload split into parts (joined into
 one file, cleaned up, resumed by fingerprint), the
 template, access control, a full import, duplicate and same-file skips, blank
 property numbers, department/category matching and decisions, the five
 accountable-person outcomes, custom codes and collisions, code patterns,
 re-import idempotence, retry without duplication, xlsx dates and text
-identifiers, and the asset-page edit guards.
+identifiers, a sheet padded with thousands of empty cells (read without keeping
+them), the numbered pager, and the asset-page edit guards.
 
 Run them with `php artisan test --filter=AssetImportTest`.

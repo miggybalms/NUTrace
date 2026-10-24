@@ -250,10 +250,13 @@
             </table>
         </div>
 
-        <div class="px-5 py-3 border-t border-[#EFE9D8] flex items-center justify-between gap-2">
-            <button type="button" class="btn-ghost !py-1.5 !text-xs" id="prevPage" onclick="changePage(-1)">Previous</button>
+        <div class="px-5 py-3 border-t border-[#EFE9D8] flex flex-wrap items-center justify-between gap-2">
             <span class="text-xs text-[#5C6474]" id="pageLabel"></span>
-            <button type="button" class="btn-ghost !py-1.5 !text-xs" id="nextPage" onclick="changePage(1)">Next</button>
+            <div class="flex flex-wrap items-center gap-1">
+                <button type="button" class="btn-ghost !py-1.5 !text-xs" id="prevPage" onclick="changePage(-1)">Previous</button>
+                <span class="flex flex-wrap items-center gap-1" id="pageLinks"></span>
+                <button type="button" class="btn-ghost !py-1.5 !text-xs" id="nextPage" onclick="changePage(1)">Next</button>
+            </div>
         </div>
     </div>
 
@@ -557,6 +560,13 @@
             body.append('total', total);
             body.append('name', file.name);
             body.append('file', slice, file.name);
+
+            // The last slice is the one that joins the file and opens it, so
+            // the wait there is the workbook being read, not the upload.
+            if (index === total - 1) {
+                $('readBtnLabel').textContent = 'Reading…';
+                $('uploadHint').textContent = `All ${total} part(s) are on the server. Reading the workbook now — a very large registry takes a minute; nothing is imported yet.`;
+            }
 
             const data = await uploadPart('/admin/assets/import/part', body);
 
@@ -915,9 +925,52 @@
         $('pageLabel').textContent = `Page ${rowView.page} of ${rowView.pages} · ${rowView.total} line(s)`;
         $('prevPage').disabled = rowView.page <= 1;
         $('nextPage').disabled = rowView.page >= rowView.pages;
+        renderPages();
 
         body.querySelectorAll('select[data-person-line]').forEach(select => {
             select.addEventListener('change', () => savePerson(select.dataset.personLine, select.value));
+        });
+    }
+
+    // Numbered pages, with the first and the last always one click away. A
+    // 300 MB registry can run to hundreds of pages, so the numbers either side
+    // of the current one are shown rather than all of them.
+    function renderPages() {
+        const box = $('pageLinks');
+        if (!rowView) { box.innerHTML = ''; return; }
+
+        const pages = rowView.pages;
+        const current = rowView.page;
+
+        if (pages <= 1) { box.innerHTML = ''; return; }
+
+        const wanted = new Set([1, pages, current, current - 1, current + 1]);
+
+        if (current <= 3) [2, 3, 4].forEach(number => wanted.add(number));
+        if (current >= pages - 2) [pages - 1, pages - 2, pages - 3].forEach(number => wanted.add(number));
+
+        const numbers = [...wanted].filter(number => number >= 1 && number <= pages).sort((a, b) => a - b);
+        let html = '';
+        let previous = 0;
+
+        numbers.forEach(number => {
+            if (previous && number - previous > 1) {
+                html += '<span class="text-xs px-1" style="color:var(--ink-400);">…</span>';
+            }
+
+            html += number === current
+                ? `<span class="badge badge-role">${number}</span>`
+                : `<button type="button" class="btn-ghost !py-1.5 !px-2 !text-xs" data-page="${number}">${number}</button>`;
+
+            previous = number;
+        });
+
+        box.innerHTML = html;
+        box.querySelectorAll('button[data-page]').forEach(button => {
+            button.addEventListener('click', () => {
+                page = Number(button.dataset.page);
+                loadRows();
+            });
         });
     }
 

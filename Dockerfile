@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libpq-dev \
     libcurl4-openssl-dev \
-    && docker-php-ext-install pdo pdo_pgsql \
+    libzip-dev \
+    && docker-php-ext-install pdo pdo_pgsql zip \
     && apt-get clean
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

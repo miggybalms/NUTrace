@@ -32,6 +32,9 @@ class SpreadsheetReader
     /** Columns beyond this are formatting noise, not data. */
     public const MAX_COLUMNS = 80;
 
+    /** How much of a worksheet is copied at a time while it is unpacked. */
+    private const COPY_CHUNK = 1048576;
+
     /** Built-in Excel number formats that mean "date", with or without a time. */
     private const DATE_FORMATS = [14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47];
 
@@ -203,6 +206,13 @@ class SpreadsheetReader
 
     private function openXlsx(): void
     {
+        // Reading an .xlsx is reading a zip, so the extension is not optional.
+        // Saying so here beats a fatal "Class ZipArchive not found" in the
+        // middle of an upload.
+        if (! class_exists(ZipArchive::class)) {
+            throw new RuntimeException('This server cannot read .xlsx files because the PHP zip extension (php-zip) is not installed. Save the workbook as .csv, or install the extension and retry.');
+        }
+
         $zip = new ZipArchive();
 
         if ($zip->open($this->path) !== true) {
@@ -228,11 +238,16 @@ class SpreadsheetReader
     }
 
     /**
-     * Copy a zip entry to the cache directory, once.
+     * Copy the worksheet to the cache directory, once, without its empty cells.
      *
-     * A 300 MB workbook is a few hundred MB of sheet XML at most, and Railway's
-     * disk holds that for the few minutes an import takes. When it cannot, the
-     * office is told to split the file rather than the request dying halfway.
+     * A workbook small on disk can hold a very large sheet: the office's
+     * registry is 320 MB but its dimension is A1:XEZ7989, so nearly 3 GB of XML
+     * is unpacked from it. Almost all of that is empty `<c>` elements Excel
+     * writes for every styled column — 16,000 per row for ten columns of data.
+     * An empty cell has no value (a missing cell reads as blank), so they are
+     * dropped as the sheet is copied and what is cached is the rows themselves.
+     * When the disk still cannot hold it, the office is told to split the file
+     * rather than the request dying halfway.
      */
     private function unpack(string $entry, string $name): string
     {
@@ -250,24 +265,92 @@ class SpreadsheetReader
             throw new RuntimeException('The worksheet could not be unpacked. Save the workbook again and retry.');
         }
 
-        $output = @fopen($destination, 'wb');
+        // Written beside the destination and moved into place only when it is
+        // complete: a request cut off halfway must not leave a half a sheet that
+        // the next attempt would happily reuse.
+        $partial = $destination . '.part';
+
+        $output = @fopen($partial, 'wb');
 
         if ($output === false) {
+            fclose($input);
+
             throw new RuntimeException('The server has no room to unpack that workbook. Split it and import it in parts.');
         }
 
-        $copied = stream_copy_to_stream($input, $output);
+        try {
+            $copied = self::copyRows($input, $output);
+        } finally {
+            fclose($input);
+            fclose($output);
+        }
 
-        fclose($input);
-        fclose($output);
-
-        if (! $copied) {
-            @unlink($destination);
+        if (! $copied || ! @rename($partial, $destination)) {
+            @unlink($partial);
 
             throw new RuntimeException('The worksheet could not be unpacked. Save the workbook again and retry.');
         }
 
         return $destination;
+    }
+
+    /**
+     * Copy a worksheet through, dropping the empty cells.
+     *
+     * The copy is cut only at `</row>` boundaries, so a cell is never split in
+     * half and no value is rewritten; only elements that carry none are
+     * removed.
+     *
+     * @param resource $input
+     * @param resource $output
+     */
+    private static function copyRows($input, $output): int
+    {
+        $written = 0;
+        $carry = '';
+
+        while (! feof($input)) {
+            $chunk = fread($input, self::COPY_CHUNK);
+
+            if ($chunk === false || $chunk === '') {
+                break;
+            }
+
+            $buffer = $carry . $chunk;
+            $matches = [];
+
+            // Any prefix is allowed: PhpSpreadsheet writes <x:row> where Excel
+            // writes <row>, and both end the same way.
+            if (! preg_match_all('#</(?:[A-Za-z0-9_.-]+:)?row>#i', $buffer, $matches, PREG_OFFSET_CAPTURE)) {
+                $carry = $buffer;
+
+                continue;
+            }
+
+            $last = end($matches[0]);
+            $cut = $last[1] + strlen($last[0]);
+
+            $written += self::writeWithoutEmptyCells(substr($buffer, 0, $cut), $output);
+            $carry = substr($buffer, $cut);
+        }
+
+        $written += self::writeWithoutEmptyCells($carry, $output);
+
+        return $written;
+    }
+
+    /** @param resource $output */
+    private static function writeWithoutEmptyCells(string $xml, $output): int
+    {
+        // `<c r="K1" s="8"/>` and `<c r="K1" s="8"></c>` are the same thing:
+        // a styled column with nothing in it. A cell with no `r` attribute is
+        // never written this way — its column comes from the cell before it, so
+        // dropping it would shift its neighbours — so these two patterns are
+        // safe: they only ever remove a cell that names itself and is empty.
+        $xml = preg_replace('#<(?:[A-Za-z0-9_.-]+:)?c\b[^>]*/>#i', '', $xml) ?? $xml;
+        $xml = preg_replace('#<(?:[A-Za-z0-9_.-]+:)?c\b[^>]*>\s*</(?:[A-Za-z0-9_.-]+:)?c>#i', '', $xml) ?? $xml;
+
+        return (int) fwrite($output, $xml);
     }
 
     /**

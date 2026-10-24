@@ -806,6 +806,55 @@ class AssetImportTest extends TestCase
         @unlink($path);
     }
 
+    public function test_a_sheet_padded_with_empty_cells_is_read_without_keeping_them(): void
+    {
+        // The office's registry is 320 MB on disk and nearly 3 GB of XML: 7,989
+        // rows of ten columns in a sheet dimensioned to 16,380 columns, so every
+        // row carries thousands of empty styled cells. Reading it has to work,
+        // and what is cached must be the rows, not the padding.
+        $path = $this->paddedXlsx();
+        $cache = storage_path('framework/testing/import-' . uniqid());
+
+        $reader = SpreadsheetReader::open($path, 'xlsx', $cache);
+
+        $this->assertSame(['ID NO.', 'PROPERTY ID NO'], $reader->headers());
+
+        $rows = iterator_to_array($reader->rowsFrom($reader->dataOffset()), false);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(['001', '30014399'], array_values($rows[0]['cells']));
+
+        $zip = new ZipArchive();
+        $zip->open($path);
+        $raw = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $this->assertLessThan(
+            strlen($raw) / 20,
+            filesize($cache . '/sheet.xml'),
+            'Empty cells must not be kept in the cached worksheet.'
+        );
+
+        $reader->close();
+
+        foreach (glob($cache . '/*') ?: [] as $file) {
+            @unlink($file);
+        }
+
+        @rmdir($cache);
+        @unlink($path);
+    }
+
+    public function test_the_review_table_has_numbered_pages(): void
+    {
+        $this->actingAs($this->admin)
+            ->get('/admin/assets/import')
+            ->assertOk()
+            ->assertSee('id="pageLinks"', false)
+            ->assertSee('function renderPages', false)
+            ->assertSee('data-page="${number}"', false);
+    }
+
     /* ═════════════════ completing a record after the import ═════════════════ */
 
     public function test_an_imported_record_is_corrected_from_its_own_page(): void
@@ -1271,6 +1320,78 @@ class AssetImportTest extends TestCase
         $zip->close();
 
         return $path;
+    }
+
+    /**
+     * An .xlsx shaped like the client's: a handful of columns of data in a row
+     * padded out with thousands of empty styled cells.
+     */
+    private function paddedXlsx(): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'workbook-padded') . '.xlsx';
+
+        $zip = new ZipArchive();
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                <Default Extension="xml" ContentType="application/xml"/>
+            </Types>');
+
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+            </Relationships>');
+
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                <sheets><sheet name="Fixed Asset Registry" sheetId="1" r:id="rId1"/></sheets>
+            </workbook>');
+
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+            </Relationships>');
+
+        $padding = '';
+
+        for ($column = 2; $column < 4000; $column++) {
+            $padding .= '<c r="' . self::columnLetters($column) . '1" s="1"/>';
+            $padding .= '<c r="' . self::columnLetters($column) . '2" s="1"/>';
+        }
+
+        $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8"?>
+            <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
+                <row r="1" spans="1:16380">
+                    <c r="A1" t="inlineStr"><is><t>ID NO.</t></is></c>
+                    <c r="B1" t="inlineStr"><is><t>PROPERTY ID NO</t></is></c>
+                    ' . $padding . '
+                </row>
+                <row r="2" spans="1:16380">
+                    <c r="A2" t="inlineStr"><is><t>001</t></is></c>
+                    <c r="B2" t="inlineStr"><is><t>30014399</t></is></c>
+                </row>
+            </sheetData></worksheet>');
+
+        $zip->close();
+
+        return $path;
+    }
+
+    /** 0 -> A, 25 -> Z, 26 -> AA. */
+    private static function columnLetters(int $index): string
+    {
+        $letters = '';
+        $index++;
+
+        while ($index > 0) {
+            $index--;
+            $letters = chr(65 + $index % 26) . $letters;
+            $index = intdiv($index, 26);
+        }
+
+        return $letters;
     }
 
     /** A minimal but genuine .xlsx: shared strings are not used, dates get a style. */

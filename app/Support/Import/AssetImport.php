@@ -287,6 +287,10 @@ class AssetImport
         // to. The page sends a large file in parts so no request has to carry
         // the whole thing.
 
+        // Unpacking the worksheet happens here, and on a big registry it is the
+        // longest step of the upload: no request timeout should cut it in half.
+        @set_time_limit(0);
+
         $extension = strtolower((string) ($file->getClientOriginalExtension() ?: 'xlsx'));
 
         // `.xls` is accepted here so a CSV saved under that name is read by its
