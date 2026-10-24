@@ -265,18 +265,14 @@ class AssetImport
         if (! $file->isValid()) {
             return [
                 'ok'      => false,
-                'message' => 'The file did not upload completely. If it is very large, raise PHP\'s upload_max_filesize and post_max_size, or split the file and import it in parts.',
+                'message' => 'The file did not upload completely. Choose it again — nothing was imported.',
             ];
         }
 
-        $maxBytes = (int) config('asset_import.max_bytes', 0);
-
-        if ($maxBytes > 0 && $file->getSize() > $maxBytes) {
-            return [
-                'ok'      => false,
-                'message' => 'That file is larger than the ' . round($maxBytes / 1048576) . ' MB limit set for an import. Split it into smaller files — re-importing is safe, because an asset already in NU Trace is skipped.',
-            ];
-        }
+        // There is no size check here on purpose: a workbook of any size is
+        // accepted, and the only bound is the disk the staging copy is written
+        // to. The page sends a large file in parts so no request has to carry
+        // the whole thing.
 
         $extension = strtolower((string) ($file->getClientOriginalExtension() ?: 'xlsx'));
 
@@ -387,6 +383,212 @@ class AssetImport
             'batch'  => self::payload($batch),
             'sample' => self::sample($batch),
         ];
+    }
+
+    /* ═══════════════════════ uploads in parts ═══════════════════════ */
+
+    /**
+     * How large one uploaded slice may be.
+     *
+     * The browser splits a file into slices of this size, so the file a
+     * registry may be is never decided by PHP's upload_max_filesize: a 900 MB
+     * workbook is simply more slices. The size below is the smaller of
+     * ASSET_IMPORT_PART_MB and whatever this server will actually accept in one
+     * request, less a margin for the multipart envelope.
+     */
+    public static function partBytes(): int
+    {
+        $ceiling = PHP_INT_MAX;
+
+        foreach (['upload_max_filesize', 'post_max_size'] as $setting) {
+            $value = self::iniBytes((string) ini_get($setting));
+
+            if ($value > 0) {
+                $ceiling = min($ceiling, $value);
+            }
+        }
+
+        $configured = (int) config('asset_import.part_bytes', 0);
+        $wanted = $configured > 0 ? $configured : 8 * 1048576;
+        $bytes = min($wanted, $ceiling);
+
+        if ($ceiling !== PHP_INT_MAX) {
+            // A body exactly at post_max_size is discarded before Laravel sees
+            // it, so leave room for the form fields and the boundary.
+            $bytes = min($bytes, max(128 * 1024, $ceiling - 64 * 1024));
+        }
+
+        return max(64 * 1024, (int) $bytes);
+    }
+
+    /**
+     * One slice of a file being uploaded in parts.
+     *
+     * Slices arrive one after another and are kept under
+     * `asset-imports/_parts/<upload_id>/`; nothing is checked until the last
+     * missing one lands. Then they are joined in order into a real file and
+     * handed to start(), so a workbook uploaded in parts takes exactly the same
+     * path as one uploaded in a single request: same size check, same
+     * fingerprint, same column detection, same batch.
+     *
+     * Re-sending a slice simply replaces it, which is what makes a retry after
+     * a dropped connection safe.
+     *
+     * @return array{ok: bool, message?: string, received?: int, total?: int, batch?: array, sample?: array}
+     */
+    public static function storePart(string $uploadId, int $index, int $total, UploadedFile $part, string $originalName, ?User $actor): array
+    {
+        if (! preg_match('/^[0-9a-f]{32}$/', $uploadId)) {
+            return ['ok' => false, 'message' => 'That upload could not be identified. Reload the page and choose the file again.'];
+        }
+
+        if ($total < 1 || $total > 100000 || $index < 0 || $index >= $total) {
+            return ['ok' => false, 'message' => 'That upload arrived out of step. Reload the page and try again.'];
+        }
+
+        $extension = strtolower((string) (pathinfo($originalName, PATHINFO_EXTENSION) ?: 'xlsx'));
+
+        if (! in_array($extension, ['xlsx', 'csv', 'txt', 'tsv', 'xls'], true)) {
+            return ['ok' => false, 'message' => 'Only an .xlsx or .csv file can be imported.'];
+        }
+
+        $disk = Storage::disk('local');
+        $directory = self::partsDirectory($uploadId);
+        $disk->makeDirectory($directory);
+
+        if (! $part->storeAs($directory, $index . '.part', 'local')) {
+            return ['ok' => false, 'message' => 'One part of the file could not be stored on the server. Please try again.'];
+        }
+
+        // One file per slice, named by its index, so repeated slices overwrite
+        // and a retry after a dropped connection costs only that slice.
+        $received = count(array_filter(
+            $disk->files($directory),
+            fn (string $file) => str_ends_with($file, '.part')
+        ));
+
+        if ($received < $total) {
+            // The answer to the slice that completed the set can be lost in
+            // transit. The marker left behind says the file really was joined,
+            // so the retried slice opens that batch instead of waiting forever
+            // for slices the server has already discarded.
+            $joined = $disk->exists($directory . '/joined.txt')
+                ? (int) $disk->get($directory . '/joined.txt')
+                : 0;
+
+            $batch = $joined > 0 ? self::batch($joined) : null;
+
+            if ($batch) {
+                return [
+                    'ok'         => true,
+                    'batch'      => self::payload($batch),
+                    'sample'     => self::sample($batch),
+                    'message'    => 'This file was already uploaded — the import below was created from it.',
+                    'received'   => $total,
+                    'total'      => $total,
+                ];
+            }
+
+            return ['ok' => true, 'received' => $received, 'total' => $total];
+        }
+
+        $assembled = $directory . '/source.' . $extension;
+
+        // Join into a name only this request uses, then rename it into place:
+        // a rename is atomic, so a second request that finishes at the same
+        // moment can never be handed a half-written workbook.
+        $scratch = $directory . '/join-' . $index . '.' . $extension;
+
+        try {
+            if (! self::joinParts($disk->path($directory), $total, $disk->path($scratch))) {
+                return ['ok' => false, 'message' => 'The parts could not be joined on the server. Please try again.'];
+            }
+
+            if (! $disk->move($scratch, $assembled)) {
+                return ['ok' => false, 'message' => 'The joined file could not be opened on the server. Please try again.'];
+            }
+
+            $file = new UploadedFile($disk->path($assembled), $originalName, $part->getClientMimeType(), null, true);
+
+            $result = self::start($file, $actor);
+        } finally {
+            // Whatever happened, the slices must not stay on the disk: start()
+            // has already moved the joined file into the batch.
+            try {
+                foreach ($disk->files($directory) as $file) {
+                    if (str_ends_with($file, '.part') || str_contains(basename($file), 'join-')) {
+                        $disk->delete($file);
+                    }
+                }
+            } catch (Throwable $e) {
+                Log::warning('Could not remove import parts for upload ' . $uploadId . ': ' . $e->getMessage());
+            }
+        }
+
+        if (($result['ok'] ?? false) && isset($result['batch']['id'])) {
+            $disk->put($directory . '/joined.txt', (string) $result['batch']['id']);
+        }
+
+        return $result + ['received' => $total, 'total' => $total];
+    }
+
+    /** Join `<index>.part` files, in order, into one file. */
+    private static function joinParts(string $directory, int $total, string $target): bool
+    {
+        // A large workbook takes a few seconds to join; no request timeout
+        // should cut it in half. CLI servers ignore this anyway.
+        @set_time_limit(0);
+
+        $out = @fopen($target, 'wb');
+
+        if (! $out) {
+            return false;
+        }
+
+        try {
+            for ($i = 0; $i < $total; $i++) {
+                $in = @fopen($directory . '/' . $i . '.part', 'rb');
+
+                if (! $in) {
+                    return false;
+                }
+
+                $copied = stream_copy_to_stream($in, $out);
+                fclose($in);
+
+                if ($copied === false) {
+                    return false;
+                }
+            }
+        } finally {
+            fclose($out);
+        }
+
+        return true;
+    }
+
+    private static function partsDirectory(string $uploadId): string
+    {
+        return 'asset-imports/_parts/' . $uploadId;
+    }
+
+    /** PHP's "2M" / "512K" / "1G" ini values, in bytes; 0 when unlimited. */
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+
+        if ($value === '' || $value === '-1') {
+            return 0;
+        }
+
+        if (! preg_match('/^([\d.]+)\s*([kmg])?/i', $value, $matches)) {
+            return 0;
+        }
+
+        $unit = strtolower($matches[2] ?? '');
+        $power = ['k' => 1, 'm' => 2, 'g' => 3][$unit] ?? 0;
+
+        return (int) ((float) $matches[1] * (1024 ** $power));
     }
 
     /** Column mapping confirmed by the office; rows are re-checked from scratch. */
@@ -2414,6 +2616,22 @@ class AssetImport
 
             $hours = max(1, (int) config('asset_import.stale_hours', 48));
             $cutoff = now()->subHours($hours)->timestamp;
+
+            // Parts of an upload that was abandoned halfway: nothing will ever
+            // join them, so they are only taking up disk.
+            if ($disk->exists('asset-imports/_parts')) {
+                foreach ($disk->directories('asset-imports/_parts') as $directory) {
+                    $newest = 0;
+
+                    foreach ($disk->allFiles($directory) as $file) {
+                        $newest = max($newest, (int) $disk->lastModified($file));
+                    }
+
+                    if (($newest > 0 ? $newest : (int) $disk->lastModified($directory)) < $cutoff) {
+                        $disk->deleteDirectory($directory);
+                    }
+                }
+            }
 
             foreach ($disk->directories('asset-imports') as $directory) {
                 $id = (int) basename($directory);

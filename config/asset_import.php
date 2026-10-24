@@ -8,15 +8,20 @@
  * large workbook never has to fit in one request. The numbers below are the
  * size of one window, not a limit on the whole file.
  *
- * `max_bytes` still matters, because the file has to be uploaded before it can
- * be streamed. PHP's own upload_max_filesize / post_max_size must be at least
- * this large (see the Import page's note, and .env.example); when it is not,
- * PHP discards the upload before Laravel sees it and the page says so.
+ * The upload itself has no size limit: the Import page sends the file in parts
+ * of `part_bytes`, so PHP's upload_max_filesize / post_max_size never decide
+ * how big a registry may be. `part_bytes` is also capped at whatever this
+ * server will accept in one request, so the default works unmodified.
  */
 return [
 
-    /* Largest upload accepted, in bytes. 0 disables the check (not advised). */
-    'max_bytes' => ((int) env('ASSET_IMPORT_MAX_MB', 200)) * 1024 * 1024,
+    /*
+    | Size of one uploaded slice. The page splits a file into slices of this
+    | size and the server joins them, so this is a request size, not a limit on
+    | the workbook. Capped at PHP's own upload limits when they are lower.
+    */
+
+    'part_bytes' => ((int) env('ASSET_IMPORT_PART_MB', 8)) * 1024 * 1024,
 
     /* Rows checked per request while reviewing a file. */
     'check_rows' => (int) env('ASSET_IMPORT_CHECK_ROWS', 400),

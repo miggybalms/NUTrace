@@ -55,7 +55,7 @@
 ])
 
 @php
-    $uploadLimit = $uploadMax ?? 'the server default';
+    $partMb = number_format(max(1, (int) round(($partBytes ?? 8 * 1048576) / 1048576)));
 @endphp
 
 <div class="p-4 sm:p-8 space-y-5" id="importApp">
@@ -108,7 +108,7 @@
             <span class="step-dot active" id="dotUpload">1</span>
             <div>
                 <h3 class="font-display text-base font-semibold text-[#0F2143]">Choose the file</h3>
-                <p class="text-xs text-[#5C6474]">.xlsx or .csv · up to {{ $uploadLimit }} accepted by this server</p>
+                <p class="text-xs text-[#5C6474]">.xlsx or .csv · no size limit — a large file is sent in parts of {{ $partMb }} MB</p>
             </div>
         </div>
         <div class="p-5 sm:p-6">
@@ -330,6 +330,9 @@
 
 <script>
     const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    // The largest slice the server will take in one request; a bigger file is
+    // uploaded as several slices, so it is not a limit on the workbook.
+    const PART_BYTES = {{ (int) ($partBytes ?? 8388608) }};
     const FIELDS = @json($fields);
     const HEADINGS = @json($batch['header'] ?? []);
     const DEPARTMENTS = @json($departments ?? []);
@@ -497,6 +500,96 @@
             </tbody>`;
     }
 
+    /* ── Uploading the file, at any size ──────────────────────── */
+
+    /* A 32-character hex name for one upload, so its slices keep together. */
+    function newUploadId() {
+        if (window.crypto && crypto.getRandomValues) {
+            return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+                .map(byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        let id = '';
+        for (let i = 0; i < 32; i++) id += Math.floor(Math.random() * 16).toString(16);
+        return id;
+    }
+
+    /* The first thing a failed response actually said. */
+    function validationMessage(data) {
+        if (!data) return '';
+        if (data.message) return data.message;
+
+        const errors = data.errors || {};
+        const first = Object.keys(errors)[0];
+
+        return first && errors[first] && errors[first][0] ? errors[first][0] : '';
+    }
+
+    /* Send one slice, retrying a dropped connection a few times. */
+    async function uploadPart(url, body) {
+        let last = null;
+
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body,
+                });
+                const data = await response.json().catch(() => null);
+
+                if (response.ok && data && data.ok) return data;
+
+                last = { ok: false, message: validationMessage(data) || 'The server did not answer while part of the file was uploading.' };
+
+                // A refused slice (bad name, expired page) will not upload
+                // better on a second try; a dropped one will.
+                if (response.status === 419 || response.status === 422) return last;
+            } catch (e) {
+                last = { ok: false, message: 'The connection dropped while part of the file was uploading.' };
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        }
+
+        return last;
+    }
+
+    /*
+     * Split the file into slices the server can accept and send them one at a
+     * time. The server joins them, so the size of the workbook is bounded by
+     * the disk, not by PHP's upload limit. The slice that completes the set
+     * answers with the batch, exactly like a single-request upload.
+     */
+    async function uploadInParts(file) {
+        const total = Math.ceil(file.size / PART_BYTES);
+        const uploadId = newUploadId();
+        const megabytes = (file.size / 1048576).toFixed(1);
+
+        for (let index = 0; index < total; index++) {
+            const slice = file.slice(index * PART_BYTES, Math.min((index + 1) * PART_BYTES, file.size));
+            const body = new FormData();
+            body.append('upload_id', uploadId);
+            body.append('index', index);
+            body.append('total', total);
+            body.append('name', file.name);
+            body.append('file', slice, file.name);
+
+            const data = await uploadPart('/admin/assets/import/part', body);
+
+            if (!data || !data.ok) {
+                return { ok: false, message: (data && data.message) || `Part ${index + 1} of ${total} did not upload.` };
+            }
+
+            $('readBtnLabel').textContent = `Uploading ${Math.round(((index + 1) / total) * 100)}%`;
+            $('uploadHint').textContent = `Sent ${Math.floor(Math.min(file.size, (index + 1) * PART_BYTES) / 1048576)} MB of ${megabytes} MB (part ${index + 1} of ${total}) — nothing is imported yet.`;
+
+            if (data.batch) return data;
+        }
+
+        return { ok: false, message: 'The file finished uploading but the server did not open it. Try again.' };
+    }
+
     /* ── Steps ────────────────────────────────────────────────── */
 
     async function readFile() {
@@ -505,21 +598,31 @@
         if (!input.files.length) { notify(false, 'Choose the inventory file first.'); return; }
 
         const file = input.files[0];
-        const body = new FormData();
-        body.append('file', file);
+        const hint = $('uploadHint');
+        const hintText = hint.textContent;
 
-        setBusy($('readBtn'), true, 'Reading…');
+        setBusy($('readBtn'), true, 'Uploading…');
+        hint.textContent = `Uploading ${file.name} (${(file.size / 1048576).toFixed(1)} MB)…`;
 
         try {
-            const response = await fetch('/admin/assets/import', {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-                body,
-            });
-            const data = await response.json().catch(() => ({ ok: false, message: 'The server did not answer. If the file is very large, the server may have refused the upload.' }));
+            let data;
 
-            if (!response.ok || !data.ok) {
-                notify(false, data.message || 'That file could not be read.');
+            if (file.size > PART_BYTES) {
+                data = await uploadInParts(file);
+            } else {
+                const body = new FormData();
+                body.append('file', file);
+
+                const response = await fetch('/admin/assets/import', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body,
+                });
+                data = await response.json().catch(() => ({ ok: false, message: 'The server did not answer.' }));
+            }
+
+            if (!data || !data.ok) {
+                notify(false, (data && data.message) || 'That file could not be read.');
                 return;
             }
 
@@ -536,8 +639,9 @@
             $('checkBtnLabel').textContent = 'Check the rows';
             window.scrollTo({ top: $('mappingCard').offsetTop - 20, behavior: 'smooth' });
         } catch (e) {
-            notify(false, 'That file could not be uploaded. If it is larger than the server allows, split it and import it in parts.');
+            notify(false, 'That file could not be uploaded. Check the connection and try again — nothing was imported.');
         } finally {
+            hint.textContent = hintText;
             setBusy($('readBtn'), false, 'Read headers');
         }
     }

@@ -89,6 +89,129 @@ class AssetImportTest extends TestCase
         $this->assertSame(10, $mapping['asset_code']);
     }
 
+    /* ═══════════════════════ uploads of any size ═══════════════════════ */
+
+    public function test_a_file_can_be_uploaded_in_parts_and_is_read_as_one_workbook(): void
+    {
+        $bytes = file_get_contents($this->csv($this->rows())->getRealPath());
+        $total = 3;
+        $size = (int) ceil(strlen($bytes) / $total);
+        $uploadId = bin2hex(random_bytes(16));
+
+        $last = null;
+
+        for ($index = 0; $index < $total; $index++) {
+            $response = $this->actingAs($this->admin)->post('/admin/assets/import/part', [
+                'upload_id' => $uploadId,
+                'index'     => $index,
+                'total'     => $total,
+                'name'      => 'Fixed Asset Registry 2026.csv',
+                'file'      => UploadedFile::fake()->createWithContent(
+                    'part-' . $index . '.part',
+                    substr($bytes, $index * $size, $size)
+                ),
+            ])->assertOk();
+
+            // Only the part that completes the set opens the batch.
+            if ($index < $total - 1) {
+                $response->assertJsonPath('received', $index + 1);
+                $this->assertNull($response->json('batch'));
+            }
+
+            $last = $response;
+        }
+
+        $last->assertJsonPath('ok', true);
+        $this->assertSame(strlen($bytes), $last->json('batch.size_bytes'));
+        $this->assertSame(2, $last->json('batch.mapping.property_id_no'));
+
+        // The joined file is the real one: its columns were detected from it.
+        $this->assertSame('PROPERTY ID NO', $last->json('batch.header.2'));
+
+        // The slices are discarded once joined; a marker stays so a retried
+        // last slice can find the batch it already made.
+        $left = Storage::disk('local')->files('asset-imports/_parts/' . $uploadId);
+        $this->assertSame([], array_values(array_filter($left, fn (string $file) => str_ends_with($file, '.part'))));
+        $this->assertContains('asset-imports/_parts/' . $uploadId . '/joined.txt', $left);
+    }
+
+    public function test_a_workbook_sent_in_parts_is_recognised_if_it_is_sent_again_whole(): void
+    {
+        $batchId = $this->uploadParts($this->rows());
+
+        $again = $this->actingAs($this->admin)->postJson('/admin/assets/import', [
+            'file' => $this->csv($this->rows()),
+        ])->assertOk();
+
+        // Same bytes, same fingerprint: the open batch is resumed, not doubled.
+        $this->assertSame($batchId, $again->json('batch.id'));
+        $this->assertStringContainsString('already open', (string) $again->json('message'));
+    }
+
+    public function test_a_retried_last_slice_opens_the_batch_it_already_created(): void
+    {
+        $bytes = file_get_contents($this->csv($this->rows())->getRealPath());
+        $total = 2;
+        $size = (int) ceil(strlen($bytes) / $total);
+        $uploadId = bin2hex(random_bytes(16));
+
+        $send = fn (int $index) => $this->actingAs($this->admin)->post('/admin/assets/import/part', [
+            'upload_id' => $uploadId,
+            'index'     => $index,
+            'total'     => $total,
+            'name'      => 'Fixed Asset Registry 2026.csv',
+            'file'      => UploadedFile::fake()->createWithContent(
+                'part-' . $index . '.part',
+                substr($bytes, $index * $size, $size)
+            ),
+        ])->assertOk();
+
+        $send(0)->assertJsonPath('received', 1);
+        $batchId = (int) $send(1)->json('batch.id');
+
+        // The browser lost the answer to the last slice and sent it again.
+        $again = $send(1);
+
+        $again->assertJsonPath('batch.id', $batchId);
+        $this->assertStringContainsString('already uploaded', (string) $again->json('message'));
+        $this->assertSame(1, DB::table('asset_import_batches')->where('file_hash', hash('sha256', $bytes))->count());
+    }
+
+    public function test_an_upload_id_that_is_not_hex_is_refused(): void
+    {
+        $this->actingAs($this->admin)->postJson('/admin/assets/import/part', [
+            'upload_id' => '../../escape',
+            'index'     => 0,
+            'total'     => 1,
+            'name'      => 'inventory.csv',
+            'file'      => $this->csv($this->rows()),
+        ])->assertStatus(422)->assertJsonValidationErrors('upload_id');
+    }
+
+    public function test_a_slice_outside_the_set_is_refused(): void
+    {
+        $this->actingAs($this->admin)->post('/admin/assets/import/part', [
+            'upload_id' => str_repeat('b', 32),
+            'index'     => 2,
+            'total'     => 2,
+            'name'      => 'inventory.csv',
+            'file'      => $this->csv($this->rows()),
+        ])->assertStatus(422);
+    }
+
+    public function test_a_file_is_never_refused_for_its_size(): void
+    {
+        // There is no size rule at all — the upload is bounded by the disk, not
+        // by a configured ceiling left over from an older deployment.
+        $this->actingAs($this->admin)->postJson('/admin/assets/import', [
+            'file' => $this->csv($this->rows()),
+        ])->assertOk();
+
+        // A part is never larger than one request can carry.
+        $this->assertGreaterThanOrEqual(65536, AssetImport::partBytes());
+        $this->assertLessThanOrEqual(8 * 1048576, AssetImport::partBytes());
+    }
+
     public function test_the_template_can_be_downloaded(): void
     {
         $response = $this->actingAs($this->admin)->get('/admin/assets/import/template');
@@ -105,6 +228,16 @@ class AssetImportTest extends TestCase
 
         $this->actingAs($employee)->get('/admin/assets/import')->assertForbidden();
         $this->actingAs($employee)->postJson('/admin/assets/import', ['file' => $this->csv($this->rows())])->assertForbidden();
+    }
+
+    public function test_the_import_page_does_not_announce_a_size_cap(): void
+    {
+        $this->actingAs($this->admin)
+            ->get('/admin/assets/import')
+            ->assertOk()
+            ->assertSee('no size limit')
+            // The page slices the file at the size the server can actually take.
+            ->assertSee('const PART_BYTES = ' . AssetImport::partBytes(), false);
     }
 
     /* ═══════════════════════════ identity rules ═══════════════════════════ */
@@ -886,6 +1019,33 @@ class AssetImportTest extends TestCase
         file_put_contents($path, implode("\n", $lines));
 
         return new UploadedFile($path, 'Fixed Asset Registry 2026.csv', 'text/csv', null, true);
+    }
+
+    /** Send the registry in slices, the way the Import page does; return its batch id. */
+    private function uploadParts(array $rows, int $total = 3): int
+    {
+        $bytes = file_get_contents($this->csv($rows)->getRealPath());
+        $size = (int) ceil(strlen($bytes) / $total);
+        $uploadId = bin2hex(random_bytes(16));
+
+        $last = null;
+
+        for ($index = 0; $index < $total; $index++) {
+            $last = $this->actingAs($this->admin)->post('/admin/assets/import/part', [
+                'upload_id' => $uploadId,
+                'index'     => $index,
+                'total'     => $total,
+                'name'      => 'Fixed Asset Registry 2026.csv',
+                'file'      => UploadedFile::fake()->createWithContent(
+                    'part-' . $index . '.part',
+                    substr($bytes, $index * $size, $size)
+                ),
+            ])->assertOk();
+        }
+
+        $last->assertJsonPath('ok', true);
+
+        return (int) $last->json('batch.id');
     }
 
     /** Upload, confirm the mapping, check every row, and hand back the batch id. */

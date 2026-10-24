@@ -148,12 +148,18 @@ Nothing loads the whole file:
 * progress is stored in `asset_import_batches` / `asset_import_rows`, so a reload
   or a lost connection resumes the same batch instead of starting over.
 
-The only hard limit is the upload itself: `ASSET_IMPORT_MAX_MB` (default 200 in
-`config/asset_import.php`) and PHP's `upload_max_filesize` / `post_max_size`,
-whichever is smaller — the page prints the real number. For a ~300 MB workbook
-either raise both (`php.ini`: `upload_max_filesize = 300M`,
-`post_max_size = 310M`) or split it by year/department; re-importing is safe
-because already-registered property numbers are skipped.
+The upload itself has no size limit. A file larger than `ASSET_IMPORT_PART_MB`
+is sent by the page in slices to `POST /admin/assets/import/part`; each slice is
+retried on its own if the connection drops, and the server joins them in order
+before reading anything. The slice size is automatically capped at
+`min(upload_max_filesize, post_max_size) − 64 KB`, so the default PHP limits
+(2 MB) need no `php.ini` change: a 1 GB registry is simply ~500 slices.
+
+There is no file-size check at all (`ASSET_IMPORT_MAX_MB` is no longer read, so
+a value left in a deployment's environment changes nothing). The real ceiling is
+the disk the staging file is written to — staging is removed when the import
+finishes, and parts of an abandoned upload are pruned after `stale_hours`
+(48 hours by default).
 
 ## 9. Migrations
 
@@ -189,7 +195,9 @@ unrecorded. Re-running finishes the job instead of failing on "already exists".
 
 ## 11. Tests
 
-`tests/Feature/AssetImportTest.php` — 26 tests covering column detection, the
+`tests/Feature/AssetImportTest.php` — 40 tests covering column detection, an
+upload split into parts (joined into one file, cleaned up, resumed by
+fingerprint), the
 template, access control, a full import, duplicate and same-file skips, blank
 property numbers, department/category matching and decisions, the five
 accountable-person outcomes, custom codes and collisions, code patterns,

@@ -2534,6 +2534,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/assets/import', [AssetImportController::class, 'index'])->name('admin.assets.import');
     Route::get('/admin/assets/import/template', [AssetImportController::class, 'template'])->name('admin.assets.import.template');
     Route::post('/admin/assets/import', [AssetImportController::class, 'upload'])->name('admin.assets.import.upload');
+    Route::post('/admin/assets/import/part', [AssetImportController::class, 'part'])->name('admin.assets.import.part');
 
     Route::post('/admin/assets/import/{batch}/mapping', [AssetImportController::class, 'mapping'])->whereNumber('batch');
     Route::post('/admin/assets/import/{batch}/step', [AssetImportController::class, 'step'])->whereNumber('batch');

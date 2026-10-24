@@ -35,24 +35,60 @@ class AssetImportController extends Controller
             'fields'      => AssetImport::fieldLabels(),
             'labels'      => AssetImport::CATEGORIES,
             'assignable'  => $this->assignablePeople(),
-            'uploadMax'   => $this->uploadLimit(),
+            'partBytes'   => AssetImport::partBytes(),
         ]);
     }
 
     public function upload(Request $request): JsonResponse
     {
-        $maxKb = max(1, (int) (config('asset_import.max_bytes', 0) / 1024));
-
+        // No max: rule — the file may be of any size. A file too large for one
+        // request is sent in parts to part() instead.
         $validated = $request->validate([
-            'file' => 'required|file|max:' . $maxKb,
+            'file' => 'required|file',
         ], [
             'file.required' => 'Choose the inventory file first.',
-            'file.max'      => 'That file is larger than the import limit. Split it into smaller files — re-importing is safe, because an asset already in NU Trace is skipped.',
         ]);
 
         $result = AssetImport::start($validated['file'], $request->user());
 
         return response()->json($result, $result['ok'] ? 200 : 422);
+    }
+
+    /**
+     * One slice of a file too large for one request.
+     *
+     * The page splits the workbook into slices of AssetImport::partBytes(), so
+     * the import is bounded by disk, not by PHP's upload_max_filesize. The last
+     * slice to arrive joins them and starts the import exactly as a single
+     * upload would.
+     */
+    public function part(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'upload_id' => ['required', 'string', 'regex:/^[0-9a-f]{32}$/'],
+            'index'     => 'required|integer|min:0',
+            'total'     => 'required|integer|min:1|max:100000',
+            'name'      => 'required|string|max:255',
+            'file'      => 'required|file',
+        ], [
+            'file.required' => 'That part of the file did not reach the server. If it is very large, try again — the parts already sent are kept.',
+            'upload_id.*'   => 'That upload could not be identified. Reload the page and choose the file again.',
+        ]);
+
+        if ((int) $validated['index'] >= (int) $validated['total']) {
+            return response()->json(['ok' => false, 'message' => 'That upload arrived out of step. Reload the page and try again.'], 422);
+        }
+
+        $result = AssetImport::storePart(
+            (string) $validated['upload_id'],
+            (int) $validated['index'],
+            (int) $validated['total'],
+            $validated['file'],
+            (string) $validated['name'],
+            $request->user()
+        );
+
+        return response()->json($result, ($result['ok'] ?? false) ? 200 : 422);
     }
 
     public function template()
@@ -173,31 +209,5 @@ class AssetImportController extends Controller
                 'label' => $person->name . ' (' . $person->number . ')',
             ])
             ->all();
-    }
-
-    /** The smallest of PHP's upload limits, so the page can say the real number. */
-    private function uploadLimit(): string
-    {
-        $limits = [];
-
-        foreach (['upload_max_filesize', 'post_max_size'] as $setting) {
-            $value = (string) ini_get($setting);
-
-            if ($value === '' || $value === '-1') {
-                continue;
-            }
-
-            $bytes = (int) $value;
-
-            if (preg_match('/^\s*([\d.]+)\s*([kmg])/i', $value, $matches)) {
-                $bytes = (int) ((float) $matches[1] * (1024 ** (stripos($matches[2], 'g') !== false ? 3 : (stripos($matches[2], 'm') !== false ? 2 : 1))));
-            }
-
-            $limits[] = $bytes;
-        }
-
-        $bytes = $limits === [] ? 0 : min($limits);
-
-        return $bytes > 0 ? round($bytes / 1048576) . ' MB' : 'the server default';
     }
 }
