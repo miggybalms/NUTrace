@@ -118,11 +118,10 @@
                 {{-- Asset Image --}}
                 <div class="relative h-40 sm:h-44 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                     @if($asset->image_url)
-                        {{-- loading="lazy": the browser only fetches the photos that
-                             scroll into view, instead of one request per asset up front. --}}
-                        <img src="{{ $asset->image_url }}" alt="{{ $asset->Asset_name }}"
+                        {{-- data-src: the photo is requested by the script under the
+                             grid only when the card gets near the viewport. --}}
+                        <img data-src="{{ $asset->image_url }}" alt="{{ $asset->Asset_name }}"
                              class="w-full h-full object-cover"
-                             loading="lazy"
                              decoding="async"
                              onerror="this.classList.add('hidden'); this.parentElement.querySelector('.asset-image-fallback')?.classList.remove('hidden');"/>
                         <div class="asset-image-fallback hidden flex-col items-center text-[#5C6474] absolute inset-0 flex justify-center">
@@ -204,6 +203,43 @@
             </div>
             @endforeach
         </div>
+
+        {{-- Photos are fetched as their card approaches the viewport. The browser's
+             own loading="lazy" is not enough here: it pre-fetches everything within
+             roughly 1250px of the viewport, which is the whole first page of cards,
+             so the Network tab filled up before anything was scrolled. --}}
+        <script>
+            (function () {
+                var photos = Array.prototype.slice.call(
+                    document.querySelectorAll('#assetsGrid img[data-src]')
+                );
+
+                if (!photos.length) return;
+
+                function reveal(img) {
+                    var src = img.getAttribute('data-src');
+                    if (!src) return;
+                    img.removeAttribute('data-src');
+                    img.src = src;
+                }
+
+                // No observer (very old browser): show everything rather than nothing.
+                if (!('IntersectionObserver' in window)) {
+                    photos.forEach(reveal);
+                    return;
+                }
+
+                var loader = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        if (!entry.isIntersecting) return;
+                        loader.unobserve(entry.target);
+                        reveal(entry.target);
+                    });
+                }, { root: null, rootMargin: '200px 0px', threshold: 0 });
+
+                photos.forEach(function (img) { loader.observe(img); });
+            })();
+        </script>
 
         @include('partials.asset_pagination', ['assets' => $assignedAssets])
 

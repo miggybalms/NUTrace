@@ -13,7 +13,7 @@ use Tests\TestCase;
 /**
  * The three Request pages, and the three things the office asked for on them:
  *
- *   1. a request list is paged — 15 rows per page, never "page 1 shows nothing"
+ *   1. a request list is paged — 10 rows per page, never "page 1 shows nothing"
  *   2. a Pending request is always on top (it is the only one still waiting on
  *      the Asset Management Office, and the only one with Approve / Reject),
  *      and the one that has been waiting longest is the first row
@@ -423,7 +423,7 @@ class RequestPagesTest extends TestCase
 
     /* ── the department head's own list ─────────────────────────────────── */
 
-    public function test_the_department_head_list_pages_fifteen_with_pending_on_top(): void
+    public function test_the_department_head_list_pages_ten_with_pending_on_top(): void
     {
         $own = [];
         for ($i = 0; $i < 6; $i++) {
@@ -440,9 +440,9 @@ class RequestPagesTest extends TestCase
         $page1 = $this->actingAs($this->head)->get('/department-head/requests')->assertOk();
         $ids   = $this->cardIds($page1->getContent());
 
-        $this->assertCount(15, $ids, 'the department head list must be 15 per page');
+        $this->assertCount(10, $ids, 'the department head list must be 10 per page');
         $this->assertSame(
-            array_merge($own, array_slice(array_reverse($approved), 0, 9)),
+            array_merge($own, array_slice(array_reverse($approved), 0, 4)),
             $ids
         );
         $this->assertNotContains($foreign, $ids);
@@ -451,10 +451,10 @@ class RequestPagesTest extends TestCase
         $page1->assertSee('page=2', false);
 
         $page2 = $this->actingAs($this->head)->get('/department-head/requests?page=2')->assertOk();
-        $this->assertCount(3, $this->cardIds($page2->getContent()));
+        $this->assertCount(8, $this->cardIds($page2->getContent()));
     }
 
-    public function test_the_employee_list_pages_fifteen_with_pending_on_top(): void
+    public function test_the_employee_list_pages_ten_with_pending_on_top(): void
     {
         $pending = [];
         for ($i = 0; $i < 5; $i++) {
@@ -471,15 +471,15 @@ class RequestPagesTest extends TestCase
         $page1 = $this->actingAs($this->employee)->get('/user/requests')->assertOk();
         $ids   = $this->cardIds($page1->getContent());
 
-        $this->assertCount(15, $ids);
+        $this->assertCount(10, $ids);
         $this->assertSame(
-            array_merge($pending, array_slice(array_reverse($approved), 0, 10)),
+            array_merge($pending, array_slice(array_reverse($approved), 0, 5)),
             $ids
         );
         $this->assertNotContains($foreign, $ids);
 
         $page2 = $this->actingAs($this->employee)->get('/user/requests?page=2')->assertOk();
-        $this->assertCount(5, $this->cardIds($page2->getContent()));
+        $this->assertCount(10, $this->cardIds($page2->getContent()));
     }
 
     public function test_an_empty_request_list_links_to_that_roles_own_form(): void

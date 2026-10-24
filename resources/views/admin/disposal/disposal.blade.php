@@ -87,7 +87,7 @@
         $disposalRecords = $disposalRecords ?? collect();
         $archivedCount   = $archivedCount ?? 0;
         $archiveReady    = $archiveReady ?? true;
-        $totalDisposed   = $totalDisposed ?? $disposalRecords->count();
+        $totalDisposed   = $totalDisposed ?? (method_exists($disposalRecords, 'total') ? $disposalRecords->total() : $disposalRecords->count());
     @endphp
     <div class="flex h-screen overflow-hidden">
         @include('admin.partials.sidebar')
@@ -208,17 +208,17 @@
                 </div>
 
                 <!-- Search Disposal Records -->
-                <div class="mb-6">
+                {{-- A GET form: the term is searched in the database, so it covers
+                     every disposal record, not just the ten rows on this page. --}}
+                <form method="GET" action="{{ url('/admin/disposal') }}" class="mb-6" id="disposalSearchForm">
                     <div class="relative">
                         <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-lg" style="color:var(--ink-400);"></i>
-                        <input type="text" id="disposalRecordSearch" oninput="filterDisposalRecords(this.value)"
+                        <input type="text" id="disposalRecordSearch" name="q" value="{{ $search ?? '' }}"
                                placeholder="Search disposals by asset name, asset code, date, reason, or disposed by..."
+                               autocomplete="off"
                                class="form-input w-full" style="padding-left:2.75rem;" />
                     </div>
-                    <p id="disposalSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-ink);">
-                        <i class="ri-focus-3-line mr-1"></i><span></span>
-                    </p>
-                </div>
+                </form>
 
                 <!-- Disposal Records List -->
                 <div id="disposalRecordsContainer">
@@ -315,6 +315,13 @@
                                 A disposal record appears here automatically once the Asset Management Office approves a
                                 disposal request on the <a href="/admin/requests" class="font-medium" style="color:var(--steel);">Requests</a> page.
                             </p>
+                        </div>
+                    @endif
+
+                    {{-- Ten records a page; the search term rides along in every link. --}}
+                    @if(method_exists($disposalRecords, 'hasPages') && $disposalRecords->hasPages())
+                        <div class="mt-6">
+                            {{ $disposalRecords->links() }}
                         </div>
                     @endif
                 </div>
@@ -453,35 +460,19 @@
         }
 
         /* ── search ──────────────────────────────────────────────── */
-        function filterDisposalRecords(query) {
-            const term = (query || '').trim().toLowerCase();
-            const list = document.getElementById('disposalRecordsList');
-            if (!list) return;
+        // Typing pauses, then the form submits: the search is answered by the
+        // server over the whole table, so it never just hides rows on this page.
+        (function () {
+            const form = document.getElementById('disposalSearchForm');
+            const box = document.getElementById('disposalRecordSearch');
+            if (!form || !box) return;
 
-            const cards = list.querySelectorAll('.disposal-card');
-            let visible = 0;
-
-            cards.forEach((card) => {
-                const haystack = (card.dataset.search || '').toLowerCase();
-                const match = !term || haystack.includes(term);
-                card.style.display = match ? '' : 'none';
-                if (match) visible++;
+            let timer;
+            box.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { form.submit(); }, 450);
             });
-
-            const hint = document.getElementById('disposalSearchHint');
-            if (hint) {
-                const span = hint.querySelector('span');
-                if (term && visible === 0) {
-                    span.textContent = 'No disposals match "' + term + '". Try an asset code or asset name.';
-                    hint.classList.remove('hidden');
-                } else if (term) {
-                    span.textContent = visible + ' disposal' + (visible === 1 ? '' : 's') + ' match.';
-                    hint.classList.remove('hidden');
-                } else {
-                    hint.classList.add('hidden');
-                }
-            }
-        }
+        })();
 
         /* ── archive ───────────────────────────────────────────────
            The form itself does the work; all this has to do is point it at the

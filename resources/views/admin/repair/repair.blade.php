@@ -221,22 +221,29 @@
                 <div class="mb-6 overflow-x-auto scrollbar-hide">
                     {{-- Wraps on a phone: five status tabs do not fit one row, and a wrapped
                          block of tabs needs no sideways drag to discover. --}}
+                    {{-- Links, not buttons: the tab is read by the server, so it filters
+                         the whole queue instead of only the rows already on screen. --}}
+                    @php
+                        $repairTabs = [
+                            'all'         => 'All Requests',
+                            'pending'     => 'Pending',
+                            'in_progress' => 'In Progress',
+                            'completed'   => 'Completed',
+                            'cancelled'   => 'Cancelled',
+                        ];
+                        $repairTabUrl = fn ($value) => url('/admin/repair') . '?' . http_build_query(array_filter([
+                            'status' => $value === 'all' ? null : $value,
+                            'q'      => $search ?: null,
+                        ]));
+                    @endphp
                     <div class="flex flex-wrap space-x-1" style="border-bottom:1px solid var(--line);">
-                        <button class="filter-btn active px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="all">
-                            All Requests
-                        </button>
-                        <button class="filter-btn px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="pending">
-                            Pending
-                        </button>
-                        <button class="filter-btn px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="in_progress">
-                            In Progress
-                        </button>
-                        <button class="filter-btn px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="completed">
-                            Completed
-                        </button>
-                        <button class="filter-btn px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="cancelled">
-                            Cancelled
-                        </button>
+                        @foreach($repairTabs as $tabValue => $tabLabel)
+                            <a href="{{ $repairTabUrl($tabValue) }}"
+                               class="filter-btn {{ ($status ?? 'all') === $tabValue ? 'active' : '' }} px-4 py-2.5 text-sm font-medium whitespace-nowrap"
+                               @if(($status ?? 'all') === $tabValue) aria-current="page" @endif>
+                                {{ $tabLabel }}
+                            </a>
+                        @endforeach
                     </div>
                 </div>
 
@@ -257,6 +264,14 @@
                         Create New Repair Request
                     </button>
                 </div>
+
+                {{-- Paging footer: ten repairs a page, with the tab and the search
+                     carried into every page link. --}}
+                @if(method_exists($repairs ?? null, 'hasPages') && $repairs->hasPages())
+                <div class="mt-5">
+                    {{ $repairs->links() }}
+                </div>
+                @endif
 
                 <!-- Footer -->
                 <div class="text-center text-xs mt-12 pt-8" style="color:var(--ink-400); border-top:1px solid var(--line);">
@@ -345,11 +360,12 @@
     </div>
 
     <script>
-        // Use server-provided repairs collection (passed from controller)
-        let repairs = @json($repairs ?? []);
+        // The rows on this page, already filtered and paged by the server.
+        let repairs = @json($repairs->items() ?? []);
 
-        let currentFilter = "all";
-        let currentSearchTerm = "";
+        // Only used to tell "nothing in the queue" from "nothing matched".
+        let currentFilter = @json($status ?? 'all');
+        let currentSearchTerm = @json($search ?? '');
 
         function priorityBadgeClasses(priority) {
             switch (priority) {
@@ -385,20 +401,9 @@
             const repairsList = document.getElementById('repairsList');
             const emptyState = document.getElementById('emptyState');
 
-            let filteredRepairs = repairs;
-            if (currentFilter !== "all") {
-                filteredRepairs = filteredRepairs.filter(r => r.status === currentFilter);
-            }
-            if (currentSearchTerm) {
-                const q = currentSearchTerm.toLowerCase();
-                filteredRepairs = filteredRepairs.filter(r =>
-                    (r.asset_name || '').toLowerCase().includes(q) ||
-                    (r.asset_code || '').toLowerCase().includes(q) ||
-                    (r.requested_by || '').toLowerCase().includes(q) ||
-                    (r.issue || '').toLowerCase().includes(q) ||
-                    (r.technician || '').toLowerCase().includes(q)
-                );
-            }
+            // No filtering here: the server already sent exactly the rows this
+            // tab and search ask for. Filtering again would hide rows on the page.
+            const filteredRepairs = repairs;
 
             if (filteredRepairs.length === 0) {
                 repairsList.classList.add('hidden');
@@ -479,11 +484,13 @@
                 `).join('');
             }
 
-            // Update statistics
-            document.getElementById('totalRepairs').textContent = repairs.length;
-            document.getElementById('pendingRepairs').textContent = repairs.filter(r => r.status === 'pending').length;
-            document.getElementById('inProgressRepairs').textContent = repairs.filter(r => r.status === 'in_progress').length;
-            document.getElementById('completedRepairs').textContent = repairs.filter(r => r.status === 'completed').length;
+            // The cards describe the whole queue, so their numbers come from the
+            // server rather than from the ten rows on this page.
+            const counts = @json($statusCounts ?? []);
+            document.getElementById('totalRepairs').textContent = counts.total ?? 0;
+            document.getElementById('pendingRepairs').textContent = counts.pending ?? 0;
+            document.getElementById('inProgressRepairs').textContent = counts.in_progress ?? 0;
+            document.getElementById('completedRepairs').textContent = counts.completed ?? 0;
         }
 
         // Tell the difference between an empty queue and a search that found
@@ -986,33 +993,36 @@
             .catch(err => alert('Error deleting repair: ' + err.message));
         }
 
-        // Filter functionality
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.filter-btn').forEach(b => {
-                    b.classList.remove('active');
-                });
-                this.classList.add('active');
+        // Search runs on the server: typing pauses, then the page reloads with
+        // ?q=…, so the search covers every repair in the queue — not only the ten
+        // rows on this page.
+        (function () {
+            const box = document.getElementById('searchRepairs');
+            if (!box) return;
 
-                currentFilter = this.getAttribute('data-filter');
-                renderRepairs();
-            });
-        });
+            function go() {
+                const params = new URLSearchParams(window.location.search);
+                const value = box.value.trim();
 
-        // Search functionality (delegates to renderRepairs so cards render fully)
-        document.getElementById('searchRepairs')?.addEventListener('input', function(e) {
-            currentSearchTerm = e.target.value.trim();
-            renderRepairs();
-        });
+                if (value === '') params.delete('q'); else params.set('q', value);
+                params.delete('page');   // a new search starts at page 1
 
-        // Escape clears the search box without leaving the page
-        document.getElementById('searchRepairs')?.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && this.value !== '') {
-                this.value = '';
-                currentSearchTerm = '';
-                renderRepairs();
+                window.location.search = params.toString();
             }
-        });
+
+            let timer;
+            box.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(go, 450);
+            });
+
+            box.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                clearTimeout(timer);
+                go();
+            });
+        })();
 
         // Modal functions
         function displayStatusLabel(status) {

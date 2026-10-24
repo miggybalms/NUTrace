@@ -2917,10 +2917,34 @@ Route::get('/admin/disposal', function (Request $request) {
         $tab = 'records';
     }
 
-    $disposalRecords = Disposals::query(false)
-        ->orderByDesc('disposals.disposal_date')
-        ->get()
-        ->map(fn ($row) => Disposals::present($row));
+    $search = trim((string) $request->query('q', ''));
+
+    // "Total disposed" counts every record, so the card does not shrink to the
+    // rows of the page that happens to be open.
+    $totalDisposed = Disposals::query(false)->count();
+
+    $records = Disposals::query(false)->orderByDesc('disposals.disposal_date');
+
+    // The search runs in the database, so it covers every disposal record and
+    // not only the ten on screen.
+    if ($search !== '') {
+        $term = '%' . $search . '%';
+
+        $records->where(function ($q) use ($term) {
+            $q->whereLike('assets.Asset_name', $term)
+              ->orWhereLike('assets.Asset_code', $term)
+              ->orWhereLike('disposals.Description', $term)
+              ->orWhereLike('disposals.disposal_reason', $term)
+              ->orWhereLike('disposals.Approve_by', $term)
+              ->orWhereLike('disposals.notes', $term)
+              ->orWhereRaw('LOWER(CAST(disposals.disposal_date AS TEXT)) LIKE ?', [strtolower($term)]);
+        });
+    }
+
+    $disposalRecords = $records
+        ->paginate(10)
+        ->withQueryString()
+        ->through(fn ($row) => Disposals::present($row));
 
     $archivedCount = Disposals::archiveColumnsReady()
         ? DB::table('disposals')->where('is_archived', true)->count()
@@ -2958,9 +2982,10 @@ Route::get('/admin/disposal', function (Request $request) {
 
     return view('admin.disposal.disposal', [
         'disposalRecords'  => $disposalRecords,
-        'totalDisposed'    => $disposalRecords->count(),
+        'totalDisposed'    => $totalDisposed,
         'archivedCount'    => $archivedCount,
         'archiveReady'     => Disposals::archiveColumnsReady(),
+        'search'           => $search,
     ] + $shared);
 })->middleware('auth');
 
@@ -4102,14 +4127,69 @@ Route::post('/admin/repairs/create', function (Request $request) {
     }
 })->middleware('auth');
 
-Route::get('/admin/repair', function () {
+Route::get('/admin/repair', function (Request $request) {
+    $statusFilter = strtolower(trim((string) $request->query('status', 'all')));
+    $search = trim((string) $request->query('q', ''));
+
+    // The page speaks in lowercase keys; repairs.status stores the label.
+    $statusToDb = [
+        'pending'     => 'Pending',
+        'in_progress' => 'In Progress',
+        'completed'   => 'Completed',
+        'cancelled'   => 'Cancelled',
+    ];
+
     // 1. Load repairs + asset info
-    $repairsRaw = DB::table('repairs')
+    $queue = DB::table('repairs')
         ->leftJoin('assets', 'repairs.Assets_id', '=', 'assets.id')
         ->leftJoin('requests', 'repairs.Request_id', '=', 'requests.id')
         ->leftJoin('users', 'requests.user_id', '=', 'users.id')
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+        ->leftJoin('departments', 'users.department_id', '=', 'departments.id');
+
+    // The stat cards count the whole queue, so they do not move when a tab is
+    // opened or a search is typed.
+    $statusTotals = (clone $queue)
+        ->select('repairs.status', DB::raw('count(*) as total'))
+        ->groupBy('repairs.status')
+        ->pluck('total', 'status');
+
+    $statusCounts = [
+        'total'       => (int) $statusTotals->sum(),
+        'pending'     => (int) ($statusTotals['Pending'] ?? 0),
+        'in_progress' => (int) ($statusTotals['In Progress'] ?? 0),
+        'completed'   => (int) ($statusTotals['Completed'] ?? 0),
+    ];
+
+    // Both filters run in the database, so a tab or a search covers the whole
+    // queue and not only the ten rows that happen to be on this page.
+    if (isset($statusToDb[$statusFilter])) {
+        $queue->where('repairs.status', $statusToDb[$statusFilter]);
+    }
+
+    if ($search !== '') {
+        $term = '%' . $search . '%';
+        $hasEvaluations = Schema::hasTable('repair_evaluations');
+
+        $queue->where(function ($q) use ($term, $hasEvaluations) {
+            $q->whereLike('assets.Asset_name', $term)
+              ->orWhereLike('assets.Asset_code', $term)
+              ->orWhereLike('employee_numbers.Full_Name', $term)
+              ->orWhereLike('repairs.Repair_Description', $term)
+              ->orWhereLike('repairs.notes', $term);
+
+            if ($hasEvaluations) {
+                $q->orWhereExists(function ($sub) use ($term) {
+                    $sub->select(DB::raw(1))
+                        ->from('repair_evaluations')
+                        ->whereColumn('repair_evaluations.repair_id', 'repairs.Repair_id')
+                        ->whereLike('repair_evaluations.technician_provider', $term);
+                });
+            }
+        });
+    }
+
+    $repairRows = $queue
         ->select(
             'repairs.Repair_id as id',
             'repairs.Assets_id as asset_id',
@@ -4132,7 +4212,8 @@ Route::get('/admin/repair', function () {
             'departments.Name as department'
         )
         ->orderByDesc('repairs.created_at')
-        ->get();
+        ->paginate(10)
+        ->withQueryString();
 
     // Map status to what the JS expects (pending, in_progress, etc.)
     $statusMap = [
@@ -4153,6 +4234,8 @@ Route::get('/admin/repair', function () {
                     'repair_evaluations.*',
                     'users.email as recorded_by_email'
                 )
+                // Only the rows on this page: the modal reads one repair at a time.
+                ->whereIn('repair_id', $repairRows->pluck('id')->all())
                 ->get()
                 ->keyBy('repair_id')
             : collect();
@@ -4167,7 +4250,7 @@ Route::get('/admin/repair', function () {
         'For Replacement'  => 'for_replacement',
     ];
 
-    $repairs = $repairsRaw->map(function ($r) use ($statusMap, $evaluations, $resultMap) {
+    $repairs = $repairRows->through(function ($r) use ($statusMap, $evaluations, $resultMap) {
         $ev = $evaluations->get($r->id);
 
         return [
@@ -4215,7 +4298,13 @@ $availableAssets = Inventory::excludeRemoved(DB::table('assets'))
         ->orderBy('Asset_name')
         ->get(['id', 'Asset_name', 'Asset_code', 'Lifecycle_Status']);
 
-    return view('admin.repair.repair', compact('repairs', 'availableAssets'));
+    return view('admin.repair.repair', [
+        'repairs'       => $repairs,
+        'availableAssets' => $availableAssets,
+        'statusCounts'  => $statusCounts,
+        'status'        => $statusFilter,
+        'search'        => $search,
+    ]);
 })->middleware('auth');
 
 
@@ -4871,14 +4960,48 @@ Route::post('/admin/disposals/create', function (\Illuminate\Http\Request $reque
 })->middleware('auth');
 
 // Admin replacement page
-Route::get('/admin/replacement', function () {
-    $replacements = DB::table('replacements')
+Route::get('/admin/replacement', function (Request $request) {
+    $statusFilter = (string) $request->query('status', 'all');
+    $search = trim((string) $request->query('q', ''));
+
+    $base = DB::table('replacements')
         ->leftJoin('assets as old_assets', 'replacements.old_assets_id', '=', 'old_assets.id')
         ->leftJoin('assets as new_assets', 'replacements.new_assets_id', '=', 'new_assets.id')
         ->leftJoin('requests', 'replacements.Request_id', '=', 'requests.id')
         ->leftJoin('users', 'requests.user_id', '=', 'users.id')
         ->leftJoin('employee_numbers', 'users.employee_numbers_id', '=', 'employee_numbers.id')
-        ->leftJoin('departments', 'users.department_id', '=', 'departments.id')
+        ->leftJoin('departments', 'users.department_id', '=', 'departments.id');
+
+    // The cards count every replacement, so they do not move with a filter.
+    $statusTotals = (clone $base)
+        ->select('replacements.status', DB::raw('count(*) as total'))
+        ->groupBy('replacements.status')
+        ->pluck('total', 'status');
+
+    $query = clone $base;
+
+    // Filtering and searching happen in the database: a tab or a search covers
+    // every replacement, not only the rows that fit on one page.
+    if (in_array($statusFilter, ['Pending', 'Approved', 'Ordered', 'Received', 'Complete', 'Cancelled'], true)) {
+        $query->where('replacements.status', $statusFilter);
+    }
+
+    if ($search !== '') {
+        $term = '%' . $search . '%';
+
+        $query->where(function ($q) use ($term) {
+            $q->whereLike('old_assets.Asset_name', $term)
+              ->orWhereLike('old_assets.Asset_code', $term)
+              ->orWhereLike('new_assets.Asset_name', $term)
+              ->orWhereLike('new_assets.Asset_code', $term)
+              ->orWhereLike('employee_numbers.Full_Name', $term)
+              ->orWhereLike('departments.Name', $term)
+              ->orWhereLike('replacements.reason', $term)
+              ->orWhereLike('replacements.notes', $term);
+        });
+    }
+
+    $replacements = $query
         ->select(
             'replacements.Replacement_id as id',
             'replacements.status',
@@ -4902,12 +5025,13 @@ Route::get('/admin/replacement', function () {
             'departments.Name as department'
         )
         ->orderByDesc('replacements.created_at')
-        ->get();
+        ->paginate(10)
+        ->withQueryString();
 
-    $totalReplacements     = $replacements->count();
-    $pendingReplacements   = $replacements->where('status', 'Pending')->count();
-    $approvedReplacements  = $replacements->where('status', 'Approved')->count();
-    $receivedReplacements  = $replacements->where('status', 'Received')->count();
+    $totalReplacements     = (int) $statusTotals->sum();
+    $pendingReplacements   = (int) ($statusTotals['Pending'] ?? 0);
+    $approvedReplacements  = (int) ($statusTotals['Approved'] ?? 0);
+    $receivedReplacements  = (int) ($statusTotals['Received'] ?? 0);
 
     return view('admin.replacement.replacement', compact(  // ← change to your real view name
         'replacements',
@@ -4915,7 +5039,10 @@ Route::get('/admin/replacement', function () {
         'pendingReplacements',
         'approvedReplacements',
         'receivedReplacements'
-    ));
+    ) + [
+        'statusFilter' => $statusFilter,
+        'search'       => $search,
+    ]);
 })->middleware('auth');
 
 // Admin API: Update replacement status and handle completion
@@ -5467,7 +5594,8 @@ Route::match(['delete', 'post'], '/admin/replacements/{id}', function (Request $
 })->middleware('auth');
 
 // Admin pullout page
-Route::get('/admin/pullout', function () {
+Route::get('/admin/pullout', function (Request $request) {
+    $search = trim((string) $request->query('q', ''));
     $totalPulledOut = 0;
     $pulloutRecords = collect([]);
     $availableAssets = collect([]);
@@ -5484,18 +5612,64 @@ Route::get('/admin/pullout', function () {
                     'requests.status as request_status',
                     'employee_numbers.Full_Name as requested_by'
                 )
-                ->whereIn('pullouts.status', ['pending', 'approved'])   // ← only show active pullouts
-                ->orderByDesc('pullouts.pullout_date');
+                ->whereIn('pullouts.status', ['pending', 'approved']);   // ← only show active pullouts
 
-            $pulloutRows = $query->get();
+            // The search is answered by the database, so it covers every pullout
+            // record and not only the rows of the page that is open.
+            if ($search !== '') {
+                $term = '%' . $search . '%';
+                $hasDestination = Schema::hasColumn('pullouts', 'destination');
 
+                $query->where(function ($q) use ($term, $hasDestination) {
+                    $q->whereLike('employee_numbers.Full_Name', $term)
+                      ->orWhereLike('pullouts.Description', $term)
+                      ->orWhereLike('pullouts.notes', $term)
+                      ->orWhereLike('pullouts.Approve_by', $term);
+
+                    if ($hasDestination) {
+                        $q->orWhereLike('pullouts.destination', $term);
+                    }
+
+                    // The assets on a bulk pullout live in pullout_items…
+                    $q->orWhereExists(function ($sub) use ($term) {
+                        $sub->select(DB::raw(1))
+                            ->from('pullout_items')
+                            ->join('assets', 'pullout_items.asset_id', '=', 'assets.id')
+                            ->whereColumn('pullout_items.pullout_id', 'pullouts.id')
+                            ->where(function ($aq) use ($term) {
+                                $aq->whereLike('assets.Asset_name', $term)
+                                   ->orWhereLike('assets.Asset_code', $term);
+                            });
+                    });
+
+                    // …and a record written before pullout_items existed keeps its
+                    // one asset on pullouts.asset_id, so it is searched too.
+                    $q->orWhereExists(function ($sub) use ($term) {
+                        $sub->select(DB::raw(1))
+                            ->from('assets')
+                            ->whereColumn('assets.id', 'pullouts.asset_id')
+                            ->where(function ($aq) use ($term) {
+                                $aq->whereLike('assets.Asset_name', $term)
+                                   ->orWhereLike('assets.Asset_code', $term);
+                            });
+                    });
+                });
+            }
+
+            $pulloutRows = $query
+                ->orderByDesc('pullouts.pullout_date')
+                ->paginate(10)
+                ->withQueryString();
+
+            // Only the assets of the rows on this page.
             $pulloutItems = DB::table('pullout_items')
                 ->leftJoin('assets', 'pullout_items.asset_id', '=', 'assets.id')
                 ->select('pullout_items.pullout_id', 'pullout_items.asset_id', 'assets.Asset_name', 'assets.Asset_code')
+                ->whereIn('pullout_items.pullout_id', $pulloutRows->pluck('id')->all())
                 ->get()
                 ->groupBy('pullout_id');
 
-            $pulloutRecords = $pulloutRows->map(function ($r) use ($pulloutItems) {
+            $pulloutRecords = $pulloutRows->through(function ($r) use ($pulloutItems) {
                 $items = $pulloutItems->get($r->id, collect());
                 $assetNames = $items->pluck('Asset_name')->filter()->values();
                 $assetCodes = $items->pluck('Asset_code')->filter()->values();
@@ -5582,7 +5756,7 @@ Route::get('/admin/pullout', function () {
         'availableAssets',
         'totalPulledOut',
         'users'
-    ));
+    ) + ['search' => $search]);
 });
 
 Route::get('/admin/pullout/{id}/assets', function ($id) {
@@ -7509,7 +7683,9 @@ Route::get('/user/requests', function (Request $request) {
             ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
             ->orderByDesc('requests.created_at')
             ->orderByDesc('requests.id')
-            ->paginate(15)
+            // 10 a page, the same as the asset listing: each request card is tall,
+            // and at 15 the list was one long scroll before the pager appeared.
+            ->paginate(10)
             ->withQueryString();
 
         // Load assets from request_items
@@ -7664,7 +7840,8 @@ if ($search !== '') {
         ->orderByRaw('CASE WHEN LOWER(requests.status) = ? THEN requests.id END ASC', ['pending'])
         ->orderByDesc('requests.created_at')
         ->orderByDesc('requests.id')
-        ->paginate(15)
+        // 10 a page, the same as the asset listing and the employee's own list.
+        ->paginate(10)
         ->withQueryString();   // ← keeps ?status= & ?q= on pagination links
 
     // Load assets from request_items (same as before)

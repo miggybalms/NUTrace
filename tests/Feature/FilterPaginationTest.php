@@ -317,7 +317,8 @@ class FilterPaginationTest extends TestCase
         $secondPage = $second->viewData('requests');
 
         $this->assertSame(30, $secondPage->total());
-        $this->assertCount(15, $secondPage->items());
+        // Ten a page, so page two is a full page of ten approved requests.
+        $this->assertCount(10, $secondPage->items());
         foreach ($secondPage->items() as $row) {
             $this->assertSame('Approved', $row->status);
         }
@@ -337,7 +338,7 @@ class FilterPaginationTest extends TestCase
         $secondPage = $second->viewData('requests');
 
         $this->assertSame(30, $secondPage->total());
-        $this->assertCount(15, $secondPage->items());
+        $this->assertCount(10, $secondPage->items());
         foreach ($secondPage->items() as $row) {
             $this->assertSame('Approved', $row->status);
         }

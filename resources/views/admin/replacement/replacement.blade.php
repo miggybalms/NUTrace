@@ -92,12 +92,23 @@
 
             <!-- Tabs -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 pt-4 pb-0" style="border-bottom:1px solid var(--line);">
+            {{-- Tabs are links: the status is read by the server, so it filters
+                 every replacement rather than the ten rows on this page. --}}
+            @php
+                $replacementTabs = ['all' => 'All', 'Approved' => 'Approved', 'Received' => 'Received'];
+                $replacementTabUrl = fn ($value) => url('/admin/replacement') . '?' . http_build_query(array_filter([
+                    'status' => $value === 'all' ? null : $value,
+                    'q'      => $search ?? null,
+                ]));
+            @endphp
             <div class="flex space-x-1 overflow-x-auto scrollbar-hide">
-                <button class="filter-tab active px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="all">All</button>
-                <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Approved">Approved</button>
-                <button class="filter-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap" data-filter="Received">Received</button>
+                @foreach($replacementTabs as $tabValue => $tabLabel)
+                    <a href="{{ $replacementTabUrl($tabValue) }}"
+                       class="filter-tab {{ ($statusFilter ?? 'all') === $tabValue ? 'active' : '' }} px-4 py-2.5 text-sm font-medium whitespace-nowrap"
+                       @if(($statusFilter ?? 'all') === $tabValue) aria-current="page" @endif>{{ $tabLabel }}</a>
+                @endforeach
             </div>
-            <p class="text-xs pb-3" style="color:var(--ink-400);">{{ $replacements->count() ?? 0 }} records</p>
+            <p class="text-xs pb-3" style="color:var(--ink-400);">{{ $replacements->total() ?? 0 }} records</p>
         </div>
 
                     <div class="overflow-x-auto">
@@ -753,44 +764,35 @@
     </div>
 
     <script>
-        // Filter tabs + search — kept in sync so they never fight each other
-        let currentReplacementFilter = 'all';
+        // Search runs on the server: typing pauses, then the page reloads with
+        // ?q=…, so it searches every replacement instead of only this page.
+        (function () {
+            const box = document.getElementById('searchInput');
+            if (!box) return;
 
-        function applyReplacementFilters() {
-            const val = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
-            document.querySelectorAll('.replacement-row').forEach(row => {
-                const statusOk = currentReplacementFilter === 'all' || row.dataset.status === currentReplacementFilter;
-                const searchOk = !val || row.innerText.toLowerCase().includes(val);
-                row.style.display = (statusOk && searchOk) ? '' : 'none';
-            });
-        }
+            function go() {
+                const params = new URLSearchParams(window.location.search);
+                const value = box.value.trim();
 
-        function setReplacementTab(filter) {
-            currentReplacementFilter = filter;
-            document.querySelectorAll('.filter-tab').forEach(t => {
-                t.classList.toggle('active', t.dataset.filter === filter);
-            });
-        }
+                if (value === '') params.delete('q'); else params.set('q', value);
+                params.delete('page');   // a new search starts at page 1
 
-        document.querySelectorAll('.filter-tab').forEach(tab => {
-            tab.addEventListener('click', function () {
-                setReplacementTab(this.dataset.filter);
-                // Clear the search box so the tab result is the unfiltered view
-                const search = document.getElementById('searchInput');
-                if (search && search.value) {
-                    search.value = '';
-                }
-                applyReplacementFilters();
-            });
-        });
-
-        // Searching returns to the "All" tab so results are never hidden by a stale status filter
-        document.getElementById('searchInput').addEventListener('input', function () {
-            if (this.value.trim() !== '' && currentReplacementFilter !== 'all') {
-                setReplacementTab('all');
+                window.location.search = params.toString();
             }
-            applyReplacementFilters();
-        });
+
+            let timer;
+            box.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(go, 450);
+            });
+
+            box.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                clearTimeout(timer);
+                go();
+            });
+        })();
 
         // Modal helpers
             function closeModal(id) {

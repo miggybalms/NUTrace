@@ -163,12 +163,15 @@ class AssetListingPerformanceTest extends TestCase
     {
         $this->makeAsset('AST-0001', 1);
 
+        // The employee page parks the photo in data-src and asks for it from an
+        // IntersectionObserver, so the browser is not sent after it on load.
         $this->actingAs($this->employee)
             ->get('/users/assets')
             ->assertOk()
-            ->assertSee('loading="lazy"', false)
-            ->assertSee('decoding="async"', false)
-            ->assertSee('https://media.example.test/AST-0001-1.jpg', false);
+            ->assertSee('data-src="https://media.example.test/AST-0001-1.jpg"', false)
+            ->assertDontSee('<img src="https://media.example.test/AST-0001-1.jpg"', false)
+            ->assertSee('IntersectionObserver', false)
+            ->assertSee('decoding="async"', false);
 
         $this->actingAs($this->head)
             ->get('/department-head/assets')

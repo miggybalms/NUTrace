@@ -171,7 +171,9 @@
     $pulloutRecords = $pulloutRecords ?? collect();
     $availableAssets = $availableAssets ?? collect();
     if (!isset($totalPulledOut)) {
-        $totalPulledOut = is_countable($pulloutRecords) ? count($pulloutRecords) : 0;
+        $totalPulledOut = method_exists($pulloutRecords, 'total')
+            ? $pulloutRecords->total()
+            : (is_countable($pulloutRecords) ? count($pulloutRecords) : 0);
     }
     @endphp
     <div class="flex h-screen overflow-hidden">
@@ -204,17 +206,17 @@
                 </div>
 
                 <!-- Search Pullout Records -->
-                <div class="mb-6">
+                {{-- A GET form: the term is searched in the database, so it covers
+                     every pullout record, not just the ten rows on this page. --}}
+                <form method="GET" action="{{ url('/admin/pullout') }}" class="mb-6" id="pulloutSearchForm">
                     <div class="relative">
                         <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-lg" style="color:var(--ink-400);"></i>
-                        <input type="text" id="pulloutRecordSearch" oninput="filterPulloutRecords(this.value)"
+                        <input type="text" id="pulloutRecordSearch" name="q" value="{{ $search ?? '' }}"
                                placeholder="Search pullouts by asset name, asset code, date, reason, or destination..."
+                               autocomplete="off"
                                class="form-input w-full" style="padding-left:2.75rem;" />
                     </div>
-                    <p id="pulloutSearchHint" class="hidden mt-2 text-xs" style="color:var(--gold-ink);">
-                        <i class="ri-focus-3-line mr-1"></i><span></span>
-                    </p>
-                </div>
+                </form>
 
                 <!-- Pullout Records List -->
                 <div id="pulloutRecordsContainer">
@@ -322,6 +324,13 @@
                                 <i class="ri-add-line mr-2"></i>
                                 Record First Pullout
                             </button>
+                        </div>
+                    @endif
+
+                    {{-- Ten records a page; the search term rides along in every link. --}}
+                    @if(method_exists($pulloutRecords, 'hasPages') && $pulloutRecords->hasPages())
+                        <div class="mt-6">
+                            {{ $pulloutRecords->links() }}
                         </div>
                     @endif
                 </div>
@@ -1136,53 +1145,19 @@ function toggleEditActionFields() {
             });
         }
 
-        function filterPulloutRecords(query) {
-            const term = (query || '').trim().toLowerCase();
-            const list = document.getElementById('pulloutRecordsList');
-            if (!list) return;
-            const cards = list.querySelectorAll('.pullout-card');
-            let visible = 0;
+        // Typing pauses, then the form submits: the search is answered by the
+        // server over the whole table, so it never just hides rows on this page.
+        (function () {
+            const form = document.getElementById('pulloutSearchForm');
+            const box = document.getElementById('pulloutRecordSearch');
+            if (!form || !box) return;
 
-            cards.forEach((card) => {
-                const haystack = (card.dataset.search || '').toLowerCase();
-                const match = !term || haystack.includes(term);
-                card.style.display = match ? '' : 'none';
-                if (match) visible++;
+            let timer;
+            box.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { form.submit(); }, 450);
             });
-
-            list.querySelectorAll('.pullout-match-hl').forEach((el) => el.remove());
-
-            const hint = document.getElementById('pulloutSearchHint');
-            if (hint) {
-                const span = hint.querySelector('span');
-                if (term && visible === 0) {
-                    span.textContent = 'No pullouts match "' + term + '". Try an asset code or asset name.';
-                    hint.classList.remove('hidden');
-                } else if (term) {
-                    span.textContent = visible + ' pullout' + (visible === 1 ? '' : 's') + ' match — the matching asset is highlighted on each card.';
-                    hint.classList.remove('hidden');
-                } else {
-                    hint.classList.add('hidden');
-                }
-            }
-
-            if (!term) return;
-
-            // Surface the exact asset that matched inside each visible bulk group
-            cards.forEach((card) => {
-                if (card.style.display === 'none') return;
-                card.querySelectorAll('.pullout-asset-pill').forEach((pill) => {
-                    if ((pill.dataset.search || '').includes(term)) {
-                        const hl = document.createElement('span');
-                        hl.className = 'pullout-match-hl inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold';
-                        hl.style.cssText = 'background:rgba(201,162,39,.14); color:var(--gold-ink); margin: 0 .4rem .75rem 0;';
-                        hl.innerHTML = '<i class="ri-focus-3-line mr-1"></i>Match: ' + pill.textContent.replace(/\s+/g, ' ').trim();
-                        const header = card.querySelector('.flex.items-center.mb-3');
-                        if (header && header.parentNode) header.parentNode.insertBefore(hl, header.nextSibling);
-                    }
-                });
-            });
-        }
+        })();
 
         function filterPulloutAssets(query) {
             const select = document.getElementById('pullout_asset_select');

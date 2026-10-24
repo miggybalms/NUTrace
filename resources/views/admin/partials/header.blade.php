@@ -154,6 +154,7 @@
                         <div class="relative flex-1 sm:flex-none">
                             <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);" aria-hidden="true"></i>
                             <input type="text" id="searchRepairs" placeholder="Search repairs..."
+                                value="{{ $search ?? '' }}"
                                 aria-label="Search repair requests by asset, code, requester or issue"
                                 autocomplete="off"
                                 class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
@@ -169,6 +170,7 @@
                         <div class="relative flex-1 sm:flex-none">
                             <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);"></i>
                             <input type="text" id="searchInput" placeholder="Search replacements..."
+                                value="{{ $search ?? '' }}"
                                 class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-56"/>
                         </div>
                         @break
