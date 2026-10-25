@@ -444,6 +444,36 @@ class EmployeeManagementTest extends TestCase
         $this->assertSame(1, DB::table('employee_numbers')->where('Employee_number', 'EMP-60')->count());
     }
 
+    public function test_masterlist_lookups_quote_the_mixed_case_columns(): void
+    {
+        // PostgreSQL keeps the table's mixed-case names. Raw, unquoted SQL
+        // folds them to lower case there and fails with 'column
+        // "employee_number" does not exist' - which is what the import preview
+        // hit in production. Every case-insensitive lookup has to use the
+        // column as the connection quotes it.
+        $queries = [];
+
+        DB::listen(function ($query) use (&$queries) {
+            $queries[] = $query->sql;
+        });
+
+        $this->actingAs($this->admin)->post('/admin/employees/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent(
+                'employees.csv',
+                "Employee Number,Full Name,Email,Department,Status\nEMP-77,Ana Cruz,ana@nu-lipa.edu.ph,Registrar,Active\n"
+            ),
+        ])->assertOk();
+
+        $numberLookup = collect($queries)->first(fn (string $sql) => str_contains($sql, 'UPPER('));
+        $emailLookup  = collect($queries)->first(fn (string $sql) => str_contains($sql, 'LOWER('));
+
+        $this->assertNotNull($numberLookup, 'the preview must look the employee number up');
+        $this->assertStringContainsString('UPPER("Employee_number")', $numberLookup);
+
+        $this->assertNotNull($emailLookup, 'the preview must look the email up');
+        $this->assertStringContainsString('LOWER("Email")', $emailLookup);
+    }
+
     public function test_a_file_larger_than_two_megabytes_is_accepted(): void
     {
         // The import has no size ceiling: a full faculty list arrives in one

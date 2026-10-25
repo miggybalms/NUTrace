@@ -682,7 +682,7 @@ class EmployeeDirectory
                 // Already on the masterlist? Then the file says nothing new
                 // about this person, and the existing record is left exactly as
                 // it is. Only a deliberate edit on the directory changes it.
-                if (DB::table('employee_numbers')->whereRaw('UPPER(Employee_number) = ?', [$values['employee_number']])->exists()) {
+                if (DB::table('employee_numbers')->whereRaw('UPPER(' . self::column('Employee_number') . ') = ?', [$values['employee_number']])->exists()) {
                     $action = 'skip';
                     $errors[] = 'Already on the masterlist - existing record left unchanged.';
                 } elseif ($values['email'] !== '' && self::emailTaken($values['email'])) {
@@ -763,7 +763,7 @@ class EmployeeDirectory
             }
 
             $query = DB::table('employee_numbers')
-                ->whereRaw('UPPER(Employee_number) = ?', [$number]);
+                ->whereRaw('UPPER(' . self::column('Employee_number') . ') = ?', [$number]);
 
             if ($ignoreId !== null) {
                 $query->where('id', '!=', $ignoreId);
@@ -799,7 +799,7 @@ class EmployeeDirectory
             }
 
             $query = DB::table('employee_numbers')
-                ->whereRaw('LOWER(Email) = ?', [strtolower($email)]);
+                ->whereRaw('LOWER(' . self::column('Email') . ') = ?', [strtolower($email)]);
 
             if ($ignoreId !== null) {
                 $query->where('id', '!=', $ignoreId);
@@ -861,6 +861,20 @@ class EmployeeDirectory
         return $map;
     }
 
+    /**
+     * A masterlist column, quoted the way the current connection needs it.
+     *
+     * The table was created with mixed-case names - "Employee_number" and
+     * "Email". PostgreSQL keeps that casing, so an unquoted reference in raw
+     * SQL folds to lower case and stops matching ('column "employee_number"
+     * does not exist'). The query grammar quotes for whichever driver is in
+     * use, which keeps the same raw comparison working everywhere.
+     */
+    public static function column(string $column): string
+    {
+        return DB::connection()->getQueryGrammar()->wrap($column);
+    }
+
     /** Lower-case, no spaces and no underscores: 'Employee_Number' == 'employee number'. */
     private static function key(string $value): string
     {
@@ -881,7 +895,7 @@ class EmployeeDirectory
     private static function emailTaken(string $email): bool
     {
         return DB::table('employee_numbers')
-            ->whereRaw('LOWER(Email) = ?', [strtolower($email)])
+            ->whereRaw('LOWER(' . self::column('Email') . ') = ?', [strtolower($email)])
             ->exists();
     }
 

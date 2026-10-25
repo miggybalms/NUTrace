@@ -234,7 +234,7 @@ Route::post('/register', function (Request $request) {
     $employeeNumber = Str::upper(trim((string) $validated['unit_heads_number']));
 
     $employee = DB::table('employee_numbers')
-        ->whereRaw('UPPER(Employee_number) = ?', [$employeeNumber])
+        ->whereRaw('UPPER(' . EmployeeDirectory::column('Employee_number') . ') = ?', [$employeeNumber])
         ->first();
 
     if (!$employee) {
