@@ -83,21 +83,33 @@ labels, so the mark is also checked as a **shape**:
 - the artwork is reduced to a 16 × 16 grid of grey levels, built from the same
   file the sticker prints (`/images/nu-trace-mark.jpg`), letterboxed in its
   plate exactly as the label draws it;
-- the middle of the code is sampled the same way - the plate at roughly 19-25%
-  of the code's edge, with a few pixel offsets and all four rotations - with a
-  small patch averaged inside each cell, so a dithered print reads back as the
-  grey it represents;
+- the middle of the code is sampled the same way - a plate-size sweep over
+  16-32% of the code's edge in hundredths, five pixel offsets each way, and all
+  four rotations - with a small patch averaged inside each cell, so a dithered
+  print reads back as the grey it represents;
+
+The sweep matters because the label draws the mark at 20% of its QR *square*,
+and that square carries a four-module quiet zone. Against the code's own edge -
+the edge a decoder reports - the plate therefore lands at **0.23-0.25**, not at
+0.20. The first version searched only 0.19-0.25 and read the print at the wrong
+scale; genuine stickers scored 0.60-0.65, just under the 0.66 threshold, and
+were refused. Searching the size instead of assuming it fixed that.
 - brightness and contrast are normalised, so the lamp and the exposure do not
   matter, and the two grids are correlated.
 
-Measured with the real artwork, dithered to one ink, blurred and noisy, at 0,
-15, 90 and 180 degrees, with the code 180-480 px across:
+Measured with the real artwork, dithered to one ink, blurred and noisy, with
+the code 300-420 px across in the camera frame (a sticker held in front of a
+laptop, as the office scans them):
 
 | Centre | Score |
 | --- | --- |
-| Genuine printed mark | 0.71 – 0.91 |
-| A code from a QR website, no mark | 0.15 – 0.22 |
-| A dark square with a white disc in it | 0.54 – 0.62 |
+| Genuine printed mark, plate 0.23-0.25 of the code (what the label prints) | 0.83 – 0.88 |
+| Genuine print, dim and soft (blur 2.6 px, half contrast) | 0.77 |
+| A code from a QR website, no mark | 0.29 – 0.31 |
+| A dark plate with a white disc in it | 0.54 |
+| A dark plate with a white triangle in it | 0.63 – 0.64 |
+| A uniform dark plate (no pattern) | not comparable — refused |
+| A checkered noise plate | 0.25 – 0.27 |
 
 `PRINT_MATCH = 0.66` sits in that gap. A near miss (80% of it) is retried like
 a dark frame rather than refused on one unlucky image.
@@ -109,6 +121,12 @@ The signature and the registered-asset check remain what make a payload real.
 Nothing changes for the sticker itself: the label still prints the colour
 artwork and the printer turns it into ink, and no re-print is needed for the
 reader to accept it.
+
+One more thing a deployment must get right: the module's URL carries the file's
+timestamp (`/js/nu-trace-mark.js?v=<mtime>`) and the route answers
+`must-revalidate`. Without that a browser keeps the copy it cached for a day
+and goes on refusing stickers that the newly deployed check accepts - which is
+indistinguishable, on screen, from the fix not working at all.
 
 If the mark is missing or wrong the scan is refused with:
 
@@ -161,9 +179,10 @@ it dead at once.
   has no colour (`missing`) but still passes the grey comparison, while an
   ordinary code fails it.
 - Browser check of the grey comparison (the real artwork, the real module, in
-  Chromium, with a simulated one-ink print and camera blur): genuine 0.71-0.91,
-  no mark 0.15-0.22, plain dark plate with a white disc 0.54-0.62, threshold
-  0.66.
+  Chromium, with a simulated one-ink print, camera blur and noise): a plate at
+  0.23-0.25 of the code edge - the label's own size - scores 0.83-0.88; dim and
+  soft prints 0.77; a code with no mark 0.29-0.31; a plate with a white disc
+  0.54; a plate with a white triangle 0.63-0.64. One judgement takes ~17 ms.
 - Full suite: run `php artisan test`.
 - Browser check: the real `qrcodejs` + `jsQR` + the real artwork, compiled and
   decoded in Chromium (see the session notes): a drawn sticker decodes and

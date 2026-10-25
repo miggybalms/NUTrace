@@ -306,10 +306,30 @@
      */
     var GRID = 16;
 
-    // How much of the code's edge the plate covers, as the sticker draws it
-    // (20% artwork plus its white ring). Searched slightly either side so a
-    // code held a little off-square still lands on it.
-    var PLATE = [0.19, 0.21, 0.23, 0.25];
+    // How much of the code's edge the plate covers.
+    //
+    // The sticker draws the mark at 20% of its QR *square*, and that square
+    // includes the four-module quiet zone, so against the code's own edge - the
+    // edge a decoder reports - the plate is 0.23 to 0.25 depending on how many
+    // modules the payload needs. A sweep, not a guess: the whole 0.16-0.32 band
+    // is searched a hundredth at a time, so a mark printed slightly small or a
+    // code whose quiet zone the print has shaved still lands on its own size.
+    var PLATE = (function () {
+        var factors = [];
+        var factor;
+
+        for (factor = 16; factor <= 32; factor++) {
+            factors.push(factor / 100);
+        }
+
+        return factors;
+    })();
+
+    // Where that plate may sit inside its crop, as a fraction of the code's
+    // edge: a print is never perfectly centred in its own square. A test of
+    // five offsets gave the same scores as these three, so this is the cheaper
+    // of the two - the size sweep is what the accuracy comes from.
+    var DRIFT = [-0.02, 0, 0.02];
 
     // Correlation needed before a grey centre is accepted as the mark.
     //
@@ -681,8 +701,8 @@
         var turned = [reference, turn(reference, 1), turn(reference, 2), turn(reference, 3)];
 
         PLATE.forEach(function (factor) {
-            [-0.02, 0, 0.02].forEach(function (shiftX) {
-                [-0.02, 0, 0.02].forEach(function (shiftY) {
+            DRIFT.forEach(function (shiftX) {
+                DRIFT.forEach(function (shiftY) {
                     var grid = standardise(gridOf(
                         region,
                         shrink(quad, factor, edge * shiftX, edge * shiftY)

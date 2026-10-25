@@ -9,7 +9,12 @@
 
     The module itself is served from resources/js through /js/nu-trace-mark.js:
     one copy for the app and for the test harness, no build step.
+
+    The file's timestamp is part of its URL. Without it a browser keeps the
+    copy it cached yesterday - the scanner would go on using an older check
+    after a deployment and keep refusing stickers the new one accepts.
 --}}
+@php($markVersion = @filemtime(resource_path('js/nu-trace-mark.js')) ?: 1)
 <script>
     window.NUTraceQrMarkConfig = {
         // Root-relative on purpose: the artwork is then fetched from whatever
@@ -19,4 +24,4 @@
         requireSeal: @json((bool) config('qr.require_seal', true))
     };
 </script>
-<script src="{{ url('/js/nu-trace-mark.js') }}"></script>
+<script src="{{ url('/js/nu-trace-mark.js') }}?v={{ $markVersion }}"></script>

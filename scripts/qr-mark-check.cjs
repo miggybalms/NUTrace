@@ -241,6 +241,79 @@ function sticker(size, centre) {
     });
 }
 
+/**
+ * A sticker whose plate is a given fraction of the code's own edge.
+ *
+ * The label draws the mark at 20% of its QR *square*, and that square carries a
+ * four-module quiet zone, so against the code's edge - what a decoder reports,
+ * and what the frame's corners in `location` describe - the plate is 0.23-0.25
+ * depending on how many modules the payload needs. Getting this wrong is what
+ * made genuine prints score just under the threshold.
+ */
+function stickerAtRatio(size, centre, ratio) {
+    const base = plainQr(size);
+    const edge = size - 20;
+    const plate = Math.round(edge * ratio);
+    const ring = Math.round(plate * 0.07);
+    const left = Math.round((size - plate) / 2);
+    const top = Math.round((size - plate) / 2);
+
+    return frame(size, (x, y) => {
+        const inRing = x >= left - ring && x < left + plate + ring && y >= top - ring && y < top + plate + ring;
+
+        if (!inRing) {
+            return colourAt(base, x, y);
+        }
+
+        const inPlate = x >= left && x < left + plate && y >= top && y < top + plate;
+
+        return inPlate ? centre(x - left, y - top, plate) : WHITE;
+    });
+}
+
+/**
+ * What a black-only printer and a camera do to a sticker: one ink, then a lens
+ * that cannot resolve every module.
+ */
+function printed(region) {
+    const { width, height } = region;
+    const grey = new Float32Array(width * height);
+
+    for (let i = 0; i < grey.length; i++) {
+        const p = i * 4;
+        const lum = 0.299 * region.data[p] + 0.587 * region.data[p + 1] + 0.114 * region.data[p + 2];
+
+        grey[i] = lum < 128 ? 0 : 255;
+    }
+
+    const out = new Uint8ClampedArray(width * height * 4);
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            let sum = 0;
+            let count = 0;
+
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const sx = Math.min(width - 1, Math.max(0, x + dx));
+                    const sy = Math.min(height - 1, Math.max(0, y + dy));
+
+                    sum += grey[sy * width + sx];
+                    count++;
+                }
+            }
+
+            const value = Math.round(sum / count);
+            const i = (y * width + x) * 4;
+
+            out[i] = out[i + 1] = out[i + 2] = value;
+            out[i + 3] = 255;
+        }
+    }
+
+    return { data: out, width, height };
+}
+
 /** How much a frame's middle looks like the mark in grey. */
 function printScore(frame) {
     const result = mark.matchPrint(frame, location, reference);
@@ -275,6 +348,23 @@ check('an ordinary code fails the grey comparison', passed(printScore(plainQr(si
 check('another picture fails the grey comparison', passed(printScore(wrongLogo(size))) ? 'sealed' : 'missing', 'missing');
 check('a blank frame fails the grey comparison', passed(printScore(flat(size, WHITE))) ? 'sealed' : 'missing', 'missing');
 
+// The label's own geometry, printed to one ink and seen through a lens: every
+// plate size a real sticker can have must be recognised, not just one of them.
+[0.20, 0.22, 0.23, 0.25, 0.27].forEach((ratio) => {
+    const score = printScore(printed(stickerAtRatio(size, printedCentre, ratio)));
+
+    check(`a printed label whose plate is ${ratio} of the code is recognised`,
+        passed(score) ? 'sealed' : `missing (${score.toFixed(3)})`, 'sealed');
+});
+
+check(
+    'a printed label with no mark is refused at every size it could be',
+    Math.max(...[0.20, 0.23, 0.25, 0.27].map((ratio) => printScore(stickerAtRatio(size, () => WHITE, ratio)))) < mark.PRINT_MATCH
+        ? 'missing'
+        : 'sealed',
+    'missing'
+);
+
 // The ratios the decision is made from, printed so a threshold change is
 // visible in the check's output.
 const sealed = mark.classify(sealedCentre(size), box);
@@ -305,6 +395,11 @@ console.log(
     `grey match (threshold ${mark.PRINT_MATCH}): printed mark ${printScore(sticker(size, printedCentre)).toFixed(3)}` +
     `  ·  ordinary code ${printScore(plainQr(size)).toFixed(3)}` +
     `  ·  another picture ${printScore(wrongLogo(size)).toFixed(3)}`
+);
+console.log(
+    'printed label by plate size: ' + [0.20, 0.22, 0.23, 0.25, 0.27]
+        .map((ratio) => ratio + '=' + printScore(printed(stickerAtRatio(size, printedCentre, ratio))).toFixed(3))
+        .join('  ')
 );
 
 process.exit(failures === 0 ? 0 : 1);

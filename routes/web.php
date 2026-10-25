@@ -1128,9 +1128,12 @@ Route::get('/js/nu-trace-mark.js', function () {
 
     abort_unless(is_file($path), 404);
 
+    // Revalidated on every load rather than trusted for a day: the URL is the
+    // same after a deployment, so a long max-age would keep a browser on an
+    // older reader - and an older verdict - until its cache expired.
     return response()->file($path, [
         'Content-Type' => 'application/javascript; charset=UTF-8',
-        'Cache-Control' => 'public, max-age=86400',
+        'Cache-Control' => 'public, max-age=0, must-revalidate',
     ]);
 });
 
@@ -1143,7 +1146,7 @@ Route::get('/js/nutag-decode.js', function () {
 
     return response()->file($path, [
         'Content-Type' => 'application/javascript; charset=UTF-8',
-        'Cache-Control' => 'public, max-age=86400',
+        'Cache-Control' => 'public, max-age=0, must-revalidate',
     ]);
 });
 

@@ -78,6 +78,10 @@ class QrSealTest extends TestCase
         $response->assertOk();
         $this->assertStringContainsString('javascript', strtolower((string) $response->headers->get('Content-Type')));
 
+        // A page fetched after a deployment must run that deployment's reader,
+        // not yesterday's cached copy.
+        $this->assertStringContainsString('must-revalidate', (string) $response->headers->get('Cache-Control'));
+
         // The route streams the resource file, so what it serves is what the
         // browser runs.
         $served = (string) file_get_contents(resource_path('js/nu-trace-mark.js'));
@@ -137,6 +141,8 @@ class QrSealTest extends TestCase
             $html = $this->actingAs($this->admin)->get($page)->assertOk()->getContent();
 
             $this->assertStringContainsString('nu-trace-mark.js', $html, $page.' must load the mark reader');
+            // And must not be left on a copy cached before the last deployment.
+            $this->assertMatchesRegularExpression('/nu-trace-mark\.js\?v=\d+/', $html, $page.' must version the mark reader');
             $this->assertStringContainsString('jsqr', strtolower($html), $page.' must load the decoder that locates the code');
             $this->assertStringContainsString('NUTraceQrMark.checkScan(', $html, $page.' must check the mark');
         }
