@@ -8055,11 +8055,11 @@ Route::middleware(['auth'])->group(function () {
             return response()->json(['ok' => false, 'message' => Access::manageEmployeesMessage()], 403);
         }
 
+        // No size ceiling: a faculty list is imported whole, not in parts.
         $validated = $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:2048',
+            'file' => 'required|file|mimes:csv,txt',
         ], [
             'file.mimes' => 'Only a CSV file can be imported. Download the template and fill that in.',
-            'file.max'   => 'That file is larger than 2 MB. Split the list and import it in parts.',
         ]);
 
         $preview = EmployeeDirectory::preview($validated['file']);
@@ -8084,10 +8084,9 @@ Route::middleware(['auth'])->group(function () {
         }
 
         $validated = $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:2048',
+            'file' => 'required|file|mimes:csv,txt',
         ], [
             'file.mimes' => 'Only a CSV file can be imported. Download the template and fill that in.',
-            'file.max'   => 'That file is larger than 2 MB. Split the list and import it in parts.',
         ]);
 
         $result = EmployeeDirectory::commit($validated['file'], Auth::user());

@@ -418,6 +418,57 @@ class EmployeeManagementTest extends TestCase
             ->assertJsonPath('summary.invalid', 1);
     }
 
+    public function test_a_file_with_a_utf8_bom_and_the_exported_headings_is_imported(): void
+    {
+        // Exactly what "Download CSV" produces and what Excel saves: a UTF-8
+        // BOM in front of the first heading, and the export's extra account
+        // columns on the end. The BOM used to swallow "Employee Number", and
+        // the file was refused as missing a required column.
+        $csv = "\xEF\xBB\xBFEmployee Number,Full Name,Email,Department,Status,Has Account,Account Role,Account Status\n"
+            . "EMP-60,Ana Cruz,,Registrar,Active,No,,\n";
+
+        $response = $this->actingAs($this->admin)->post('/admin/employees/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('employee-masterlist.csv', $csv),
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('summary.ready', 1)
+            ->assertJsonPath('rows.0.employee_number', 'EMP-60');
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees/import', ['file' => UploadedFile::fake()->createWithContent('employee-masterlist.csv', $csv)])
+            ->assertOk()
+            ->assertJsonPath('imported', 1);
+
+        $this->assertSame(1, DB::table('employee_numbers')->where('Employee_number', 'EMP-60')->count());
+    }
+
+    public function test_a_file_larger_than_two_megabytes_is_accepted(): void
+    {
+        // The import has no size ceiling: a full faculty list arrives in one
+        // file. The padding column is ignored, it only makes the file big.
+        $rows = ["Employee Number,Full Name,Department,Notes"];
+
+        for ($i = 1; $i <= 160; $i++) {
+            $rows[] = 'EMP-7' . str_pad((string) $i, 3, '0', STR_PAD_LEFT)
+                . ',Person ' . $i . ',Registrar,' . str_repeat('x', 15000);
+        }
+
+        $csv = implode("\n", $rows) . "\n";
+
+        $this->assertGreaterThan(2 * 1024 * 1024, strlen($csv), 'the fixture has to be bigger than the old 2 MB cap');
+
+        $this->actingAs($this->admin)
+            ->post('/admin/employees/import/preview', [
+                'file' => UploadedFile::fake()->createWithContent('employees.csv', $csv),
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('summary.total', 160)
+            ->assertJsonPath('summary.ready', 160);
+    }
+
     public function test_an_import_is_recorded_once_in_the_audit_log(): void
     {
         $csv = "Employee Number,Full Name,Department\nEMP-50,Ana Cruz,Registrar\nEMP-51,Ben Ocampo,Facilities\n";
@@ -453,6 +504,35 @@ class EmployeeManagementTest extends TestCase
         $this->assertStringNotContainsString('password', strtolower($body));
         $this->assertStringNotContainsString('secret-password', $body);
         $this->assertStringNotContainsString('$2y$', $body, 'no hash may travel in an export');
+    }
+
+    public function test_the_export_fills_the_email_cell_from_the_account_when_the_record_has_none(): void
+    {
+        // Neither masterlist record carries an official email; both people do
+        // have an account. The exported Email column is the address the office
+        // knows, not an empty cell.
+        $body = $this->actingAs($this->admin)->get('/admin/employees/export')->streamedContent();
+
+        $this->assertStringContainsString('nena@nu-lipa.edu.ph', $body);
+        $this->assertStringContainsString('alex@nu-lipa.edu.ph', $body);
+    }
+
+    public function test_an_exported_file_can_be_checked_and_imported_back(): void
+    {
+        // The round trip the office actually makes: download, open in a
+        // spreadsheet, upload the same file again. It must be recognised as a
+        // masterlist file, not refused as missing "Employee Number".
+        $body = $this->actingAs($this->admin)->get('/admin/employees/export')->streamedContent();
+
+        $preview = $this->actingAs($this->admin)->post('/admin/employees/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('employee-masterlist-2026-10-25.csv', $body),
+        ]);
+
+        $preview->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('summary.total', 2)
+            ->assertJsonPath('summary.skipped', 2)
+            ->assertJsonPath('summary.ready', 0);
     }
 
     public function test_the_export_follows_the_filter_on_screen(): void

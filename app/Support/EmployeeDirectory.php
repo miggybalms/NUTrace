@@ -394,10 +394,19 @@ class EmployeeDirectory
         $rows = [];
 
         foreach ($query->orderBy('e.Full_Name')->orderBy('e.id')->get() as $row) {
+            // The official address on the employee record wins; when it was
+            // never recorded, the account's address is exported instead of an
+            // empty cell - otherwise "download, correct, upload" hands the
+            // office a file with nobody's email in it.
+            $email = trim((string) ($row->Email ?? ''));
+            if ($email === '') {
+                $email = trim((string) ($row->account_email ?? ''));
+            }
+
             $rows[] = [
                 $row->Employee_number,
                 $row->Full_Name,
-                (string) ($row->Email ?? ''),
+                $email,
                 (string) ($row->department ?? ''),
                 (string) $row->status,
                 $row->account_email ? 'Yes' : 'No',
@@ -546,10 +555,6 @@ class EmployeeDirectory
     {
         if (! $file->isValid()) {
             return ['ok' => false, 'message' => 'The file did not upload completely. Please choose it again.'];
-        }
-
-        if ($file->getSize() > Csv::MAX_BYTES) {
-            return ['ok' => false, 'message' => 'That file is larger than 2 MB. Split the list and import it in parts.'];
         }
 
         $extension = strtolower((string) $file->getClientOriginalExtension());

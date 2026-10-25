@@ -24,9 +24,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class Csv
 {
-    /** A masterlist of a few hundred employees is a few kilobytes; 2 MB is generous. */
-    public const MAX_BYTES = 2097152;
-
     /** Rows beyond this are refused rather than silently truncated. */
     public const MAX_ROWS = 2000;
 
@@ -96,13 +93,17 @@ class Csv
         }
 
         // A BOM at the start of the file would otherwise become part of the
-        // first heading ("\xEF\xBB\xBFEmployee Number"), and every required
-        // column would then look missing.
-        $first = fgets($handle);
-        if ($first !== false) {
-            $first = preg_replace('/^\xEF\xBB\xBF/', '', $first);
-            rewind($handle);
+        // first heading ("\xEF\xBB\xBFEmployee Number"), and that column would
+        // then look missing - which is exactly what an exported or Excel-saved
+        // file used to do. The bytes have to be skipped IN the file: removing
+        // them from a copy of the first line and rewinding changes nothing.
+        //
+        // Repeated BOMs are skipped too: Excel writes one whenever it saves.
+        $offset = 0;
+        while (fread($handle, 3) === "\xEF\xBB\xBF") {
+            $offset += 3;
         }
+        fseek($handle, $offset);
 
         $headers = [];
         $rows    = [];
@@ -118,7 +119,7 @@ class Csv
 
             if ($headers === []) {
                 $headers = array_map(
-                    static fn ($cell) => trim((string) $cell),
+                    static fn ($cell) => trim(str_replace("\xEF\xBB\xBF", '', (string) $cell)),
                     $cells
                 );
                 continue;

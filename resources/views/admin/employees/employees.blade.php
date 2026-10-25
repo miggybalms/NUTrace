@@ -460,7 +460,7 @@
                     </a>
 
                     <div class="card p-5">
-                        <label class="eyebrow block mb-2" for="import_file">CSV file (max 2 MB, up to {{ \App\Support\Csv::MAX_ROWS }} rows)</label>
+                        <label class="eyebrow block mb-2" for="import_file">CSV file (no size limit, up to {{ \App\Support\Csv::MAX_ROWS }} rows)</label>
                         <input id="import_file" type="file" accept=".csv,.txt,text/csv" class="field w-full mb-3">
 
                         <div class="flex flex-wrap gap-2">
@@ -734,11 +734,6 @@
 
         if (!file.size) {
             notice(false, 'That file is empty. Download the template and fill it in.');
-            return null;
-        }
-
-        if (file.size > 2 * 1024 * 1024) {
-            notice(false, 'That file is larger than 2 MB. Split the list and import it in parts.');
             return null;
         }
 
