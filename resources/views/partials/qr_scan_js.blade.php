@@ -197,6 +197,31 @@ window.NUTraceQr = (function () {
     }
 
     /**
+     * Forget the sticker's text after it has been drawn.
+     *
+     * qrcodejs writes the coded text onto the holder as a `title` attribute, so
+     * hovering the QR pops the whole payload up in a browser tooltip - the code
+     * readable straight off the screen without scanning anything. The text is
+     * what the sticker is for, so it is stripped again the moment it is drawn.
+     */
+    function quiet(holder) {
+        if (!holder) {
+            return;
+        }
+
+        holder.removeAttribute('title');
+
+        Array.prototype.forEach.call(holder.querySelectorAll('[title]'), function (node) {
+            node.removeAttribute('title');
+        });
+
+        // Some builds mirror the text into an image's alt as well.
+        Array.prototype.forEach.call(holder.querySelectorAll('img'), function (img) {
+            img.alt = 'NU Trace QR code';
+        });
+    }
+
+    /**
      * Draw a QR into an element with the same library every screen already uses.
      * A signed payload is a long string, so it is drawn at a lower error
      * correction level than a short legacy code: the same 20mm square stays
@@ -246,7 +271,7 @@ window.NUTraceQr = (function () {
 
         var settings = options || {};
 
-        return new QRCode(holder, {
+        var instance = new QRCode(holder, {
             text: drawn,
             width: settings.width || 220,
             height: settings.height || 220,
@@ -254,6 +279,13 @@ window.NUTraceQr = (function () {
             colorLight: settings.colorLight || '#ffffff',
             correctLevel: isSigned(drawn) ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.H
         });
+
+        // The constructor draws synchronously, title included; the deferred
+        // pass covers a build that paints the image a tick later.
+        quiet(holder);
+        setTimeout(function () { quiet(holder); }, 0);
+
+        return instance;
     }
 
     /** Colours and icon for one verification tone. */
