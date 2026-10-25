@@ -82,12 +82,15 @@ class AssetQr
     }
 
     /**
-     * The text a *new* sticker carries.
+     * The text a sticker carries.
      *
-     * A NUTAG whenever the code can hold one - that is the format ordinary QR
-     * readers cannot see. The signed QR payload is kept as the fallback for a
-     * code that cannot carry a tag (or an install whose tag table is not
-     * available), so a sticker is never printed blank.
+     * A QR again: the cameras and scanner apps the office actually uses cannot
+     * read the NUTAG prototype, so the sticker has to be a code every one of
+     * them can find. The text is still the signed, sealed payload, so what a
+     * foreign scanner reads is an opaque blob rather than the asset code.
+     *
+     * Plain code only when the install has no signing keys; the sticker is
+     * never printed blank.
      */
     public static function stickerText(?string $code): string
     {
@@ -97,7 +100,7 @@ class AssetQr
             return '';
         }
 
-        return AssetTag::textFor($code) ?? self::textFor($code);
+        return self::textFor($code);
     }
 
     /** Sticker texts for several codes, keyed by code (the registry preview). */

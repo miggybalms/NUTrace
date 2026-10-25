@@ -110,14 +110,14 @@ class AssetDetailAndAdminHeaderTest extends TestCase
 
         $html = $page->getContent();
 
-        // The text drawn is the asset's own sticker text: a NUTAG symbol, whose
-        // token only the server can turn back into this code.
+        // The text drawn is the asset's own sticker text: the plain asset code
+        // here, the same string a sticker printed before signing carries.
         $page->assertSee('var assetCode', false);
         $page->assertSee('"AST-0001"', false);
-        $page->assertSee('var qrPayload   = "NUTAG1-', false);
+        $page->assertSee('var qrPayload   = "AST-0001"', false);
 
-        // … and it is what gets drawn, through the one shared reader, which
-        // recognises a tag and draws its cells instead of a QR.
+        // … and it is what gets drawn, through the one shared reader, which also
+        // lowers the error correction level for a long signed payload.
         $page->assertSee('window.NUTraceQr.draw(holder, qrPayload', false);
 
         // The stored PNG is only the fallback for an asset that has no code at all.

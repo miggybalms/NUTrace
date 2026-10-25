@@ -128,6 +128,12 @@
                                     // this install can sign, otherwise the plain code.
                                     $qrPayload = \App\Support\AssetQr::stickerText($asset->Asset_code ?? '');
                                     $qrRevoked = ! empty($asset->qr_revoked_at);
+                                    // A stored image saved while the NUTAG prototype was
+                                    // live is not a QR, so it is not shown: the QR service
+                                    // draws the payload the sticker now carries.
+                                    $qrImage = \App\Support\NutTag::isTagText((string) ($asset->qr_payload ?? ''))
+                                        ? 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc=' . (str_starts_with($qrPayload, 'NUT') ? 'M' : 'L') . '&data=' . urlencode($qrPayload)
+                                        : \App\Support\Media::url($asset->qr_code_path);
                                 @endphp
 
                                 <div class="mt-4 stub p-3">
@@ -140,11 +146,7 @@
                                             {!! \App\Support\NutTag::svgFromText($qrPayload, 'NU Trace tag for '.($asset->Asset_code ?? '')) !!}
                                         </div>
                                     @else
-                                        {{-- With no stored image the src is empty and the QR
-                                             service draws the same payload the sticker
-                                             carries, at the error correction level a long
-                                             signed payload needs. --}}
-                                        <img src="{{ \App\Support\Media::url($asset->qr_code_path) }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
+                                        <img src="{{ $qrImage }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
                                              onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc={{ str_starts_with($qrPayload, 'NUT') ? 'M' : 'L' }}&data=' + encodeURIComponent('{{ $qrPayload }}');" />
                                     @endif
 

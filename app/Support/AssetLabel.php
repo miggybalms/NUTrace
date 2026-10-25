@@ -373,7 +373,13 @@ class AssetLabel
             'location' => self::clean($row->location ?? $row->asset_location ?? ''),
             'category' => self::clean($row->category ?? $row->Category ?? ''),
             'acquired' => self::formatAcquired($row->accusion_date ?? $row->date_acquired ?? null),
-            'qr'       => Media::url($row->qr_code_path ?? null),
+            // A stored image only stands in for the sticker when it belongs to
+            // the payload printed beside it. An image saved while the NUTAG
+            // prototype was live is not a QR, so it is ignored and the browser
+            // draws the QR from the payload instead.
+            'qr'       => NutTag::isTagText((string) ($row->qr_payload ?? ''))
+                ? null
+                : Media::url($row->qr_code_path ?? null),
             // What the sticker's QR encodes when the browser has to draw it.
             'qr_payload' => self::payloadFor($row, $code),
             'logo'     => self::logoUrl(),
@@ -396,38 +402,31 @@ class AssetLabel
             'category' => self::clean($input['category'] ?? ''),
             'acquired' => self::formatAcquired($input['acquired'] ?? null),
             'qr'       => null, // no stored image yet; the sheet draws the code instead
-            // The tag token is issued for the code, not the row, so a label
-            // previewed before the asset exists carries the same identity it
-            // will carry once saved.
-            'qr_payload' => AssetQr::stickerText($code),
+            // Signing needs no database row, so a label previewed before the
+            // asset exists carries the same payload it will carry once saved.
+            'qr_payload' => AssetQr::textFor($code),
             'logo'     => self::logoUrl(),
             'logo_fallback' => self::logoFallbackUrl(),
         ];
     }
 
     /**
-     * The exact text the sticker carries for a saved asset.
+     * The exact text the sticker's QR carries for a saved asset.
      *
-     * A NUTAG is the current sticker, and its token is stored per code - so a
-     * reprint is the same sticker rather than a second identity for the same
-     * asset. An asset that already carries a sealed QR payload keeps reading
-     * its stored one only when no tag can be issued, because printing a QR
-     * again is exactly what the tag format replaces.
+     * An asset that already holds a *sealed* payload prints that payload: it
+     * is what its record, its stored QR image and the sticker on the shelf
+     * carry, so a reprint is the same sticker rather than a second one that
+     * only looks alike.
      *
      * A stored payload of the old readable format (version 1) is deliberately
-     * not reused: printing it again would put the asset code back on the paper.
-     * Either way the code printed is this asset's own: a stored payload naming
-     * a different code is never used, which would put one asset's sticker on
-     * another's record.
+     * not reused: printing it again would put the asset code back on the paper,
+     * which is the whole thing version 2 exists to stop. The reprint carries a
+     * freshly sealed one instead. Either way the code printed is this asset's
+     * own: a stored payload naming a different code is never used, which would
+     * put one asset's sticker on another's record.
      */
     private static function payloadFor(object $row, string $code): string
     {
-        $tag = AssetTag::textFor($code);
-
-        if ($tag !== null) {
-            return $tag;
-        }
-
         $stored = trim((string) ($row->qr_payload ?? ''));
 
         if ($stored !== '' && $code !== '') {

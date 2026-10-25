@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Support\AssetQr;
 use App\Support\AssetTag;
 use App\Support\NutTag;
+use App\Support\QrPayload;
 use App\Support\QrVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -163,10 +164,10 @@ class AssetTagTest extends TestCase
             ->assertJsonPath('status', QrVerification::INVALID_SIGNATURE);
     }
 
-    public function test_the_sticker_text_is_a_tag_and_the_symbol_draws_every_dark_cell(): void
+    public function test_the_tag_symbol_draws_every_dark_cell(): void
     {
-        $this->assertStringStartsWith('NUTAG1-', AssetQr::stickerText('AST-TAG-0001'));
-
+        // Tags already on paper are still decoded; new stickers are QR again,
+        // but the prototype's drawing stays exact for the ones that exist.
         $cells = NutTag::matrixFromText((string) AssetTag::textFor('AST-TAG-0001'));
         $dark = 0;
 
@@ -191,40 +192,18 @@ class AssetTagTest extends TestCase
         $this->assertSame(NutTag::fromText($text), $read);
     }
 
-    /**
-     * No screen may hand a new sticker to a QR renderer or a QR service.
-     *
-     * Both would put the tag's text in an image URL and draw it as an ordinary
-     * QR, which is precisely what a phone or a scanning website must never get
-     * from a NU Trace sticker.
-     */
-    public function test_no_screen_turns_a_tag_into_a_qr(): void
+    /** A new sticker is a QR again, so the system's own scanners can read it. */
+    public function test_a_new_sticker_is_a_qr_payload_again(): void
     {
-        AssetQr::clearCache();
+        $text = AssetQr::stickerText('AST-TAG-0001');
 
-        $pages = [
-            '/admin/assets/registry',
-            '/admin/replacement',
-            '/admin/assets/1',
-            '/admin/assets/labels?codes=AST-TAG-0001',
-        ];
+        $this->assertStringNotContainsString('NUTAG1-', $text);
+        $this->assertSame('AST-TAG-0001', QrPayload::parse($text)['code']);
 
-        foreach ($pages as $page) {
-            $html = $this->actingAs($this->admin)->get($page)->assertOk()->getContent();
-
-            $this->assertStringNotContainsString(
-                'data=NUTAG1-',
-                $html,
-                $page.' must not pass a sticker to the QR service'
-            );
-        }
-
-        // The printed sticker carries the symbol itself, not a payload for a
-        // browser-side QR library to draw later.
         $this->actingAs($this->admin)
             ->get('/admin/assets/labels?codes=AST-TAG-0001')
             ->assertOk()
-            ->assertSee('trace-label__qr--tag', false)
-            ->assertDontSee('data-qr-payload="NUTAG1-', false);
+            ->assertSee('data-qr-payload="' . $text . '"', false)
+            ->assertDontSee('trace-label__qr--tag', false);
     }
 }

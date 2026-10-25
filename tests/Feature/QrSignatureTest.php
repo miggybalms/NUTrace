@@ -548,10 +548,9 @@ class QrSignatureTest extends TestCase
         $this->assertNull(DB::table('assets')->where('id', $this->ownAsset)->value('qr_revoked_at'));
         $this->assertSame('valid', $this->verifyAs($this->admin, $payload)['status']);
 
-        // The reissued sticker is a NUTAG symbol: the asset code is sealed in
-        // its token, not written on the paper as a QR payload.
+        // The reissued sticker is a sealed QR payload, not a readable code.
         $stored = (string) DB::table('assets')->where('id', $this->ownAsset)->value('qr_payload');
-        $this->assertStringStartsWith('NUTAG1-', $stored);
+        $this->assertStringStartsWith('NUT2-V1-', $stored);
         $this->assertStringNotContainsString('AST-', $stored);
     }
 
@@ -581,38 +580,28 @@ class QrSignatureTest extends TestCase
         }
     }
 
-    public function test_the_label_sheet_prints_the_tag_symbol(): void
+    public function test_the_label_sheet_prints_the_signed_payload(): void
     {
-        $expected = \App\Support\NutTag::svgFromText(
-            (string) \App\Support\AssetTag::textFor('AST-0001'),
-            'NU Trace tag for AST-0001'
-        );
-
-        $this->assertNotNull($expected);
+        $payload = $this->payloadFor('AST-0001');
 
         $this->actingAs($this->admin)
             ->get('/admin/assets/labels?codes=AST-0001')
             ->assertOk()
-            ->assertSee($expected, false)
+            ->assertSee('data-qr-payload="' . $payload . '"', false)
             ->assertDontSee('unsigned code');
     }
 
-    public function test_a_sticker_without_qr_keys_is_still_a_tag(): void
+    public function test_the_label_sheet_tells_the_office_which_stickers_are_still_unsigned(): void
     {
-        // QR signing keys are no longer what a new sticker depends on: the tag
-        // carries its own check value, and the sheet prints it either way. The
-        // old "unsigned code" warning was about readable QR codes, which a tag
-        // never is.
         config(['qr.keys' => '', 'qr.active_key_id' => null]);
         QrSigner::flush();
         AssetQr::clearCache();
-        \App\Support\AssetTag::clearCache();
 
         $this->actingAs($this->admin)
             ->get('/admin/assets/labels?codes=AST-0001')
             ->assertOk()
-            ->assertSee('<svg', false)
-            ->assertDontSee('unsigned code');
+            ->assertSee('data-qr-payload="AST-0001"', false)
+            ->assertSee('unsigned code');
     }
 
     public function test_registering_an_asset_stores_a_signed_sticker(): void
@@ -633,17 +622,14 @@ class QrSignatureTest extends TestCase
         $row = DB::table('assets')->where('Asset_code', 'NU-9001')->first();
 
         $this->assertNotNull($row);
-        $this->assertStringStartsWith('NUTAG1-', (string) $row->qr_payload);
+        $this->assertStringStartsWith('NUT2-V1-', (string) $row->qr_payload);
         $this->assertStringNotContainsString('NU-9001', (string) $row->qr_payload);
-
-        // The sticker resolves back to this asset, and only through the server.
-        $verdict = \App\Support\AssetTag::verify((string) $row->qr_payload, $this->admin);
-        $this->assertSame('valid', $verdict['status']);
-        $this->assertSame('NU-9001', $verdict['code']);
-
-        // The image is generated locally (a NUTAG is not a QR, so no QR service
-        // is asked for anything), and its path is recorded.
         $this->assertNotNull($row->qr_code_path);
+
+        // The image that was stored encodes that same payload, at the error
+        // correction level a long signed payload needs.
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'data=NUT2-V1-')
+            && str_contains($request->url(), 'ecc=M'));
     }
 
     public function test_the_payload_endpoint_is_for_the_asset_management_office_only(): void
@@ -659,11 +645,8 @@ class QrSignatureTest extends TestCase
 
         $payloads = $response->json('payloads');
 
-        // The endpoint now hands out the sticker the sheet prints: a NUTAG for
-        // each code, not the old signed QR payload.
-        $this->assertSame(\App\Support\AssetTag::textFor('AST-0001'), $payloads['AST-0001']);
-        $this->assertSame(\App\Support\AssetTag::textFor('AST-0002'), $payloads['AST-0002']);
-        $this->assertStringStartsWith('NUTAG1-', (string) $payloads['AST-0001']);
+        $this->assertSame($this->payloadFor('AST-0001'), $payloads['AST-0001']);
+        $this->assertSame($this->payloadFor('AST-0002'), $payloads['AST-0002']);
     }
 
     public function test_a_guest_can_neither_verify_nor_revoke(): void
