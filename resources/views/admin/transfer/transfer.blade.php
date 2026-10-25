@@ -217,9 +217,13 @@
                 <div id="tab-employees" class="panel rounded-b-xl overflow-hidden" style="border-top:0;">
                     <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-2" style="border-bottom:1px solid var(--line);">
                         <span class="eyebrow mr-1">Department</span>
-                        <button type="button" class="filter-chip chip-active" data-dept="*">All</button>
-                        @foreach($departments as $department)
-                            <button type="button" class="filter-chip" data-dept="{{ $department }}">{{ $department }}</button>
+                        {{-- Links, not buttons: the filter has to reach every employee,
+                             including the ones on the pages that are not on screen. --}}
+                        <a href="{{ url('/admin/transfer?' . http_build_query(array_filter(['tab' => 'employees', 'q' => $search ?: null]))) }}"
+                           class="filter-chip {{ $department === '' ? 'chip-active' : '' }}" data-dept="*">All</a>
+                        @foreach($departments as $dept)
+                            <a href="{{ url('/admin/transfer?' . http_build_query(array_filter(['tab' => 'employees', 'q' => $search ?: null, 'department' => $dept]))) }}"
+                               class="filter-chip {{ $department === $dept ? 'chip-active' : '' }}" data-dept="{{ $dept }}">{{ $dept }}</a>
                         @endforeach
                     </div>
 
@@ -313,6 +317,15 @@
                         <p class="text-sm font-medium" style="color:var(--navy-900);">No matching employees</p>
                         <p class="text-xs mt-1" style="color:var(--ink-400);">Try a different name, employee number or department — or clear the search box.</p>
                     </div>
+
+                    @if($employees->hasPages())
+                        <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3" style="border-top:1px solid var(--line);">
+                            <p class="text-xs" style="color:var(--ink-400);">
+                                Showing {{ $employees->firstItem() }}–{{ $employees->lastItem() }} of {{ $employees->total() }} employees
+                            </p>
+                            <div>{{ $employees->appends(['tab' => 'employees'])->links() }}</div>
+                        </div>
+                    @endif
                 </div>
 
                 <!-- History -->
@@ -376,6 +389,15 @@
                         <p class="text-sm font-medium" style="color:var(--navy-900);">No matching transfers</p>
                         <p class="text-xs mt-1" style="color:var(--ink-400);">Try another employee name, reason or transfer number.</p>
                     </div>
+
+                    @if($transfers->hasPages())
+                        <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3" style="border-top:1px solid var(--line);">
+                            <p class="text-xs" style="color:var(--ink-400);">
+                                Showing {{ $transfers->firstItem() }}–{{ $transfers->lastItem() }} of {{ $transfers->total() }} transfers
+                            </p>
+                            <div>{{ $transfers->appends(['tab' => 'history'])->links() }}</div>
+                        </div>
+                    @endif
                 </div>
 
                 <!-- Executive Review — every transfer the Executive Director was emailed about -->
@@ -782,8 +804,11 @@
     </form>
 
     <script>
-        const TRANSFER_EMPLOYEES = @json($employees);
-        const TRANSFER_HISTORY  = @json($transfers);
+        // The whole lists, not the current page: a modal has to be able to open
+        // an employee or a transfer that is on another page.
+        const TRANSFER_EMPLOYEES = @json($allEmployees);
+        const TRANSFER_HISTORY  = @json($allTransfers);
+        const ACTIVE_TAB        = @json($activeTab);
         const TRANSFER_REVIEWS  = @json($executiveReviews);
         const REVIEW_TABLES_READY = @json($reviewDefaults['tables_ready']);
         const REVIEW_RECIPIENT  = @json($reviewDefaults['recipient']);
@@ -831,6 +856,22 @@
                 btn.style.color = on ? 'var(--navy-900)' : 'var(--ink-400)';
             });
             applySearch(byId('transferSearch')?.value || '');
+
+            // The tab lives in the URL, so a search, a department filter or a
+            // page link comes back to the tab it was used on instead of
+            // silently returning to the first one.
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', tab);
+                window.history.replaceState({}, '', url);
+            } catch (e) {
+                /* an opaque origin: the tab still works, only the URL lacks it */
+            }
+
+            // The search box posts the tab it was used on, which is not
+            // necessarily the one the page was loaded with.
+            const tabField = document.querySelector('input[name="tab"]');
+            if (tabField) tabField.value = tab;
         }
 
         /* ---------------- search + department chips ---------------- */
@@ -1379,11 +1420,11 @@
                 });
             });
 
-            byId('transferSearch')?.addEventListener('input', (event) => applySearch(event.target.value));
             byId('reason-select')?.addEventListener('change', updateContinueButton);
 
-            // History rows stay searchable while the search box lives in the page header.
-            selectTab('employees');
+            // The header search is an ordinary GET form now: it filters the whole
+            // list on the server, so typing must not hide rows on this page only.
+            selectTab(ACTIVE_TAB || 'employees');
 
             if (OPEN_TRANSFER_ID) {
                 selectTab('history');

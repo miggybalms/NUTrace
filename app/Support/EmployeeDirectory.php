@@ -30,7 +30,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class EmployeeDirectory
 {
     /** Page size for the directory and the account list. */
-    public const PER_PAGE = 15;
+    public const PER_PAGE = 10;
 
     /** Statuses the masterlist allows. */
     public const STATUSES = ['Active', 'Inactive'];

@@ -192,15 +192,27 @@
                         </a>
                         @break
 
-                    {{-- Transfer: search the employee list and the transfer history --}}
+                    {{-- Transfer: search the employee list and the transfer history.
+
+                         An ordinary GET form, because the lists are paged on the
+                         server: the search has to cover every employee, not only
+                         the ten rows that happen to be on screen. `q` and
+                         `department` survive in the query string, so paging a
+                         filtered list keeps the filter. --}}
                     @case('transfer')
-                        <div class="relative flex-1 sm:flex-none">
+                        <form method="GET" action="{{ url('/admin/transfer') }}" role="search"
+                              class="relative flex-1 sm:flex-none">
+                            <input type="hidden" name="tab" value="{{ $activeTab ?? 'employees' }}">
+                            @if(! empty($department))
+                                <input type="hidden" name="department" value="{{ $department }}">
+                            @endif
                             <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color:var(--ink-400,#5C6474);" aria-hidden="true"></i>
-                            <input type="text" id="transferSearch" placeholder="Search employees..."
+                            <input type="text" id="transferSearch" name="q" value="{{ $search ?? '' }}"
+                                placeholder="Search employees..."
                                 aria-label="Search employees by name, employee number or department"
                                 autocomplete="off"
                                 class="search-input pl-9 pr-4 py-2.5 rounded-lg text-sm w-full sm:w-64"/>
-                        </div>
+                        </form>
                         @break
 
                     {{-- Pullout --}}

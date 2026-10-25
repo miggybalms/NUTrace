@@ -249,7 +249,10 @@ class AssetImportTest extends TestCase
         $this->actingAs($this->admin)
             ->get('/admin/assets/import')
             ->assertOk()
-            ->assertSee('no size limit')
+            // The caption that spelled out the part size has been removed from
+            // the page; the slicing it described still runs.
+            ->assertDontSee('no size limit')
+            ->assertDontSee('sent in parts of')
             // The page slices the file at the size the server can actually take.
             ->assertSee('const PART_BYTES = ' . AssetImport::partBytes(), false);
     }

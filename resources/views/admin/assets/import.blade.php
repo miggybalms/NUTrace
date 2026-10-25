@@ -52,10 +52,6 @@
     'adminHeaderBadge' => 'Admin',
 ])
 
-@php
-    $partMb = number_format(max(1, (int) round(($partBytes ?? 8 * 1048576) / 1048576)));
-@endphp
-
 <div class="p-4 sm:p-8 space-y-5" id="importApp">
 
     {{-- ── What this does ───────────────────────────────────────── --}}
@@ -108,7 +104,6 @@
             <span class="step-dot active" id="dotUpload">1</span>
             <div>
                 <h3 class="font-display text-base font-semibold text-[#0F2143]">Choose the file</h3>
-                <p class="text-xs text-[#5C6474]">.xlsx or .csv · no size limit — a large file is sent in parts of {{ $partMb }} MB</p>
             </div>
         </div>
         <div class="p-5 sm:p-6">

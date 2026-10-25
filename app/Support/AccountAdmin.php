@@ -24,7 +24,7 @@ use Illuminate\Validation\Rule;
  */
 class AccountAdmin
 {
-    public const PER_PAGE = 15;
+    public const PER_PAGE = 10;
 
     /** The account-status filter, and the two values it allows. */
     public const STATUSES = [Access::STATUS_ACTIVE, Access::STATUS_INACTIVE];

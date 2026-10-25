@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\AccountAdmin;
+use App\Support\EmployeeDirectory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -190,7 +192,8 @@ class FilterPaginationTest extends TestCase
         $secondPage = $second->viewData('employees');
 
         $this->assertSame(19, $secondPage->total());
-        $this->assertCount(4, $secondPage->items());
+        $this->assertSame(EmployeeDirectory::PER_PAGE, $secondPage->perPage());
+        $this->assertCount(19 - EmployeeDirectory::PER_PAGE, $secondPage->items());
         foreach ($secondPage->items() as $row) {
             $this->assertSame(1, (int) $row->department_id);
         }
@@ -219,7 +222,8 @@ class FilterPaginationTest extends TestCase
         $secondPage = $second->viewData('accounts');
 
         $this->assertSame(18, $secondPage->total());
-        $this->assertCount(3, $secondPage->items());
+        $this->assertSame(AccountAdmin::PER_PAGE, $secondPage->perPage());
+        $this->assertCount(18 - AccountAdmin::PER_PAGE, $secondPage->items());
         foreach ($secondPage->items() as $row) {
             $this->assertSame('Employee', $row->role);
         }

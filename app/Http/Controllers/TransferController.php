@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Support\AssetTransfer;
 use App\Support\TransferReviews;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -25,6 +27,15 @@ use RuntimeException;
  */
 class TransferController extends Controller
 {
+    /**
+     * Rows per page on the employee list and the transfer history.
+     *
+     * Both lists grow with the institution, so they are paged in the database
+     * (well, in the already-built list) rather than rendered whole: ten rows is
+     * what fits a page without scrolling past the tabs.
+     */
+    public const PER_PAGE = 10;
+
     /** The transfer page: employees on one tab, transfer history on the other. */
     public function index(Request $request)
     {
@@ -61,6 +72,11 @@ class TransferController extends Controller
 
         $transfers = AssetTransfer::history()->all();
 
+        // Kept before paging: the page's totals and the modals describe every
+        // employee and every transfer, not the ten rows currently on screen.
+        $allEmployees = $employees;
+        $allTransfers = $transfers;
+
         $stats = [
             'employees_with_assets' => count(array_filter($employees, fn ($e) => $e['assigned_count'] > 0)),
             'assets_assigned'       => array_sum(array_column($employees, 'assigned_count')),
@@ -76,6 +92,77 @@ class TransferController extends Controller
             ->values()
             ->all();
 
+        // ─── search, department filter and paging ─────────────────────────
+        // The filters run over the WHOLE list before it is cut into pages, so a
+        // search on page 3 still finds somebody who would otherwise be on page
+        // 1, and the pager never shows a page that the filter emptied. The
+        // stats above are deliberately computed before this, so "Employees with
+        // assets" keeps counting everybody rather than the page on screen.
+        $q          = trim((string) $request->query('q', ''));
+        $department = trim((string) $request->query('department', ''));
+        $needle     = mb_strtolower($q);
+
+        $employeeMatches = collect($employees)
+            ->filter(function (array $employee) use ($needle, $department) {
+                if ($department !== '' && (string) ($employee['department'] ?? '') !== $department) {
+                    return false;
+                }
+
+                if ($needle === '') {
+                    return true;
+                }
+
+                $haystack = mb_strtolower(implode(' ', array_filter([
+                    $employee['name'] ?? '',
+                    $employee['employee_number'] ?? '',
+                    $employee['department'] ?? '',
+                    $employee['role'] ?? '',
+                    $employee['email'] ?? '',
+                ])));
+
+                return str_contains($haystack, $needle);
+            })
+            ->values();
+
+        $transferMatches = collect($transfers)
+            ->filter(function (array $transfer) use ($needle) {
+                if ($needle === '') {
+                    return true;
+                }
+
+                $haystack = mb_strtolower(implode(' ', array_filter([
+                    $transfer['from']['name'] ?? '',
+                    $transfer['to']['name'] ?? '',
+                    $transfer['reason'] ?? '',
+                    $transfer['reference'] ?? '',
+                ])));
+
+                return str_contains($haystack, $needle);
+            })
+            ->values();
+
+        // The lists are already materialised (the labels come from a helper, not
+        // a single query), so they are cut into pages here rather than in SQL.
+        // The paginator still speaks the same language as the rest of the app:
+        // a query string per page, and the current page read from the URL.
+        $query = collect($request->query())->except(['employees_page', 'history_page', 'page'])->all();
+
+        $employees = new LengthAwarePaginator(
+            $employeeMatches->forPage(Paginator::resolveCurrentPage('employees_page'), self::PER_PAGE)->values(),
+            $employeeMatches->count(),
+            self::PER_PAGE,
+            Paginator::resolveCurrentPage('employees_page'),
+            ['path' => Paginator::resolveCurrentPath(), 'query' => $query, 'pageName' => 'employees_page']
+        );
+
+        $transfers = new LengthAwarePaginator(
+            $transferMatches->forPage(Paginator::resolveCurrentPage('history_page'), self::PER_PAGE)->values(),
+            $transferMatches->count(),
+            self::PER_PAGE,
+            Paginator::resolveCurrentPage('history_page'),
+            ['path' => Paginator::resolveCurrentPath(), 'query' => $query, 'pageName' => 'history_page']
+        );
+
         // Every transfer the Executive Director has been asked about, including
         // the ones the Requests page forwarded: one list, on the page the office
         // sends from, so a live invitation is never hunted for.
@@ -84,6 +171,15 @@ class TransferController extends Controller
         return view('admin.transfer.transfer', [
             'employees'        => $employees,
             'transfers'        => $transfers,
+            // The whole lists, for the modals and the receipt links: a modal
+            // still has to open an employee who is on another page.
+            'allEmployees'     => $allEmployees,
+            'allTransfers'     => $allTransfers,
+            'search'           => $q,
+            'department'       => $department,
+            'activeTab'        => in_array($request->query('tab'), ['employees', 'history', 'executive'], true)
+                ? (string) $request->query('tab')
+                : 'employees',
             'departments'      => $departments,
             'reasons'          => AssetTransfer::REASONS,
             'stats'            => $stats,
