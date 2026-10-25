@@ -94,6 +94,16 @@
                 <img class="trace-label__qr-image" src="{{ $qr }}" alt="QR code for {{ $code }}">
             @endif
             <span class="trace-label__qr-draw"></span>
+
+            {{-- The official mark, centred on the code. A plain <img> rather
+                 than an SVG <image>: the artwork is the one part of the
+                 sticker a browser can silently drop, and this element prints
+                 exactly as it renders on screen. A root-relative source keeps
+                 it on the same scheme and host as the page, so it can never be
+                 blocked as mixed content. --}}
+            <span class="trace-label__seal" aria-hidden="true">
+                <img src="/images/nu-trace-mark.jpg" alt="">
+            </span>
         </div>
     @endif
 </div>

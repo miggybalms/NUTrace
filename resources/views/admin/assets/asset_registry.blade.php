@@ -1234,26 +1234,28 @@
                 const qrBox = document.createElement('div');
                 qrBox.className = 'w-36 h-36 flex items-center justify-center bg-white';
 
-                if (label.qr_url) {
-                    const img = document.createElement('img');
-                    img.src = label.qr_url;
-                    img.alt = `NU Trace tag for ${label.code}`;
-                    img.className = 'w-36 h-36 object-contain';
-                    qrBox.appendChild(img);
-                } else {
-                    // No stored image: mint the sticker's text and draw its
-                    // cells. Never a QR library with the bare code, which any
-                    // phone or scanning website can read.
-                    stickerTextFor(label.code).then((payload) => {
-                        if (window.NUTraceQr) {
-                            window.NUTraceQr.draw(qrBox, payload || label.code, {
-                                width: 144,
-                                height: 144,
-                                colorDark: '#1f2937'
-                            });
-                        }
-                    });
-                }
+                // The card shows the sticker the printout will carry, so it is
+                // drawn here with the official mark in its centre - the stored
+                // image the server mints is a fallback for a browser that
+                // cannot draw, and carries no mark.
+                stickerTextFor(label.code).then((payload) => {
+                    if (label.qr_url && !window.NUTraceQr) {
+                        const img = document.createElement('img');
+                        img.src = label.qr_url;
+                        img.alt = `NU Trace code for ${label.code}`;
+                        img.className = 'w-36 h-36 object-contain';
+                        qrBox.appendChild(img);
+                        return;
+                    }
+
+                    if (window.NUTraceQr) {
+                        window.NUTraceQr.draw(qrBox, payload || label.code, {
+                            width: 144,
+                            height: 144,
+                            colorDark: '#1f2937'
+                        });
+                    }
+                });
 
                 const meta = document.createElement('div');
                 meta.className = 'text-center';
@@ -1309,7 +1311,14 @@
 
                 if (!res.ok) throw new Error('the sheet could not be built');
 
-                const html = await res.text();
+                // The sheet references the centre mark by a root-relative path so
+                // it always loads from whatever host served it. Saved to disk it
+                // would have no origin to resolve against, so the path is made
+                // absolute before the file is written.
+                const html = (await res.text()).replaceAll(
+                    'src="/images/',
+                    'src="' + window.location.origin + '/images/'
+                );
                 const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
                 const link = document.createElement('a');
                 link.href = url;

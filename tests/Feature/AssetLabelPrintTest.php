@@ -532,11 +532,16 @@ class AssetLabelPrintTest extends TestCase
         $this->assertStringContainsString('class="trace-label__mark"', $withSeal);
         $this->assertStringContainsString('src="/images/nu-seal.png"', $withSeal);
 
-        // Without it: the slot stays empty instead of printing a broken image,
-        // and no other artwork is substituted.
+        // Without it: the header slot stays empty instead of printing a broken
+        // image, and no other artwork is substituted there. (The QR column
+        // always carries the centre mark - that is a different slot, asserted
+        // in QrSealTest.)
         $withoutSeal = view('partials.asset_label', ['label' => $fields + ['qr' => null, 'logo' => null]])->render();
 
-        $this->assertStringNotContainsString('<img', $withoutSeal);
+        $markSlot = substr($withoutSeal, strpos($withoutSeal, 'class="trace-label__mark"'));
+        $markSlot = substr($markSlot, 0, strpos($markSlot, 'trace-label__titles'));
+
+        $this->assertStringNotContainsString('<img', $markSlot);
         $this->assertStringContainsString('ASSET MANAGEMENT OFFICE', $withoutSeal);
     }
 

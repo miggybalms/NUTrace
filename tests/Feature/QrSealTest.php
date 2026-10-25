@@ -160,12 +160,13 @@ class QrSealTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        // The artwork is drawn into the sticker's own SVG, not pasted on top of
-        // it afterwards - so a printout and a download are the same code.
-        $this->assertStringContainsString('var SEAL_LOGO = ', $html);
-        $this->assertStringContainsString('images\\/nu-trace-mark.jpg', $html);
-        $this->assertStringContainsString('<image href=', $html);
-        $this->assertStringContainsString('preserveAspectRatio="xMidYMid meet"', $html);
+        // The mark is part of the sticker's own markup, centred on its code, and
+        // is a plain <img> from a root-relative source - the artwork must never
+        // depend on a host, a scheme or an SVG <image> that a browser can drop.
+        $this->assertStringContainsString('class="trace-label__seal"', $html);
+        $this->assertStringContainsString('src="/images/nu-trace-mark.jpg"', $html);
+        $this->assertStringContainsString('.trace-label__seal {', $html);
+        $this->assertStringContainsString('position: absolute;', $html);
     }
 
     public function test_the_registry_and_the_replacement_preview_draw_a_sealed_code(): void

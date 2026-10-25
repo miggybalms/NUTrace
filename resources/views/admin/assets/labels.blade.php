@@ -391,6 +391,40 @@
         .trace-label__qr-draw { display: flex; align-items: center; justify-content: center; }
         .trace-label__qr-draw:empty { display: none; }
 
+        /* The official mark, centred on the code. A plain <img> - the same
+           element the header seal uses - because an SVG <image> is the one part
+           of a printed sticker a browser can silently drop. The wrapper's white
+           padding is the quiet ring around the plate; the plate is the
+           artwork's own navy, which the img background continues under the
+           letterboxed artwork. */
+        .trace-label__qr { position: relative; }
+        .trace-label__seal {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 20%;
+            height: 20%;
+            transform: translate(-50%, -50%);
+            padding: 1.35%;
+            background: #fff;
+            border-radius: 2.4%;
+            box-sizing: content-box;
+            pointer-events: none;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+        }
+        .trace-label__seal img {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            aspect-ratio: auto;
+            object-fit: contain;
+            background: #0A1830;
+            border-radius: 1.6%;
+            image-rendering: auto;
+            display: block;
+        }
+
         /* ---------- empty state (never printed) ---------- */
         .sheet-empty {
             max-width: 520px;
@@ -597,12 +631,6 @@
         <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
         <script>
-            // The official NU Trace logo, the mark every sticker carries in the
-            // middle of its code. Kept inside the app so a printout never waits
-            // on an external host - and so the mark a scanner checks for is the
-            // same artwork that is painted here.
-            var SEAL_LOGO = @json(url('/images/nu-trace-mark.jpg'));
-
             // What a sticker's QR carries when the browser has to draw it: the
             // signed payload the server put in the label, or the plain code of
             // an install without signing keys.
@@ -697,16 +725,9 @@
                     }
                 }
 
-                // The seal: a white ring, then the logo's own navy plate with
-                // the artwork letterboxed inside it. Sized against the symbol
-                // (not the quiet zone) it covers about 4% of the modules, well
-                // inside what level M's 15% error correction can lose - the
-                // three finder patterns are never touched.
-                var plate = count * 0.20;
-                var ring = count * 0.022;
-                var plateX = (total - plate) / 2;
-                var plateY = plateX;
-
+                // The mark itself is an <img> laid over this square (see the
+                // sticker partial): the SVG stays the code and its quiet zone,
+                // so nothing about the drawing can hide the logo.
                 return {
                     modules: count,
                     markup: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + ' ' + total + '"'
@@ -714,15 +735,6 @@
                         + ' aria-label="QR code for ' + (code || '') + '">'
                         + '<rect width="' + total + '" height="' + total + '" fill="#ffffff"/>'
                         + '<path d="' + path + '" fill="#000000"/>'
-                        + '<rect x="' + (plateX - ring) + '" y="' + (plateY - ring) + '"'
-                        + ' width="' + (plate + ring * 2) + '" height="' + (plate + ring * 2) + '"'
-                        + ' rx="' + (plate * 0.14) + '" fill="#ffffff"/>'
-                        + '<rect x="' + plateX + '" y="' + plateY + '"'
-                        + ' width="' + plate + '" height="' + plate + '"'
-                        + ' rx="' + (plate * 0.10) + '" fill="#0A1830"/>'
-                        + '<image href="' + SEAL_LOGO + '" x="' + plateX + '" y="' + plateY + '"'
-                        + ' width="' + plate + '" height="' + plate + '"'
-                        + ' preserveAspectRatio="xMidYMid meet"/>'
                         + '</svg>'
                 };
             }

@@ -37,8 +37,8 @@ preserved and nothing is cropped or stretched.
 
 | Surface | How |
 | --- | --- |
-| Printed sticker sheet | `resources/views/admin/assets/labels.blade.php` builds the QR as an SVG; the mark is part of that SVG (`<rect>` plate + `<image>`), so a printout and a download are the same artwork |
-| Registry preview / QR modal / department, user and head asset modals | `NUTraceQr.draw()` in `resources/views/partials/qr_scan_js.blade.php` → `NUTraceQrMark.sealHolder()` paints the mark on the canvas, which is also what the Download button exports |
+| Printed sticker sheet | `resources/views/admin/assets/labels.blade.php` draws the code as an SVG and centres the mark on it as a plain `<img>` (white ring + the artwork's own navy plate, from `/images/nu-trace-mark.jpg`), so a printout and a download are the same artwork |
+| Registry preview, bulk QR preview, QR modal, department, user and head asset modals | `NUTraceQr.draw()` in `resources/views/partials/qr_scan_js.blade.php` → `NUTraceQrMark.sealHolder()` paints the mark on the canvas, which is also what the Download button exports |
 | Asset detail page | `resources/views/admin/assets/show.blade.php` draws the code into `#asset-qr-seal` |
 | Replacement preview | `resources/views/admin/replacement/replacement.blade.php` → `NUTraceQrMark.dataUrl()` |
 | Stored PNG fallback (`App\Support\Media::generateQr`) | **Not marked.** It is the no-JavaScript fallback only; every screen prefers the drawn code |

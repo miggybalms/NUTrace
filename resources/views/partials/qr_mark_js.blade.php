@@ -12,7 +12,10 @@
 --}}
 <script>
     window.NUTraceQrMarkConfig = {
-        logo: @json(url('/images/nu-trace-mark.jpg')),
+        // Root-relative on purpose: the artwork is then fetched from whatever
+        // host and scheme served the page, so it can never be blocked as mixed
+        // content on the https site.
+        logo: @json('/'.ltrim((string) config('qr.seal_logo', 'images/nu-trace-mark.jpg'), '/')),
         requireSeal: @json((bool) config('qr.require_seal', true))
     };
 </script>
