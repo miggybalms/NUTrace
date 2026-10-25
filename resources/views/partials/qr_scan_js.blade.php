@@ -14,6 +14,11 @@
     "verification unavailable", never as a forged code.
 --}}
 <script src="{{ url('/js/nutag-decode.js') }}"></script>
+{{-- The decoder the mark check reads a camera frame with: jsQR also returns
+     where in the frame the code is, which is what locates the centre to look
+     at. It is loaded here so every scanning screen has the same reader. --}}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+@include('partials.qr_mark_js')
 <script>
 window.NUTraceQr = (function () {
     var VERIFY_URL = @json(url('/qr/verify'));
@@ -279,6 +284,14 @@ window.NUTraceQr = (function () {
             colorLight: settings.colorLight || '#ffffff',
             correctLevel: isSigned(drawn) ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.H
         });
+
+        // The official mark goes into the middle of every sticker the app
+        // draws, so the screen, the download and the printed sheet are the same
+        // artwork - and so the scanner can tell this code from one reproduced
+        // on a QR-generator website.
+        if (window.NUTraceQrMark) {
+            window.NUTraceQrMark.sealHolder(holder);
+        }
 
         // The constructor draws synchronously, title included; the deferred
         // pass covers a build that paints the image a tick later.

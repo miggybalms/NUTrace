@@ -659,7 +659,7 @@
             if (hint) { hint.classList.add('hidden'); hint.textContent = ''; }
         }
 
-        function onScanSuccess(decodedText, decodedResult) {
+        async function onScanSuccess(decodedText, decodedResult) {
             if (scanBusy) return;
 
             const payload = (decodedText || '').trim();
@@ -672,6 +672,28 @@
 
             const status = document.getElementById('scannerStatus');
             if (status) status.textContent = 'QR code detected — checking it.';
+
+            // The sticker has to carry the official NU Trace mark in the middle
+            // of its code. A payload copied into a QR-generator website has the
+            // text but not the mark, so it stops here - before the camera is
+            // closed and before anything is looked up. A NUTAG has no centre to
+            // check and the module says so.
+            if (window.NUTraceQrMark && typeof window.NUTraceQrMark.checkScan === 'function') {
+                const seal = await window.NUTraceQrMark.checkScan(payload);
+
+                if (!seal.ok) {
+                    scanBusy = false;
+                    const message = document.getElementById('scannerMsg');
+
+                    if (message) {
+                        message.textContent = seal.message;
+                        message.classList.remove('hidden');
+                    }
+
+                    if (status) status.textContent = 'Scan refused — nothing was looked up.';
+                    return;
+                }
+            }
 
             // Stop the camera immediately and look this one code up.
             stopCamera();

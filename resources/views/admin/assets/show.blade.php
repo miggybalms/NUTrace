@@ -145,9 +145,19 @@
                                         <div class="stub-tag h-20 w-20 mt-1 mx-auto">
                                             {!! \App\Support\NutTag::svgFromText($qrPayload, 'NU Trace tag for '.($asset->Asset_code ?? '')) !!}
                                         </div>
+                                    @elseif($qrPayload !== '')
+                                        {{-- Drawn here so the code carries the official
+                                             centre mark, the same artwork the printed
+                                             sticker and the scanner expect. The stored /
+                                             QR-service image stays as the no-script
+                                             fallback. --}}
+                                        <div class="asset-qr-seal h-20 w-20 mt-1 mx-auto"
+                                             data-qr-payload="{{ $qrPayload }}" data-qr-code="{{ $asset->Asset_code }}"></div>
+                                        <noscript>
+                                            <img src="{{ $qrImage }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto" />
+                                        </noscript>
                                     @else
-                                        <img src="{{ $qrImage }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
-                                             onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc={{ str_starts_with($qrPayload, 'NUT') ? 'M' : 'L' }}&data=' + encodeURIComponent('{{ $qrPayload }}');" />
+                                        <img src="{{ $qrImage }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto" />
                                     @endif
 
                                     @if($qrRevoked)
@@ -1328,6 +1338,26 @@ document.getElementById('extendLifespanForm')?.addEventListener('submit', async 
                 errorEl.textContent = 'Error: ' + error.message;
                 errorEl.style.display = 'block';
             }
+        });
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    @include('partials.qr_mark_js')
+    <script>
+        // The asset's sticker, drawn with the official mark in its centre.
+        document.querySelectorAll('.asset-qr-seal').forEach(function (holder) {
+            var payload = holder.getAttribute('data-qr-payload') || '';
+            var canvas = payload && window.NUTraceQrMark
+                ? window.NUTraceQrMark.render(payload, { size: 160 })
+                : null;
+
+            if (!canvas) {
+                return;
+            }
+
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            holder.appendChild(canvas);
         });
     </script>
 </body>

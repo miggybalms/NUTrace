@@ -1141,10 +1141,23 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
 
                     const showSymbol = function (payload) {
                         if (img) {
-                            const src = qrImageUrl(payload || code);
+                            const shown = payload || code;
 
-                            if (src) {
-                                img.src = src;
+                            // A QR is drawn with the official mark in its centre,
+                            // exactly like the printed sticker; the QR service is
+                            // only the fallback for a browser without the drawing
+                            // library, and a NUTAG never goes to it at all.
+                            if (window.NUTraceQrMark && typeof window.NUTraceQrMark.dataUrl === 'function'
+                                && !/^NUTAG1-/i.test(shown)) {
+                                window.NUTraceQrMark.dataUrl(shown, { size: 240 }).then(function (url) {
+                                    img.src = url || qrImageUrl(shown);
+                                });
+                            } else {
+                                const src = qrImageUrl(shown);
+
+                                if (src) {
+                                    img.src = src;
+                                }
                             }
                         }
 
@@ -1333,6 +1346,7 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
         }
     </script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     @include('partials.qr_scan_js')
 
 @endsection

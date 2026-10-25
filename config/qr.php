@@ -86,6 +86,38 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Centre mark
+    |--------------------------------------------------------------------------
+    |
+    | Every sticker the app draws or prints carries the official NU Trace logo
+    | in the middle of its QR code. When this is on, a scan whose centre mark
+    | cannot be confirmed is refused before any asset information is shown, so
+    | a code recreated on a QR-generator website - which has the payload but not
+    | the mark - does not work in the app.
+    |
+    | Stickers printed *before* the mark existed cannot pass that check. They
+    | stay scannable, with a warning, only while this is turned off by setting
+    | QR_REQUIRE_SEAL=false on the deployment. Re-enable it once the office has
+    | reprinted its labels: the logo is a visual marker, and the signature and
+    | the registered asset are what actually prove a payload.
+    |
+    */
+    'require_seal' => (bool) env('QR_REQUIRE_SEAL', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Centre mark artwork
+    |--------------------------------------------------------------------------
+    |
+    | The official logo, kept inside the app so no QR, label or download depends
+    | on an external host. Its navy plate is part of the artwork, which is what
+    | makes the mark readable at sticker size.
+    |
+    */
+    'seal_logo' => 'images/nu-trace-mark.jpg',
+
+    /*
+    |--------------------------------------------------------------------------
     | Tag key (NUTAG stickers)
     |--------------------------------------------------------------------------
     |

@@ -1120,6 +1120,20 @@ Route::get('/tag/verify', function (Request $request) {
     return response()->json(\App\Support\AssetTag::verify($scanned, Auth::user()));
 })->middleware('auth');
 
+// The seal: the official logo drawn into a sticker's centre, and the reader's
+// check that it is there. Served from the resource it is developed in, like the
+// NUTAG decoder, so the browser and the test harness run one copy.
+Route::get('/js/nu-trace-mark.js', function () {
+    $path = resource_path('js/nu-trace-mark.js');
+
+    abort_unless(is_file($path), 404);
+
+    return response()->file($path, [
+        'Content-Type' => 'application/javascript; charset=UTF-8',
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+});
+
 // The NUTAG reader, served from the resource it is developed in: one copy of
 // the decoder for the browser and the test harness, no build step.
 Route::get('/js/nutag-decode.js', function () {

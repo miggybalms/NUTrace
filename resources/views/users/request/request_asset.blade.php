@@ -387,6 +387,20 @@
 
         async function onDetected(decodedText) {
             if (!decodedText) return;
+            // A QR has to carry the official NU Trace mark in the middle of it
+            // before it is worth reading: text copied into a QR-generator website
+            // scans the same as the sticker, but has no mark, and is refused
+            // here instead of adding an asset. A NUTAG has no centre to check
+            // and the module says so.
+            if (window.NUTraceQrMark && typeof window.NUTraceQrMark.checkScan === 'function') {
+                const seal = await window.NUTraceQrMark.checkScan(decodedText);
+
+                if (!seal.ok) {
+                    showFeedback(seal.message, 'error');
+                    return;
+                }
+            }
+
             await addAssetByCode(decodedText);
 
             // stop scanner after successful add

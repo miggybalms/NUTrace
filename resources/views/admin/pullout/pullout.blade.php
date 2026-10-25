@@ -1046,6 +1046,21 @@ function toggleEditActionFields() {
                 }, 100);
             }
 
+            // Before anything is read out of the code: does the sticker carry
+            // the official NU Trace mark in the middle of it? A code the office
+            // did not print - the same text put through a QR-generator website -
+            // has the payload but not the mark, so it is refused here. A NUTAG
+            // has no centre to check and the module says so.
+            if (window.NUTraceQrMark && typeof window.NUTraceQrMark.checkScan === 'function') {
+                const seal = await window.NUTraceQrMark.checkScan(decodedText);
+
+                if (!seal.ok) {
+                    showToast(seal.message, 'error');
+                    if (statusEl) statusEl.textContent = '✕ ' + seal.message;
+                    return;
+                }
+            }
+
             const reader = window.NUTraceQr;
             const parsed = reader
                 ? reader.parse(decodedText)
