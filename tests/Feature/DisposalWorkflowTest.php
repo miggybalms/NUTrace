@@ -75,7 +75,7 @@ class DisposalWorkflowTest extends TestCase
     }
 
     /** Submit a Disposal request exactly the way the user form does. */
-    private function submitDisposalRequest(string $note = 'The unit is damaged beyond repair.'): int
+    private function submitDisposalRequest(string $note = 'The unit is damaged beyond repair.', ?int $assetId = null): int
     {
         $requestId = (int) DB::table('requests')->insertGetId([
             'user_id'      => $this->employee->id,
@@ -88,7 +88,7 @@ class DisposalWorkflowTest extends TestCase
         ]);
 
         DB::table('request_items')->insert([
-            'request_id' => $requestId, 'asset_id' => $this->assetId,
+            'request_id' => $requestId, 'asset_id' => $assetId ?: $this->assetId,
             'created_at' => now(), 'updated_at' => now(),
         ]);
 
@@ -531,6 +531,11 @@ class DisposalWorkflowTest extends TestCase
             ->post("/admin/disposal/forms/{$formId}/signed", ['received_date' => now()->toDateString()])
             ->assertRedirect("/admin/disposal/forms/{$formId}");
 
+        // An approved disposal can only be finalized once its three-year
+        // waiting period has ended; these tests are about what happens to a
+        // disposal that really happened, so step over the wait first.
+        $this->travel(3)->years();
+
         $this->actingAs($this->admin)
             ->post("/admin/disposal/forms/{$formId}/finalize", [
                 'actual_disposal_date' => now()->toDateString(),
@@ -566,9 +571,9 @@ class DisposalWorkflowTest extends TestCase
     }
 
     /** Approve a disposal request, finalize it, and return the Disposal_ID. */
-    private function approveDisposalRequest(): int
+    private function approveDisposalRequest(?int $assetId = null): int
     {
-        $requestId = $this->submitDisposalRequest();
+        $requestId = $this->submitDisposalRequest('The unit is damaged beyond repair.', $assetId);
         $this->actingAs($this->admin)->postJson("/admin/requests/{$requestId}/approve")->assertOk();
 
         $this->finalizeDisposalFor($requestId);
@@ -998,7 +1003,9 @@ class DisposalWorkflowTest extends TestCase
         $this->assertGreaterThan(0, $preview->json('impact.keeps.Audit entry'));
 
         // A record that is not archived yet says why it cannot be deleted.
-        $activeId = $this->approveDisposalRequest();
+        // Its own asset: one object cannot be disposed of twice, and the
+        // duplicate guard now says so instead of writing a second record.
+        $activeId = $this->approveDisposalRequest($this->secondAsset());
 
         $active = $this->actingAs($this->admin)
             ->getJson("/admin/disposal/{$activeId}/delete-impact")

@@ -143,16 +143,17 @@ class DisposalForms
                 WHEN 'draft' THEN 0 WHEN 'ready' THEN 1 WHEN 'printed' THEN 2
                 WHEN 'signed' THEN 3 ELSE 4 END")
             ->orderBy('disposal_forms.id')
-            ->get([
+            ->get(array_merge([
                 'disposal_forms.*',
                 'requests.Note as request_note',
                 'requests.status as request_status',
                 'requests.created_at as request_date',
+                'requests.request_type as request_type',
                 DB::raw('requester.email as requester_email'),
                 DB::raw('requester_emp."Full_Name" as requester_name'),
                 DB::raw('preparer_emp."Full_Name" as prepared_by_name'),
                 'preparer.email as prepared_by_email',
-            ]);
+            ], self::eligibilityColumns()));
 
         $items = self::itemsForForms($forms->pluck('id')->map(fn ($id) => (int) $id)->all());
 
@@ -258,7 +259,7 @@ class DisposalForms
             ->leftJoin('users as finalizer', 'disposal_forms.finalized_by', '=', 'finalizer.id')
             ->leftJoin('employee_numbers as finalizer_emp', 'finalizer.employee_numbers_id', '=', 'finalizer_emp.id')
             ->whereIn('disposal_forms.id', $formIds)
-            ->get([
+            ->get(array_merge([
                 'disposal_forms.*',
                 // A plain column string, never a raw fragment: `requests.Note`
                 // is a mixed-case column, and the query builder is what quotes
@@ -269,13 +270,14 @@ class DisposalForms
                 'requests.Note as request_note',
                 'requests.status as request_status',
                 'requests.created_at as request_date',
+                'requests.request_type as request_type',
                 DB::raw('requester.email as requester_email'),
                 DB::raw('requester_emp."Full_Name" as requester_name'),
                 DB::raw('preparer.email as prepared_by_email'),
                 DB::raw('preparer_emp."Full_Name" as prepared_by_name'),
                 DB::raw('finalizer.email as finalized_by_email'),
                 DB::raw('finalizer_emp."Full_Name" as finalized_by_name'),
-            ])
+            ], self::eligibilityColumns()))
             ->keyBy('id');
 
         $items = self::itemsForForms($formIds);
@@ -386,7 +388,69 @@ class DisposalForms
         $form->has_signed_file = ! empty($form->signed_file_path);
         $form->request_id      = (int) ($form->request_id ?? 0);
 
+        // Where the three-year waiting period stands for this form's request.
+        // It decides nothing on its own - it is what the screen explains and
+        // what the finalization below re-checks on the server.
+        $form->eligibility = DisposalEligibility::state(self::requestForEligibility($form));
+
         return $form;
+    }
+
+    /**
+     * The approval columns a form's screen needs, when the migration has run.
+     *
+     * A deployment whose code is newer than its schema must still render the
+     * Disposal page, so the columns are added to the select only when they
+     * exist.
+     *
+     * @return array<int, string>
+     */
+    private static function eligibilityColumns(): array
+    {
+        if (! DisposalEligibility::ready()) {
+            return [];
+        }
+
+        return [
+            'requests.approved_at as request_approved_at',
+            'requests.disposal_eligibility_notified_at as eligibility_notified_at',
+        ];
+    }
+
+    /**
+     * The request row the eligibility rule reads for this form.
+     *
+     * The queue and the preparation screen already carry the approval columns
+     * from their select, so a list of forms costs no extra queries. Only the
+     * single-row lookups (find/findForRequest) fall back to one query.
+     */
+    private static function requestForEligibility(object $form): ?object
+    {
+        $requestId = (int) ($form->request_id ?? 0);
+
+        if ($requestId <= 0) {
+            return null;
+        }
+
+        if (property_exists($form, 'request_approved_at')) {
+            return (object) [
+                'id'                               => $requestId,
+                'request_type'                     => $form->request_type ?? 'Disposal',
+                'approved_at'                      => $form->request_approved_at,
+                'disposal_eligibility_notified_at' => $form->eligibility_notified_at ?? null,
+            ];
+        }
+
+        if (! DisposalEligibility::ready()) {
+            return (object) [
+                'id'           => $requestId,
+                'request_type' => $form->request_type ?? 'Disposal',
+            ];
+        }
+
+        return DB::table('requests')
+            ->where('id', $requestId)
+            ->first(['id', 'request_type', 'approved_at', 'disposal_eligibility_notified_at']);
     }
 
     public static function presentItem(object $item): object
@@ -1125,6 +1189,13 @@ class DisposalForms
             return ['ok' => false, 'message' => 'The disposal request behind this form is not approved any more, so nothing can be disposed of.'];
         }
 
+        // The three-year waiting period. Eligibility allows this step; it never
+        // performs it. A legacy request with no recorded approval timestamp is
+        // left alone rather than being given a start date it never had.
+        if ($refusal = DisposalEligibility::refusal($request)) {
+            return ['ok' => false, 'message' => $refusal];
+        }
+
         $items = self::items($formId)->all();
 
         if (! $items) {
@@ -1144,6 +1215,40 @@ class DisposalForms
                 'ok'      => false,
                 'message' => 'These assets no longer exist, so their disposal cannot be recorded: '
                     . implode(', ', $missingAssets) . '. Remove them from the form or ask the system administrator.',
+            ];
+        }
+
+        // One disposal per asset. createFromRequest() already refuses a second
+        // row for the same (request, asset); this catches the other duplicate -
+        // the same asset covered by two approved requests - instead of quietly
+        // recording it twice and leaving two "disposals" for one object.
+        $alreadyDisposed = [];
+
+        foreach ($items as $item) {
+            if (empty($item->asset_id)) {
+                continue;
+            }
+
+            $other = DB::table('disposals')
+                ->where('Asset_id', $item->asset_id)
+                ->where(function ($query) use ($request) {
+                    $query->where('Request_id', '!=', $request->id)->orWhereNull('Request_id');
+                })
+                ->first(['Disposal_ID', 'Request_id']);
+
+            if ($other) {
+                $alreadyDisposed[] = ($item->tag_no ?: ('asset #' . $item->asset_id))
+                    . ' (disposal record #' . (int) $other->Disposal_ID
+                    . ($other->Request_id ? ', request #' . (int) $other->Request_id : ', recorded outside a request') . ')';
+            }
+        }
+
+        if ($alreadyDisposed) {
+            return [
+                'ok'      => false,
+                'message' => 'These assets already have a disposal record, so they cannot be disposed of twice: '
+                    . implode('; ', $alreadyDisposed)
+                    . '. Review the duplicate request on the Disposal page. Nothing was changed.',
             ];
         }
 

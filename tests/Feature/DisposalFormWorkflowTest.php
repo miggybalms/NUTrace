@@ -713,6 +713,11 @@ class DisposalFormWorkflowTest extends TestCase
         [$requestId, $formId] = $this->approveAndForm();
         $this->takeToSigned($formId);
 
+        // Every disposal now waits out the three-year period measured from the
+        // approval. Nothing before this point may retire the asset, so the test
+        // steps over the wait before asking for the one step that may.
+        $this->travel(3)->years();
+
         $this->actingAs($this->admin)
             ->post("/admin/disposal/forms/{$formId}/finalize", [
                 'actual_disposal_date' => now()->toDateString(),
@@ -778,6 +783,7 @@ class DisposalFormWorkflowTest extends TestCase
         [$requestId, $formId] = $this->approveAndForm([$this->assetId, $secondAsset]);
 
         $this->takeToSigned($formId);
+        $this->travel(3)->years();
 
         $this->actingAs($this->admin)
             ->post("/admin/disposal/forms/{$formId}/finalize", ['actual_disposal_date' => now()->toDateString(), 'confirm' => '1'])
@@ -806,6 +812,7 @@ class DisposalFormWorkflowTest extends TestCase
     {
         [$requestId, $formId] = $this->approveAndForm();
         $this->takeToSigned($formId);
+        $this->travel(3)->years();
 
         $this->actingAs($this->admin)
             ->post("/admin/disposal/forms/{$formId}/finalize", ['actual_disposal_date' => now()->toDateString(), 'confirm' => '1'])
@@ -846,6 +853,7 @@ class DisposalFormWorkflowTest extends TestCase
     {
         [, $formId] = $this->approveAndForm();
         $this->takeToSigned($formId);
+        $this->travel(3)->years();
         $this->actingAs($this->admin)->post("/admin/disposal/forms/{$formId}/finalize", [
             'actual_disposal_date' => now()->toDateString(), 'confirm' => '1',
         ])->assertRedirect('/admin/disposal?tab=forms');
@@ -1030,6 +1038,7 @@ class DisposalFormWorkflowTest extends TestCase
         $this->actingAs($this->admin)->get("/admin/disposal/forms/{$formId}")->assertOk();
 
         $this->takeToSigned($formId);
+        $this->travel(3)->years();
 
         $this->actingAs($this->admin)->get("/admin/disposal/forms/{$formId}/preview")->assertOk();
 

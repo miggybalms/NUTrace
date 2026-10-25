@@ -87,7 +87,13 @@
         $locked     = \App\Support\DisposalForms::isFinalized($form->status);
         $printable  = \App\Support\DisposalForms::isPrintable($form->status);
         $canSign    = in_array($form->status, ['printed', 'signed'], true);
-        $canFinalize = $form->status === 'signed';
+
+        // Finalization needs the signed form AND the end of the three-year
+        // waiting period. The interface says which one is missing; the backend
+        // refuses regardless of what this page shows.
+        $eligibility = $form->eligibility ?? null;
+        $waiting     = $eligibility && $eligibility['state'] === 'waiting';
+        $canFinalize = $form->status === 'signed' && ! $waiting;
         $old = fn (string $key, $default = null) => old($key, $default);
     @endphp
 
@@ -154,6 +160,48 @@
             <p class="text-sm text-[#5C6678] mt-1">{{ implode(' · ', $missing) }}</p>
         </div>
     @endif
+
+    {{-- ── The three-year waiting period ───────────────────────────── --}}
+    <div class="card p-5 mb-6" style="border-left:4px solid {{ $waiting ? 'var(--bronze)' : 'var(--line)' }};">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <p class="eyebrow">Three-Year Waiting Period</p>
+                <h2 class="font-display text-lg font-semibold mt-1" style="color:var(--navy-900);">
+                    {{ $form->is_finalized ? 'Final Disposal Completed' : ($eligibility['label'] ?? 'No waiting period') }}
+                </h2>
+                <p class="text-sm text-[#5C6678] mt-1 max-w-3xl">
+                    {{ $eligibility['hint'] ?? '' }}
+                </p>
+            </div>
+            @if($eligibility && $eligibility['state'] === 'waiting')
+                <span class="badge badge-draft">
+                    <i class="ri-time-line mr-1"></i>
+                    {{ (int) $eligibility['remaining_days'] }} day(s) remaining
+                </span>
+            @elseif($eligibility && $eligibility['state'] === 'eligible')
+                <span class="badge badge-ready">
+                    <i class="ri-checkbox-circle-line mr-1"></i>Eligible for final disposal
+                </span>
+            @endif
+        </div>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5 pt-4 border-t border-[#EFE9D8] text-xs text-[#5C6678]">
+            <p><span class="block eyebrow mb-0.5">Disposal request</span>
+                <span class="font-mono">#{{ $form->request_id }}</span>
+                <span class="block">{{ $items->pluck('tag_no')->filter()->implode(', ') ?: 'No asset tags on this form' }}</span>
+            </p>
+            <p><span class="block eyebrow mb-0.5">Approved</span>
+                {{ $eligibility && $eligibility['approval_at'] ? $eligibility['approval_at']->format('M j, Y g:i A') : 'Not recorded' }}
+            </p>
+            <p><span class="block eyebrow mb-0.5">Eligible for final disposal</span>
+                {{ $eligibility && $eligibility['eligible_at'] ? $eligibility['eligible_at']->format('M j, Y g:i A') : '—' }}
+            </p>
+            <p><span class="block eyebrow mb-0.5">Office notified</span>
+                {{ $eligibility && $eligibility['notified_at'] ? $eligibility['notified_at']->format('M j, Y g:i A') : 'Not yet' }}
+                <span class="block">Form stage: {{ $form->status_label }}</span>
+            </p>
+        </div>
+    </div>
 
     {{-- Everything that can be completed lives in one form. --}}
     <form method="POST" action="{{ url('/admin/disposal/forms/' . $form->id . '/save') }}" class="card p-5 mb-6">
@@ -589,7 +637,8 @@
         <p class="font-semibold text-[#0F2143] text-sm mb-1"><i class="ri-checkbox-circle-line mr-1.5"></i>Finalize the disposal</p>
         <p class="text-sm text-[#5C6678] mb-4">
             This is the only step that marks an asset as <span class="font-semibold">Disposed of</span>. It is
-            refused until the signed form has been recorded, and it asks you to confirm which assets are affected.
+            refused until the signed form has been recorded and the three-year waiting period has ended, and it
+            asks you to confirm which assets are affected.
         </p>
 
         <div class="rounded-lg p-3 mb-4" style="background:#F7F3E7;">
@@ -640,7 +689,13 @@
                     </button>
                     @if(! $canFinalize)
                         <p class="text-xs text-[#8F5F16]">
-                            Not available yet — the current stage is “{{ $form->status_label }}”.
+                            @if($waiting)
+                                Not available yet — the three-year waiting period ends on
+                                {{ $eligibility['eligible_at']->format('F j, Y g:i A') }}.
+                                The request is approved and the form can still be completed, printed and filed.
+                            @else
+                                Not available yet — the current stage is “{{ $form->status_label }}”.
+                            @endif
                         </p>
                     @endif
                 </div>

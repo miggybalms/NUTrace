@@ -197,6 +197,8 @@
                                 'signed'    => 'badge-signed',
                                 'finalized' => 'badge-finalized',
                             ][$form->status] ?? 'badge-draft';
+
+                            $eligibility = $form->eligibility ?? null;
                         @endphp
                         <tr class="border-b border-[#F5F0E2] last:border-0 align-top">
                             <td class="px-4 py-3.5">
@@ -236,6 +238,21 @@
                             <td class="px-4 py-3.5">
                                 <span class="badge {{ $badge }}">{{ $form->status_label }}</span>
                                 <p class="text-xs text-[#5C6678] mt-1 max-w-[16rem]">{{ $form->status_hint }}</p>
+
+                                @if($form->is_finalized)
+                                    <p class="text-xs mt-1 text-[#5C6678]">
+                                        <i class="ri-check-double-line mr-1"></i>Final disposal completed
+                                    </p>
+                                @elseif($eligibility && $eligibility['state'] === 'waiting')
+                                    <p class="text-xs mt-1" style="color:#8F5F16;">
+                                        <i class="ri-time-line mr-1"></i>Awaiting eligibility — from
+                                        {{ $eligibility['eligible_at']->format('M j, Y') }}
+                                    </p>
+                                @elseif($eligibility && $eligibility['state'] === 'eligible')
+                                    <p class="text-xs mt-1" style="color:#245C3B;">
+                                        <i class="ri-checkbox-circle-line mr-1"></i>Eligible for final disposal
+                                    </p>
+                                @endif
                             </td>
                             <td class="px-4 py-3.5">
                                 <div class="flex flex-wrap items-center justify-end gap-2">

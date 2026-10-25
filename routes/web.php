@@ -31,6 +31,7 @@ use App\Support\Disposals;
 use App\Support\DisposalReason;
 use App\Support\DisposalForms;
 use App\Support\DisposalDocuments;
+use App\Support\DisposalEligibility;
 use App\Support\AssetAgeReview;
 use App\Support\Inventory;
 use App\Support\Access;
@@ -1882,6 +1883,15 @@ Route::post('/admin/api/assets/{id}/status', function ($id, \Illuminate\Http\Req
         return response()->json(['success' => false, 'message' => 'Asset is already in that status'], 422);
     }
 
+    // Setting the status to Disposal retires the asset just as surely as the
+    // finalization step does, so the same waiting period applies. Other status
+    // changes are untouched.
+    if ($newStatus === 'Disposal') {
+        if ($hold = DisposalEligibility::refusalForAssets([(int) $id])) {
+            return response()->json(['success' => false, 'message' => $hold], 422);
+        }
+    }
+
     try {
         DB::transaction(function () use ($id, $currentStatus, $newStatus, $validated) {
             DB::table('assets')->where('id', $id)->update([
@@ -1945,6 +1955,15 @@ Route::post('/admin/api/assets/{id}/evaluate', function ($id, \Illuminate\Http\R
             'success' => false,
             'message' => 'Asset is not in "For Checking" status',
         ], 422);
+    }
+
+    // Deciding the disposal here retires the asset immediately, so it has to
+    // respect the same waiting period as the official form. Checked before the
+    // transaction opens, so nothing is half-written.
+    if ($action === 'proceed_disposal') {
+        if ($hold = DisposalEligibility::refusalForAssets([(int) $id])) {
+            return response()->json(['success' => false, 'message' => $hold], 422);
+        }
     }
 
     try {
@@ -4928,6 +4947,14 @@ Route::post('/admin/disposals/create', function (\Illuminate\Http\Request $reque
             return response()->json(['success' => false, 'message' => 'Asset is already disposed'], 422);
         }
 
+        // The three-year waiting period follows the asset, not the screen. If
+        // this asset is on an approved disposal request whose period is still
+        // running, disposing of it from here would be the same act through a
+        // different door - so it is refused, with the date it becomes possible.
+        if ($hold = DisposalEligibility::refusalForAssets([(int) $assetId])) {
+            return response()->json(['success' => false, 'message' => $hold], 422);
+        }
+
         // Create disposal record (no pending/approval — done immediately from repair)
         $disposalId = DB::table('disposals')->insertGetId([
             'Request_id'      => $requestId,
@@ -5112,6 +5139,15 @@ Route::post('/admin/replacements/{id}/status', function ($id, \Illuminate\Http\R
         $replacement = DB::table('replacements')->where('Replacement_id', $id)->first();
         if (!$replacement) {
             return response()->json(['success' => false, 'message' => 'Replacement not found'], 404);
+        }
+
+        // Completing a replacement retires the old asset and records a
+        // disposal, so it has to respect the same waiting period as the
+        // official form when the asset sits on an approved disposal request.
+        if ($newStatus === 'Complete' && $replacement->old_assets_id) {
+            if ($hold = DisposalEligibility::refusalForAssets([(int) $replacement->old_assets_id])) {
+                return response()->json(['success' => false, 'message' => $hold], 422);
+            }
         }
         
         DB::transaction(function () use ($id, $replacement, $newStatus) {
@@ -6353,12 +6389,25 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
         DB::transaction(function () use ($requestRecord, $approvedBy, $requestType, $assetIds, $isDisposal, $disposalReason, $disposalDate, $assetCodes, $forwardForReview) {
 
             // 1. Mark the request as Approved
+            $approval = [
+                'status'     => 'Approved',
+                'updated_at' => now(),
+            ];
+
+            // A disposal's three-year waiting period starts here - at the
+            // moment the office decides - and nowhere else. The stamp is
+            // written once: the route only accepts a Pending request, and an
+            // existing value is never overwritten, so editing, printing or
+            // signing the form later cannot restart the clock. It is only
+            // written when the eligibility migration has run, so a deployment
+            // that has not migrated yet still approves requests as before.
+            if ($isDisposal && DisposalEligibility::ready()) {
+                $approval['approved_at'] = ($requestRecord->approved_at ?? null) ?: now();
+            }
+
             DB::table('requests')
                 ->where('id', $requestRecord->id)
-                ->update([
-                    'status'     => 'Approved',
-                    'updated_at' => now(),
-                ]);
+                ->update($approval);
 
             // 2. Process each asset according to request type
             foreach ($assetIds as $assetId) {
@@ -6515,11 +6564,18 @@ Route::post('/admin/requests/{id}/approve', function (Request $request, $id) {
                         'asset_id'           => $assetId,
                         'action_type'        => 'DISPOSAL',
                         'notes'              => 'Approved disposal request #' . $requestRecord->id
-                            . ' (official disposal form #' . $disposalFormId . ', reason: ' . $disposalReason . ')',
+                            . ' (official disposal form #' . $disposalFormId . ', reason: ' . $disposalReason . ')'
+                            . (isset($approval['approved_at'])
+                                ? '. Approved ' . \Illuminate\Support\Carbon::parse($approval['approved_at'])->toDateTimeString()
+                                    . ', eligible for final disposal ' . \Illuminate\Support\Carbon::parse($approval['approved_at'])->addYears(DisposalEligibility::years())->toDateTimeString()
+                                : ''),
                         'action_description' => 'Disposal request #' . $requestRecord->id
                             . ' was approved and official disposal form #' . $disposalFormId
                             . ' was generated for preparation. Asset ' . $code
-                            . ' is not disposed of yet — it is retired only when the disposal is finalized.',
+                            . ' is not disposed of yet — it is retired only when the disposal is finalized'
+                            . (isset($approval['approved_at'])
+                                ? ', and only once the ' . DisposalEligibility::periodAdjective() . ' waiting period that started at approval has ended.'
+                                : '.'),
                         'created_at'         => now(),
                         'updated_at'         => now(),
                     ]);
@@ -6976,6 +7032,13 @@ Route::post('/admin/disposal/record', function (Request $request) {
         ], 422);
 }
 
+    // This entry records a disposal with no request behind it, so it has no
+    // approval date of its own to start a waiting period from - and it must not
+    // become the way around one that exists.
+    if ($hold = DisposalEligibility::refusalForAssets([(int) $data['asset_id']])) {
+        return response()->json(['success' => false, 'message' => $hold], 422);
+    }
+
     $disposalDate = $data['disposal_date'] ?: date('Y-m-d');
 
     // Map free-text → valid enum
@@ -7400,6 +7463,13 @@ Route::post('/admin/pullout/{id}/dispose', function (Request $request, $id) {
 
     if (empty($assetIds)) {
         return response()->json(['success' => false, 'message' => 'No valid assets selected'], 422);
+    }
+
+    // Disposing from a pullout is still a disposal: an asset held by an
+    // approved disposal request that is inside its waiting period cannot be
+    // retired this way either.
+    if ($hold = DisposalEligibility::refusalForAssets($assetIds)) {
+        return response()->json(['success' => false, 'message' => $hold], 422);
     }
 
     $reason        = trim((string) $request->input('reason', 'Disposed from pullout'));

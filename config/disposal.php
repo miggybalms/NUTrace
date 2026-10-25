@@ -22,6 +22,22 @@
 
 return [
 
+    /*
+     | Three-year disposal waiting period, in years.
+     |
+     | Measured from requests.approved_at - the moment the Asset Management
+     | Office approved the disposal request - and never from the form's
+     | preparation, printing or signing dates. Until the period ends the
+     | official disposal form can still be prepared, printed and filed, but the
+     | disposal cannot be finalized.
+     |
+     | This is a policy number, not a constant: the office is still confirming
+     | the rule, so it is read from the environment and can be changed without a
+     | code change. Raising or lowering it re-decides which approved requests are
+     | eligible; it never changes a disposal that has already been recorded.
+     */
+    'hold_years' => (int) env('DISPOSAL_HOLD_YEARS', 3),
+
     'age_review' => [
 
         /*

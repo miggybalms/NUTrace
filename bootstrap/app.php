@@ -71,5 +71,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->daily()
             ->at('02:00')
             ->onOneServer();
+
+        // The three-year disposal waiting period: tell the Asset Management
+        // Office when an approved disposal becomes eligible for finalization.
+        // Notification only - it never disposes of anything. A request is
+        // stamped once handled and the notice is de-duplicated per account, so
+        // running this daily - even twice - cannot notify twice. That is also
+        // why it takes no shared lock: the deployment's cache lock table is not
+        // provisioned, and an idempotent job does not need one.
+        $schedule->command('disposal:check-eligibility')
+            ->daily()
+            ->at('02:15');
     })
     ->create();
