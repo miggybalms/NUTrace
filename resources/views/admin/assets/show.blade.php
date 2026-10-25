@@ -51,6 +51,8 @@
         .form-input{ width:100%; border:1px solid var(--line); border-radius:9px; padding:.55rem .9rem; font-size:.9rem; outline:none; transition:border-color .15s, box-shadow .15s; background:#fff; }
         .form-input:focus{ border-color:var(--gold-500); box-shadow:0 0 0 3px rgba(201,162,39,.18); }
         .notice-box{ border-radius:10px; padding:.85rem 1rem; font-size:.85rem; border:1px solid; }
+        /* A NUTAG stub: the drawn symbol fills its square, like the QR it replaces. */
+        .stub-tag svg { width: 100%; height: 100%; display: block; }
     </style>
     @include('partials.ui')
 </head>
@@ -124,18 +126,27 @@
                                 @php
                                     // The sticker's real text: the signed payload when
                                     // this install can sign, otherwise the plain code.
-                                    $qrPayload = \App\Support\AssetQr::textFor($asset->Asset_code ?? '');
+                                    $qrPayload = \App\Support\AssetQr::stickerText($asset->Asset_code ?? '');
                                     $qrRevoked = ! empty($asset->qr_revoked_at);
                                 @endphp
 
                                 <div class="mt-4 stub p-3">
                                     <p class="eyebrow" style="color:var(--navy-800); font-size:.6rem;">Scan to Verify</p>
-                                    {{-- With no stored image the src is empty and the QR
-                                         service draws the same payload the sticker
-                                         carries, at the error correction level a long
-                                         signed payload needs. --}}
-                                    <img src="{{ \App\Support\Media::url($asset->qr_code_path) }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
-                                         onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc={{ str_starts_with($qrPayload, 'NUT') ? 'M' : 'L' }}&data=' + encodeURIComponent('{{ $qrPayload }}');" />
+                                    @if(\App\Support\NutTag::isTagText($qrPayload))
+                                        {{-- A NUTAG, drawn here as vector cells: not a QR, so a
+                                             camera app or a scanning website finds no code on
+                                             the sticker at all. --}}
+                                        <div class="stub-tag h-20 w-20 mt-1 mx-auto">
+                                            {!! \App\Support\NutTag::svgFromText($qrPayload, 'NU Trace tag for '.($asset->Asset_code ?? '')) !!}
+                                        </div>
+                                    @else
+                                        {{-- With no stored image the src is empty and the QR
+                                             service draws the same payload the sticker
+                                             carries, at the error correction level a long
+                                             signed payload needs. --}}
+                                        <img src="{{ \App\Support\Media::url($asset->qr_code_path) }}" alt="Asset QR" class="h-20 w-20 mt-1 mx-auto"
+                                             onerror="this.onerror=null;this.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&qzone=1&ecc={{ str_starts_with($qrPayload, 'NUT') ? 'M' : 'L' }}&data=' + encodeURIComponent('{{ $qrPayload }}');" />
+                                    @endif
 
                                     @if($qrRevoked)
                                         <p class="text-xs mt-2" style="color:#7E2E27;">

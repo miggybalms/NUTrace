@@ -32,7 +32,7 @@
     $category = trim((string) ($label['category'] ?? '')) ?: '—';
     $acquired = trim((string) ($label['acquired'] ?? '')) ?: '—';
     $qr       = $label['qr'] ?? null;
-    $payload  = trim((string) ($label['qr_payload'] ?? '')) ?: \App\Support\AssetQr::textFor($code);
+    $payload  = trim((string) ($label['qr_payload'] ?? '')) ?: \App\Support\AssetQr::stickerText($code);
     $logo     = $label['logo'] ?? null;
     $logoFallback = $label['logo_fallback'] ?? \App\Support\AssetLabel::logoFallbackUrl();
 @endphp
@@ -70,14 +70,30 @@
         <div class="trace-label__foot">DO NOT REMOVE THIS TAG</div>
     </div>
 
-    {{-- data-qr-payload is what the sheet draws: the signed payload, never a
-         bare code once signing is on. The stored image stays as the fallback
-         for a browser that cannot draw (and is what prints with JS disabled);
-         the sheet replaces it with a crisp SVG at print resolution. --}}
-    <div class="trace-label__qr" data-asset-code="{{ $code }}" data-qr-payload="{{ $payload }}">
-        @if($qr)
-            <img class="trace-label__qr-image" src="{{ $qr }}" alt="QR code for {{ $code }}">
-        @endif
-        <span class="trace-label__qr-draw"></span>
-    </div>
+    @php
+        // A NUTAG is not a QR code: no camera app or scanning website finds a
+        // code on the sticker at all. It is drawn here, server-side, as exact
+        // vector cells, and it carries no data-qr-payload - there is nothing
+        // for the sheet's QR drawing to do.
+        $tagSvg = \App\Support\NutTag::isTagText($payload)
+            ? \App\Support\NutTag::svgFromText($payload, 'NU Trace tag for '.$code)
+            : null;
+    @endphp
+
+    @if($tagSvg)
+        <div class="trace-label__qr trace-label__qr--tag" data-asset-code="{{ $code }}">
+            {!! $tagSvg !!}
+        </div>
+    @else
+        {{-- data-qr-payload is what the sheet draws: the signed payload, never a
+             bare code once signing is on. The stored image stays as the fallback
+             for a browser that cannot draw (and is what prints with JS disabled);
+             the sheet replaces it with a crisp SVG at print resolution. --}}
+        <div class="trace-label__qr" data-asset-code="{{ $code }}" data-qr-payload="{{ $payload }}">
+            @if($qr)
+                <img class="trace-label__qr-image" src="{{ $qr }}" alt="QR code for {{ $code }}">
+            @endif
+            <span class="trace-label__qr-draw"></span>
+        </div>
+    @endif
 </div>

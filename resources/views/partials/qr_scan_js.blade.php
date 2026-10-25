@@ -13,9 +13,11 @@
     Nothing here decides that a sticker is fake: a failed fetch is reported as
     "verification unavailable", never as a forged code.
 --}}
+<script src="{{ url('/js/nutag-decode.js') }}"></script>
 <script>
 window.NUTraceQr = (function () {
     var VERIFY_URL = @json(url('/qr/verify'));
+    var TAG_VERIFY_URL = @json(url('/tag/verify'));
     var PAYLOAD_URL = @json(url('/admin/assets/qr-payload'));
     var FAMILY = /^NUT([0-9]{1,2})[-:]/i;
     var BLOCKING = ['invalid_signature', 'unknown_key', 'asset_revoked', 'malformed'];
@@ -52,12 +54,28 @@ window.NUTraceQr = (function () {
      * /qr/verify, which is where the key for the seal lives; screens that need
      * it must await verify() instead of reading it off the text.
      */
+    function isTag(value) {
+        return /^NUTAG1-/i.test(text(value));
+    }
+
     function parse(value) {
         var raw = text(value);
         var blank = { code: null, keyId: null, signed: false, version: null, sealed: false };
 
         if (raw === '') {
             return Object.assign({}, blank, { type: 'malformed' });
+        }
+
+        // A NUTAG is not a QR payload: its identifier is sealed in cells and
+        // only the server can turn it into an asset code.
+        if (isTag(raw)) {
+            return Object.assign({}, blank, {
+                type: 'tag',
+                keyId: 'NUTAG1',
+                signed: true,
+                version: 1,
+                sealed: true
+            });
         }
 
         if (!FAMILY.test(raw)) {
@@ -112,7 +130,9 @@ window.NUTraceQr = (function () {
     }
 
     function isSigned(value) {
-        return parse(value).type === 'signed';
+        var type = parse(value).type;
+
+        return type === 'signed' || type === 'tag';
     }
 
     /** Statuses that must not be acted on. */
@@ -126,6 +146,17 @@ window.NUTraceQr = (function () {
 
         if (scanned === '') {
             return Promise.resolve(OFFLINE);
+        }
+
+        // A tag is judged by the server that holds its key, exactly as a QR
+        // payload is: the browser only carried the text here.
+        if (isTag(scanned)) {
+            return fetch(TAG_VERIFY_URL + '?tag=' + encodeURIComponent(scanned), {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function (response) { return response.ok ? response.json() : null; })
+                .then(function (result) { return result || OFFLINE; })
+                .catch(function () { return OFFLINE; });
         }
 
         return fetch(VERIFY_URL + '?payload=' + encodeURIComponent(scanned), {
@@ -180,6 +211,28 @@ window.NUTraceQr = (function () {
         }
 
         holder.innerHTML = '';
+
+        // A NUTAG is drawn from its own matrix: not a QR, and deliberately not
+        // something a QR library could produce. The same server-side geometry
+        // as App\Support\NutTag, quiet zone included.
+        if (window.NutTag && typeof window.NutTag.svgFromText === 'function') {
+            var tagSvg = window.NutTag.svgFromText(drawn, 'NU Trace asset tag');
+
+            if (tagSvg) {
+                holder.innerHTML = tagSvg;
+                return holder.firstChild;
+            }
+        }
+
+        // A NUTAG with no decoder loaded is never handed to a QR library or a
+        // QR service: either would publish the sticker's text as a readable
+        // code, which is the one thing the symbol exists to prevent.
+        if (isTag(drawn)) {
+            holder.innerHTML = '<p style="font-size:.75rem;color:#5B6678;text-align:center;">'
+                + 'The NU Trace symbol could not be drawn. Reload the page.</p>';
+
+            return null;
+        }
 
         if (typeof QRCode === 'undefined') {
             var img = document.createElement('img');

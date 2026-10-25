@@ -82,6 +82,38 @@ class AssetQr
     }
 
     /**
+     * The text a *new* sticker carries.
+     *
+     * A NUTAG whenever the code can hold one - that is the format ordinary QR
+     * readers cannot see. The signed QR payload is kept as the fallback for a
+     * code that cannot carry a tag (or an install whose tag table is not
+     * available), so a sticker is never printed blank.
+     */
+    public static function stickerText(?string $code): string
+    {
+        $code = AssetCode::normalize((string) $code);
+
+        if ($code === '') {
+            return '';
+        }
+
+        return AssetTag::textFor($code) ?? self::textFor($code);
+    }
+
+    /** Sticker texts for several codes, keyed by code (the registry preview). */
+    public static function stickerPayloadsFor(array $codes): array
+    {
+        $payloads = [];
+
+        foreach ($codes as $code) {
+            $normalized = AssetCode::normalize((string) $code);
+            $payloads[$normalized] = self::stickerText($normalized) ?: null;
+        }
+
+        return $payloads;
+    }
+
+    /**
      * Forget the payloads minted so far in this process. Used after the keyring
      * changes (rotation, tests), so the next sticker is signed with the key that
      * is actually configured now.
@@ -280,7 +312,7 @@ class AssetQr
             return null;
         }
 
-        $text = self::textFor($code);
+        $text = self::stickerText($code);
         $path = Media::generateQr($code, $size, $text);
 
         if ($path === null) {

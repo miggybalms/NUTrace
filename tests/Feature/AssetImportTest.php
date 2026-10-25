@@ -629,9 +629,16 @@ class AssetImportTest extends TestCase
         // produced, it must carry the same number.
         $this->assertTrue(
             $asset->qr_payload === null
-                || QrPayload::parse((string) $asset->qr_payload)['code'] === '30014399',
-            'A generated sticker must encode the property number.'
+                || \App\Support\NutTag::isTagText((string) $asset->qr_payload),
+            'A generated sticker must be a NUTAG symbol.'
         );
+
+        if ($asset->qr_payload !== null) {
+            $verdict = \App\Support\AssetTag::verify((string) $asset->qr_payload, null);
+
+            $this->assertSame(\App\Support\QrVerification::VALID, $verdict['status']);
+            $this->assertSame('30014399', $verdict['code']);
+        }
     }
 
     public function test_the_page_no_longer_sends_an_asset_code_and_the_property_number_is_used(): void

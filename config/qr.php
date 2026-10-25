@@ -86,6 +86,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Tag key (NUTAG stickers)
+    |--------------------------------------------------------------------------
+    |
+    | The HMAC key inside a NUTAG sticker's check value. The key never leaves
+    | the server: the browser samples the cells, and the server alone decides
+    | whether the token and check value in them are genuine.
+    |
+    | Set the same value on every deployment that has to read the same tags;
+    | otherwise a sticker printed elsewhere reports "failed authenticity
+    | check" here. Left empty, the QR payload key is used, and failing that a
+    | value derived from APP_KEY.
+    |
+    |     QR_TAG_KEY="<long random string>"
+    |
+    */
+    'tag_key' => env('QR_TAG_KEY'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Copy detection window
     |--------------------------------------------------------------------------
     |

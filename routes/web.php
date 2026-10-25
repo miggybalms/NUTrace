@@ -1096,6 +1096,43 @@ Route::get('/qr/verify', function (Request $request) {
     return response()->json(QrVerification::verify($scanned, Auth::user()));
 })->middleware('auth');
 
+// API: resolve a NUTAG sticker.
+//
+// The browser samples the symbol's cells; this server alone holds the key that
+// says whether the token and check value in them are genuine. The answer uses
+// the same status vocabulary as a QR scan, so a screen that already shows a
+// scan result shows this one unchanged. A tag whose check value fails is never
+// looked up - an altered symbol must not be dressed up with a real asset.
+Route::get('/tag/verify', function (Request $request) {
+    $scanned = trim((string) $request->query('tag', ''));
+
+    if ($scanned === '') {
+        $token = strtoupper(trim((string) $request->query('token', '')));
+        $mac = strtoupper(trim((string) $request->query('mac', '')));
+
+        if ($token === '' || $mac === '') {
+            return response()->json(['message' => 'tag missing'], 422);
+        }
+
+        $scanned = \App\Support\NutTag::TEXT_PREFIX.'-'.$token.'-'.$mac;
+    }
+
+    return response()->json(\App\Support\AssetTag::verify($scanned, Auth::user()));
+})->middleware('auth');
+
+// The NUTAG reader, served from the resource it is developed in: one copy of
+// the decoder for the browser and the test harness, no build step.
+Route::get('/js/nutag-decode.js', function () {
+    $path = resource_path('js/nutag-decode.js');
+
+    abort_unless(is_file($path), 404);
+
+    return response()->file($path, [
+        'Content-Type' => 'application/javascript; charset=UTF-8',
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+});
+
 // API: the verifying half of the QR keyring.
 //
 // The mobile app scans stickers without any Laravel session, so it cannot call
@@ -1167,7 +1204,7 @@ Route::get('/admin/assets/qr-payload', function (Request $request) {
 
     return response()->json([
         'signed'   => QrSigner::isConfigured(),
-        'payloads' => AssetQr::payloadsFor($codes),
+        'payloads' => AssetQr::stickerPayloadsFor($codes),
     ]);
 })->middleware('auth');
 

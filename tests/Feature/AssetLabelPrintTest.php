@@ -281,16 +281,19 @@ class AssetLabelPrintTest extends TestCase
             ->assertDontSee('class="trace-label"', false);
     }
 
-    public function test_the_qr_is_drawn_from_the_asset_code_that_is_printed_on_the_sticker(): void
+    public function test_the_symbol_is_drawn_for_the_asset_printed_on_the_sticker(): void
     {
         $html = $this->actingAs($this->admin)
             ->get('/admin/assets/department/1/labels?asset=AST-0001')
             ->assertOk()
             ->getContent();
 
-        // The code the sticker shows is the code the QR encodes: the same value
-        // the scanner looks up, never a re-derived identifier.
-        $this->assertStringContainsString('class="trace-label__qr" data-asset-code="AST-0001"', $html);
+        // The sticker carries the asset's own tag symbol, and the code printed
+        // beside it is the one the office reads; the symbol itself gives a
+        // camera nothing to decode.
+        $this->assertStringContainsString('class="trace-label__qr trace-label__qr--tag" data-asset-code="AST-0001"', $html);
+        $this->assertStringContainsString('<svg', $html);
+        $this->assertStringNotContainsString('data-qr-payload="NUT2-', $html);
         $this->assertStringContainsString('class="trace-label__code">AST-0001', $html);
     }
 
@@ -310,25 +313,23 @@ class AssetLabelPrintTest extends TestCase
         AssetQr::clearCache();
     }
 
-    public function test_a_reprint_carries_the_sealed_payload_the_asset_already_holds(): void
+    public function test_a_reprint_carries_the_same_tag_as_the_first_print(): void
     {
-        $this->useSigningKey();
+        // The tag token belongs to the code, so a reprint is the same sticker -
+        // not a second identity for the same asset.
+        $expected = \App\Support\NutTag::svgFromText(
+            (string) \App\Support\AssetTag::textFor('AST-0002'),
+            'NU Trace tag for AST-0002'
+        );
 
-        // The record holds a sealed payload minted when the sticker was first
-        // printed. A reprint has to carry that same payload, so the paper and
-        // the record agree.
-        $payload = (string) AssetQr::payloadFor('AST-0002');
-        $this->assertStringStartsWith('NUT2-', $payload);
-
-        DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $payload]);
+        $this->assertNotNull($expected);
 
         $single = $this->actingAs($this->admin)
             ->get('/admin/assets/department/1/labels?asset=AST-0002')
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('data-qr-payload="'.$payload.'"', $single);
-        $this->assertStringNotContainsString('data-qr-payload="AST-0002"', $single);
+        $this->assertStringContainsString($expected, $single);
 
         // The registry's batch sheet reads the same record and prints the same
         // sticker.
@@ -337,16 +338,14 @@ class AssetLabelPrintTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('data-qr-payload="'.$payload.'"', $batch);
+        $this->assertStringContainsString($expected, $batch);
     }
 
-    public function test_a_reprint_replaces_an_old_readable_payload_with_a_sealed_one(): void
+    public function test_a_reprint_does_not_put_an_old_readable_payload_back_on_the_paper(): void
     {
-        $this->useSigningKey();
-
-        // A sticker printed before sealing stored a readable payload. Printing
-        // that again would put the asset code back on the paper, so the sheet
-        // mints a sealed one instead for the same asset.
+        // A sticker printed before tags stored a readable payload. Printing
+        // that again would put the asset code back on the paper, so the tag is
+        // printed instead - the stored payload is never reused.
         $readable = QrPayload::build('AST-0002', 'V1', str_repeat("\x01", 64));
         DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $readable]);
 
@@ -356,27 +355,15 @@ class AssetLabelPrintTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString($readable, $html);
-
-        preg_match('/data-qr-payload="([^"]+)"/', $html, $matches);
-        $printed = $matches[1] ?? '';
-
-        $this->assertStringStartsWith('NUT2-', $printed);
-        $this->assertStringNotContainsString('AST-0002', $printed);
-        $this->assertSame('AST-0002', QrPayload::parse($printed)['code']);
+        $this->assertStringContainsString('<svg', $html);
+        $this->assertStringNotContainsString('NUT2-', $html);
     }
 
     public function test_a_stored_payload_for_another_code_is_never_printed(): void
     {
-        // This test is about the *fallback*: pin an install that cannot mint a
-        // fresh payload, so the sticker has to carry its own plain code. (A
-        // deployment with a keyring seals a new one instead, which is also
-        // its own code and is covered by QrSignatureTest.)
-        config(['qr.keys' => '', 'qr.active_key_id' => null]);
-        QrSigner::flush();
-        AssetQr::clearCache();
-
         // A payload naming a different asset would put the wrong sticker on the
-        // wrong object, so the asset's own code is printed instead.
+        // wrong object. A tag never reuses a stored payload at all: it carries
+        // the token bound to this asset's own code.
         $foreign = QrPayload::build('AST-0001', 'V2', str_repeat("\x02", 64));
         DB::table('assets')->where('Asset_code', 'AST-0002')->update(['qr_payload' => $foreign]);
 
@@ -386,7 +373,13 @@ class AssetLabelPrintTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString($foreign, $html);
-        $this->assertStringContainsString('data-qr-payload="AST-0002"', $html);
+
+        $expected = \App\Support\NutTag::svgFromText(
+            (string) \App\Support\AssetTag::textFor('AST-0002'),
+            'NU Trace tag for AST-0002'
+        );
+
+        $this->assertStringContainsString($expected, $html);
     }
 
     public function test_the_pages_that_print_still_render(): void
@@ -397,16 +390,21 @@ class AssetLabelPrintTest extends TestCase
         $this->actingAs($this->admin)->get('/admin/replacement')->assertOk();
     }
 
-    public function test_the_stored_qr_image_is_used_when_the_asset_has_one(): void
+    public function test_a_stored_qr_image_is_not_printed_on_a_tagged_asset(): void
     {
+        // The stored PNG is an old QR. Printing it would put a decodable code
+        // back on the object, so the drawn tag wins whenever a tag can be
+        // issued; the PNG remains only for an asset whose code cannot carry one.
         $this->makeAsset('AST-0004', 'Laptop', 'Active', 'Faculty Room', 'General and Office Equipment', [
             'qr_code_path' => 'assets/qr/AST-0004-1.png',
         ]);
 
-        $this->actingAs($this->admin)
+        $response = $this->actingAs($this->admin)
             ->get('/admin/assets/department/1/labels?asset=AST-0004')
-            ->assertOk()
-            ->assertSee('assets/qr/AST-0004-1.png', false);
+            ->assertOk();
+
+        $response->assertDontSee('assets/qr/AST-0004-1.png', false);
+        $response->assertSee('<svg', false);
     }
 
     public function test_the_shipped_seal_is_a_transparent_png(): void

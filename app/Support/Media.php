@@ -271,12 +271,15 @@ class Media
      * return its path (relative to the media disk) so it can be saved on the
      * asset row.
      *
-     * `$text` is what actually gets encoded - normally the signed payload from
-     * App\Support\AssetQr. Omitting it encodes the plain asset code, which is
-     * what a sticker printed before signing existed carries.
+     * `$text` is what actually gets encoded - a NUTAG for a new sticker, or a
+     * signed QR payload for a legacy one. Omitting it encodes the plain asset
+     * code, which is what a sticker printed before signing existed carries.
      *
-     * Returns null when the QR could not be produced; callers keep the asset
-     * without a stored QR and the UI falls back to drawing it in the browser.
+     * A NUTAG is drawn here in PHP (no QR service, no QR): 25 x 25 cells with
+     * a quiet zone, at whatever module size the requested square allows.
+     *
+     * Returns null when the image could not be produced; callers keep the asset
+     * without a stored image and the UI falls back to drawing it in the browser.
      */
     public static function generateQr(string $assetCode, int $size = 400, ?string $text = null): ?string
     {
@@ -289,7 +292,21 @@ class Media
         $encoded = trim((string) ($text ?? ''));
         $encoded = $encoded === '' ? $assetCode : $encoded;
 
-        $png = self::fetchQrPng($encoded, $size);
+        if (NutTag::isTagText($encoded)) {
+            $cells = NutTag::matrixFromText($encoded);
+
+            if ($cells === null) {
+                return null;
+            }
+
+            // 25 cells plus a two-cell quiet zone on each side, rounded to the
+            // nearest whole pixel per cell so no module is a blurred fraction.
+            $modulePx = max(3, intdiv($size, NutTag::GRID + NutTag::QUIET * 2));
+
+            $png = NutTag::png($cells, $modulePx);
+        } else {
+            $png = self::fetchQrPng($encoded, $size);
+        }
 
         if ($png === null) {
             return null;

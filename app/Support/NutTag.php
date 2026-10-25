@@ -42,6 +42,16 @@ class NutTag
     /** Format version this class writes. */
     public const VERSION = 1;
 
+    /**
+     * The text form of one tag, as stored with an asset and as the API takes
+     * it: `NUTAG1-<32 hex token>-<16 hex MAC>`.
+     *
+     * It is NOT what a camera reads - the symbol carries the same bytes as
+     * cells - but it is the one identifier the server, the label and the
+     * scanner hand each other. Nothing in it is an asset code or a URL.
+     */
+    public const TEXT_PREFIX = 'NUTAG1';
+
     /** Cells across, excluding the quiet zone. */
     public const GRID = 25;
 
@@ -139,6 +149,90 @@ class NutTag
         }
 
         return $cells;
+    }
+
+    /* ─────────────────────────── text form ─────────────────────────── */
+
+    /** The text form of a tag: `NUTAG1-<token hex>-<MAC hex>`. */
+    public static function text(string $token, string $mac): string
+    {
+        if (strlen($token) !== self::TOKEN_BYTES || strlen($mac) !== self::MAC_BYTES) {
+            throw new \InvalidArgumentException('A NUTAG text needs a '.self::TOKEN_BYTES.'-byte token and a '.self::MAC_BYTES.'-byte MAC.');
+        }
+
+        return self::TEXT_PREFIX.'-'.strtoupper(bin2hex($token)).'-'.strtoupper(bin2hex($mac));
+    }
+
+    /**
+     * Read the text form back into raw token and MAC bytes, or null when the
+     * text is not a canonical NUTAG.
+     *
+     * @return array{token: string, mac: string}|null
+     */
+    public static function fromText(string $text): ?array
+    {
+        $pattern = '/^NUTAG1-([0-9A-F]{'.(self::TOKEN_BYTES * 2).'})-([0-9A-F]{'.(self::MAC_BYTES * 2).'})$/i';
+
+        if (! preg_match($pattern, trim($text), $matches)) {
+            return null;
+        }
+
+        $token = hex2bin(strtoupper($matches[1]));
+        $mac = hex2bin(strtoupper($matches[2]));
+
+        return $token === false || $mac === false
+            ? null
+            : ['token' => $token, 'mac' => $mac];
+    }
+
+    /** Does this text claim to be one of our tags? */
+    public static function isTagText(string $text): bool
+    {
+        return str_starts_with(strtoupper(ltrim($text)), self::TEXT_PREFIX.'-');
+    }
+
+    /** The cell matrix for a tag's text form, or null when it is not one. */
+    public static function matrixFromText(string $text): ?array
+    {
+        $parsed = self::fromText($text);
+
+        return $parsed === null ? null : self::matrix($parsed['token'], $parsed['mac']);
+    }
+
+    /**
+     * The tag as an SVG, for a print sheet or an on-screen square. One path of
+     * exact unit cells plus the two-cell quiet zone, so the printer rasterises
+     * at its own resolution instead of scaling a bitmap.
+     *
+     * @param  array<int, array<int, bool>>  $cells
+     */
+    public static function svg(array $cells, string $label = 'NU Trace asset tag'): string
+    {
+        $size = self::GRID + self::QUIET * 2;
+        $path = '';
+
+        foreach ($cells as $r => $row) {
+            foreach ($row as $c => $dark) {
+                if ($dark) {
+                    $path .= 'M'.($c + self::QUIET).' '.($r + self::QUIET).'h1v1h-1z';
+                }
+            }
+        }
+
+        $label = htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '.$size.' '.$size.'"'
+            .' shape-rendering="crispEdges" role="img" aria-label="'.$label.'">'
+            .'<rect width="'.$size.'" height="'.$size.'" fill="#ffffff"/>'
+            .'<path d="'.$path.'" fill="#000000"/></svg>';
+    }
+
+    /** The tag's text form drawn as SVG, or null when it is not a tag. */
+    public static function svgFromText(string $text, string $label = 'NU Trace asset tag'): ?string
+    {
+        $cells = self::matrixFromText($text);
+
+        return $cells === null ? null : self::svg($cells, $label);
     }
 
     /**

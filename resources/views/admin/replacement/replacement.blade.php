@@ -564,7 +564,7 @@
                                         <img id="generatedQrImg" src="" alt="QR" class="w-full h-full object-contain">
                                     </div>
                                     <div class="flex-1">
-                                        <p class="text-xs mb-2" style="color:var(--ink-400);">QR for the new code. Updates when you regenerate.</p>
+                                        <p class="text-xs mb-2" style="color:var(--ink-400);">NU Trace tag for the new code. Updates when you regenerate.</p>
                                         <div class="flex flex-wrap gap-2">
                                             <button type="button" onclick="downloadGeneratedQr()"
                                                 class="px-3 py-1.5 text-xs font-medium rounded-lg" style="border:1px solid var(--line); background:#fff; color:var(--ink-600);">
@@ -1126,23 +1126,37 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                         return;
                     }
 
-                    // The preview shows what the sticker will carry. A signed
-                    // payload is minted by the server for this code (it does not
-                    // have to exist yet), so the QR on screen is the QR on paper.
+                    // The preview shows what the sticker will carry, and only
+                    // after the server has minted it. The plain code is never
+                    // drawn first: that would put a readable QR on the screen
+                    // (and its text in a QR-service URL) for as long as the
+                    // request takes, and leave it there if the request failed.
                     const img = document.getElementById('generatedQrImg');
-                    if (img) {
-                        img.alt = 'QR code for ' + code;
-                        img.src = qrServiceUrl(code);
+                    const section = document.getElementById('linkQrSection');
 
-                        if (window.NUTraceQr && typeof window.NUTraceQr.payloadFor === 'function') {
-                            window.NUTraceQr.payloadFor(code).then(function (payload) {
-                                img.src = qrServiceUrl(payload || code);
-                            });
-                        }
+                    if (img) {
+                        img.alt = 'NU Trace tag for ' + code;
+                        img.removeAttribute('src');
                     }
 
-                    document.getElementById('linkQrSection')?.classList.remove('hidden');
-                    document.getElementById('linkQrGenerateWrap')?.classList.add('hidden');
+                    const showSymbol = function (payload) {
+                        if (img) {
+                            const src = qrImageUrl(payload || code);
+
+                            if (src) {
+                                img.src = src;
+                            }
+                        }
+
+                        section?.classList.remove('hidden');
+                        document.getElementById('linkQrGenerateWrap')?.classList.add('hidden');
+                    };
+
+                    if (window.NUTraceQr && typeof window.NUTraceQr.payloadFor === 'function') {
+                        window.NUTraceQr.payloadFor(code).then(showSymbol);
+                    } else {
+                        showSymbol(code);
+                    }
                 }
 
             // Keep regenerateCode as alias for the button
@@ -1161,6 +1175,25 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                 + (signed ? 'M' : 'L') + '&data=' + encodeURIComponent(text || '');
         }
 
+        // A new sticker is a NUTAG, not a QR: shown as an SVG data URL so the
+        // preview is the same symbol the label prints. A legacy QR payload
+        // still goes to the QR service as before, but a NUTAG text never does -
+        // putting it in that URL would publish the sticker's text, and the
+        // service would render it as an ordinary, readable QR.
+        function qrImageUrl(text) {
+            const value = String(text || '');
+            const isTag = /^NUTAG1-/i.test(value);
+            const svg = window.NutTag && typeof window.NutTag.svgFromText === 'function'
+                ? window.NutTag.svgFromText(value, 'NU Trace asset tag')
+                : null;
+
+            if (svg) {
+                return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            }
+
+            return isTag ? '' : qrServiceUrl(value);
+        }
+
         // Download generated QR image as PNG
         async function downloadGeneratedQr() {
             const img = document.getElementById('generatedQrImg');
@@ -1172,7 +1205,7 @@ async function openLinkModal(id, oldName = '', oldCategory = '', oldLocation = '
                 const a = document.createElement('a');
                 a.href = url;
                 const code = document.getElementById('assetCodeHidden')?.value || 'qr';
-                a.download = code + '.png';
+                a.download = code + (String(img.src).indexOf('data:image/svg+xml') === 0 ? '.svg' : '.png');
                 document.body.appendChild(a);
                 a.click();
                 a.remove();

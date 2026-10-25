@@ -124,6 +124,14 @@ class QrVerification
      */
     public static function verify(string $scanned, ?User $viewer = null): array
     {
+        // A NUTAG sticker: a different carrier, exactly the same job. Delegating
+        // here means every screen that already verifies scanned text - the
+        // dashboard lookup, the pullout scanner, the request forms - accepts a
+        // tag without a second code path, and no key leaves the server.
+        if (NutTag::isTagText($scanned)) {
+            return AssetTag::verify($scanned, $viewer);
+        }
+
         $parsed = QrPayload::parse($scanned);
         $status = null;
         $detail = null;
@@ -251,7 +259,7 @@ class QrVerification
      * employee sees what is assigned to them. A sticker that verifies but
      * belongs elsewhere is reported as genuine with no asset details.
      */
-    private static function permitted(object $row, ?User $viewer): bool
+    public static function permitted(object $row, ?User $viewer): bool
     {
         if ($viewer === null) {
             return true;

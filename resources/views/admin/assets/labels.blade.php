@@ -457,7 +457,12 @@
         // holds. Shown on screen (the bar is not printed) so the office can see
         // what a reprint would cover, instead of finding out by scanning.
         $unsignedCount = collect($labels)
-            ->filter(fn ($label) => ! \App\Support\QrPayload::isPayload((string) ($label['qr_payload'] ?? '')))
+            ->filter(function ($label) {
+                $text = (string) ($label['qr_payload'] ?? '');
+
+                return ! \App\Support\QrPayload::isPayload($text)
+                    && ! \App\Support\NutTag::isTagText($text);
+            })
             ->count();
 
         // Keep every other query value (filters, codes, asset) when switching

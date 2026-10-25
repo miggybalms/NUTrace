@@ -207,6 +207,7 @@
 
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     @include('partials.qr_scan_js')
+    @include('partials.nutag_scan_js')
     <script>
         const draftAssets = new Map();
 
@@ -361,6 +362,14 @@
                 qrReader.classList.add('hidden');
                 toggleScannerBtn.innerHTML = '<i class="ri-camera-line mr-1"></i>Scan QR';
             }
+        }
+
+        // NUTAG stickers are not QR codes: the shared reader passes the tag to
+        // the same check the QR camera uses, which resolves it on the server.
+        if (window.NUTraceTag) {
+            window.NUTraceTag.watchPage(function (tagText) {
+                onDetected(tagText);
+            });
         }
 
         toggleScannerBtn.addEventListener('click', async function () {

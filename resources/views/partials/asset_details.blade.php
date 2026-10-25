@@ -672,7 +672,7 @@
         // stored PNG is only used when the asset has no code to draw at all.
         var storedQrUrl = @json($details['qrUrl']);
         var assetCode   = @json($asset->Asset_code);
-        var qrPayload   = @json(\App\Support\AssetQr::textFor($asset->Asset_code ?? ''));
+        var qrPayload   = @json(\App\Support\AssetQr::stickerText($asset->Asset_code ?? ''));
         var qrInstance  = null;
         var qrRendered  = false;
 

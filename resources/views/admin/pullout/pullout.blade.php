@@ -684,6 +684,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     @include('partials.qr_scan_js')
+    @include('partials.nutag_scan_js')
     <script>
         // Scanner variables - camera stays open until manually closed (same as disposal)
         let html5QrCode = null;
@@ -1128,6 +1129,15 @@ function toggleEditActionFields() {
             } else {
                 showToast('Asset not found: ' + code, 'error');
             }
+        }
+
+        // New stickers are NUTAG symbols, not QR codes. The shared reader looks
+        // at the same camera frames and hands the tag's text to the scanner the
+        // pullout already uses: it verifies, then selects the asset by code.
+        if (window.NUTraceTag) {
+            window.NUTraceTag.watchPage(function (tagText) {
+                handleSuccessfulScan(tagText);
+            });
         }
 
         // Inline filters for the per-asset checkbox lists inside the modals

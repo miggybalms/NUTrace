@@ -159,7 +159,7 @@
                            data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}"
                            data-asset-code="{{ $asset->Asset_code ?? '' }}"
                            {{-- What the sticker actually carries: the signed payload. --}}
-                           data-qr-payload="{{ \App\Support\AssetQr::textFor($asset->Asset_code ?? '') }}"
+                           data-qr-payload="{{ \App\Support\AssetQr::stickerText($asset->Asset_code ?? '') }}"
                            onclick="openQrModal(this)">
                             <i class="ri-qr-code-line text-[#0A1830] text-sm"></i>
                         </a>

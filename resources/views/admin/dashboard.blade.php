@@ -501,6 +501,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     @include('partials.qr_scan_js')
+    @include('partials.nutag_scan_js')
     <script>
         // Everything a scan can leave on screen. Called before every new scan
         // and when the modal closes, so a "Verified sticker" from the previous
@@ -675,6 +676,14 @@
             // Stop the camera immediately and look this one code up.
             stopCamera();
             lookupAsset(payload);
+        }
+
+        // NUTAG stickers are not QR codes. The shared reader watches the same
+        // camera and feeds the text into the lookup a QR scan already uses.
+        if (window.NUTraceTag) {
+            window.NUTraceTag.watchPage(function (tagText) {
+                onScanSuccess(tagText, null);
+            });
         }
 
         function onScanFailure(error) {

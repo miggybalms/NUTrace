@@ -414,6 +414,112 @@
         return decodeMatrix(cells);
     }
 
+    /* ── the text form, and drawing it ───────────────────────────────────── */
+
+    function bytesFromHex(hex) {
+        var bytes = new Uint8Array(hex.length / 2);
+
+        for (var i = 0; i < bytes.length; i++) {
+            bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+        }
+
+        return bytes;
+    }
+
+    /** `NUTAG1-<32 hex token>-<16 hex MAC>` into bytes, or null. */
+    function textParts(value) {
+        var match = /^NUTAG1-([0-9A-F]{32})-([0-9A-F]{16})$/i.exec(String(value || '').trim());
+
+        if (!match) return null;
+
+        return {
+            tokenHex: match[1].toUpperCase(),
+            macHex: match[2].toUpperCase(),
+            token: bytesFromHex(match[1]),
+            mac: bytesFromHex(match[2]),
+        };
+    }
+
+    /**
+     * Build the 25 x 25 matrix for a tag's text form (true = dark). Same cell
+     * order as App\Support\NutTag, so a drawn tag and a read tag agree.
+     */
+    function matrixFromText(value) {
+        var parts = textParts(value);
+
+        if (!parts) return null;
+
+        var bits = [];
+
+        function push(bytes) {
+            for (var i = 0; i < bytes.length; i++) {
+                for (var shift = 7; shift >= 0; shift--) {
+                    bits.push(((bytes[i] >> shift) & 1) === 1);
+                }
+            }
+        }
+
+        push(parts.token);
+        push(parts.mac);
+
+        var cells = [];
+        var r, c;
+
+        for (r = 0; r < GRID; r++) {
+            cells.push(new Array(GRID).fill(false));
+        }
+
+        for (var i = 0; i < GRID; i++) {
+            cells[0][i] = true;
+            cells[GRID - 1][i] = true;
+            cells[i][0] = true;
+            cells[i][GRID - 1] = true;
+        }
+
+        for (r = MARKER_CORE_START; r < MARKER_CORE_START + MARKER_CORE_SIZE; r++) {
+            for (c = MARKER_CORE_START; c < MARKER_CORE_START + MARKER_CORE_SIZE; c++) {
+                cells[r][c] = true;
+            }
+        }
+
+        for (var p = 0; p < POSITIONS.length; p++) {
+            if (p < bits.length) {
+                cells[POSITIONS[p][0]][POSITIONS[p][1]] = bits[p];
+            } else if (p < bits.length * 2) {
+                cells[POSITIONS[p][0]][POSITIONS[p][1]] = bits[p - bits.length];
+            }
+        }
+
+        return cells;
+    }
+
+    /** The tag as SVG, or null when the text is not one. */
+    function svgFromText(value, label) {
+        var cells = matrixFromText(value);
+
+        if (!cells) return null;
+
+        var size = GRID + QUIET * 2;
+        var path = '';
+
+        for (var r = 0; r < GRID; r++) {
+            for (var c = 0; c < GRID; c++) {
+                if (cells[r][c]) {
+                    path += 'M' + (c + QUIET) + ' ' + (r + QUIET) + 'h1v1h-1z';
+                }
+            }
+        }
+
+        var text = String(label || 'NU Trace asset tag').replace(/[&<>"']/g, function (character) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
+        });
+
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '"'
+            + ' shape-rendering="crispEdges" role="img" aria-label="' + text + '">'
+            + '<rect width="' + size + '" height="' + size + '" fill="#ffffff"/>'
+            + '<path d="' + path + '" fill="#000000"/></svg>';
+    }
+
     return {
         version: 1,
         grid: GRID,
@@ -423,6 +529,9 @@
         positions: POSITIONS,
         decodeMatrix: decodeMatrix,
         decodeImage: decodeImage,
+        textParts: textParts,
+        matrixFromText: matrixFromText,
+        svgFromText: svgFromText,
         _internal: { otsu: otsu, squareToQuad: squareToQuad, largestBlob: largestBlob },
     };
 });

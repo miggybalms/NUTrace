@@ -292,7 +292,7 @@
                             </thead>
                             <tbody id="assetsTableBody" class="divide-y divide-[#EFE9D8]">
                                 @forelse($assets ?? [] as $asset)
-                                <tr class="asset-row transition-colors" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}" data-qr-payload="{{ \App\Support\AssetQr::textFor($asset->id) }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
+                                <tr class="asset-row transition-colors" data-asset-id="{{ $asset->db_id ?? $asset->id }}" data-asset-code="{{ $asset->id }}" data-category="{{ $asset->category_code }}" data-status="{{ $asset->status }}" data-name="{{ strtolower($asset->name) }}" data-id="{{ strtolower($asset->id) }}" data-qr-url="{{ \App\Support\Media::url($asset->qr_code_path) ?? '' }}" data-qr-payload="{{ \App\Support\AssetQr::stickerText($asset->id) }}" data-serial="{{ $asset->serial_number ?? '' }}" data-purchase-price="{{ $asset->purchase_price ?? '' }}" data-warranty-months="{{ $asset->warranty_months ?? '' }}" data-condition="{{ $asset->condition ?? '' }}">
                                     <td class="py-3 px-4">
                                         @if($asset->status === 'active')
                                             <input type="checkbox" class="asset-select-checkbox rounded border-[#CFC4A4] text-[#C9A227] focus:ring-[#E0BC44]" value="{{ $asset->db_id ?? $asset->id }}" data-status="{{ $asset->status }}" onchange="updateBulkPulloutButtonState()">
@@ -794,21 +794,37 @@ document.querySelectorAll('.view-qr-btn').forEach((btn) => {
             canvasWrap.innerHTML = '';
             canvasWrap.style.display = 'flex';
 
+            // A NUTAG is drawn from its own cells and never becomes a QR. This
+            // branch runs even when the QR library did not load, so the screen
+            // can never fall back to a readable code of the tag's text.
+            if (/^NUTAG1-/i.test(qrPayload) && window.NutTag
+                && typeof window.NutTag.svgFromText === 'function') {
+                const tagSvg = window.NutTag.svgFromText(qrPayload, 'NU Trace asset tag');
+
+                if (tagSvg) {
+                    canvasWrap.innerHTML = tagSvg;
+                    return;
+                }
+            }
+
             if (typeof QRCode !== 'undefined' && window.NUTraceQr) {
                 modalQRCodeInstance = window.NUTraceQr.draw(canvasWrap, qrPayload, {
                     width: 220,
                     height: 220,
                     colorDark: '#1f2937'
                 });
-            } else {
-                // Fallback: the same QR service the stored images come from,
-                // with the error correction level a long payload needs.
+            } else if (!/^NUTAG1-/i.test(qrPayload)) {
+                // Fallback for a legacy payload: the same QR service the stored
+                // images come from, at the error correction level it needs.
                 img.onerror = null;
                 img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&qzone=1&ecc='
                     + (/^NUT[0-9]{1,2}[-:]/i.test(qrPayload) ? 'M' : 'L')
                     + '&data=' + encodeURIComponent(qrPayload);
                 img.classList.remove('hidden');
                 canvasWrap.style.display = 'none';
+            } else {
+                canvasWrap.innerHTML = '<p style="font-size:.75rem;color:#5B6678;text-align:center;">'
+                    + 'The NU Trace symbol could not be drawn. Reload the page.</p>';
             }
         };
 

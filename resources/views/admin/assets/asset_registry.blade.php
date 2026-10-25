@@ -752,19 +752,22 @@
                     ? window.NUTraceQr.draw(qrcodeDiv, payload || assetId, { width: 120, height: 120, colorDark: '#1f2937' })
                     : null;
 
-                // after generating QR, enable register button
+                // after drawing the sticker, enable the register button when the
+                // form is complete. A NUTAG is an SVG, so there is no canvas to
+                // turn into a PNG - the server mints the stored sticker itself.
                 setTimeout(() => {
-                    const qrCanvas = document.querySelector('#qrcode canvas');
-                    if (qrCanvas && window._registerBtn) {
+                    if (window._registerBtn) {
                         window._registerBtn.disabled = !checkFormReadiness();
-                        // also store the QR image into the hidden input so server receives it
-                        try {
-                            const dataUrl = qrCanvas.toDataURL('image/png');
-                            const qrInput = document.getElementById('qr_image_input');
-                            if (qrInput) qrInput.value = dataUrl;
-                        } catch (err) {
-                            // ignore canvas errors
+                    }
+
+                    try {
+                        const qrCanvas = document.querySelector('#qrcode canvas');
+                        const qrInput = document.getElementById('qr_image_input');
+                        if (qrCanvas && qrInput) {
+                            qrInput.value = qrCanvas.toDataURL('image/png');
                         }
+                    } catch (err) {
+                        // ignore canvas errors
                     }
                 }, 100);
             });
@@ -830,7 +833,7 @@
 
             const ready = fieldsReady && isCodeUsable(quantity);
 
-            if (window._registerBtn && document.querySelector('#qrcode canvas')) {
+            if (window._registerBtn && document.querySelector('#qrcode canvas, #qrcode svg')) {
                 window._registerBtn.disabled = !ready;
             }
             return !!ready;
@@ -1234,17 +1237,21 @@
                 if (label.qr_url) {
                     const img = document.createElement('img');
                     img.src = label.qr_url;
-                    img.alt = `QR for ${label.code}`;
+                    img.alt = `NU Trace tag for ${label.code}`;
                     img.className = 'w-36 h-36 object-contain';
                     qrBox.appendChild(img);
                 } else {
-                    new QRCode(qrBox, {
-                        text: label.code,
-                        width: 144,
-                        height: 144,
-                        colorDark: '#1f2937',
-                        colorLight: '#ffffff',
-                        correctLevel: QRCode.CorrectLevel.H
+                    // No stored image: mint the sticker's text and draw its
+                    // cells. Never a QR library with the bare code, which any
+                    // phone or scanning website can read.
+                    stickerTextFor(label.code).then((payload) => {
+                        if (window.NUTraceQr) {
+                            window.NUTraceQr.draw(qrBox, payload || label.code, {
+                                width: 144,
+                                height: 144,
+                                colorDark: '#1f2937'
+                            });
+                        }
                     });
                 }
 
@@ -1493,22 +1500,22 @@
 
             // Ensure a QR code has been generated for this asset code
             const assetCode = document.getElementById('asset-code-input')?.value || '';
-            const qrCanvas = document.querySelector('#qrcode canvas');
-            if (!assetCode || !qrCanvas) {
+            const qrDrawn = document.querySelector('#qrcode canvas, #qrcode svg');
+            if (!assetCode || !qrDrawn) {
                 e.preventDefault();
-                alert('Please generate a QR code for the asset before registering.');
+                alert('Please generate a sticker for the asset before registering.');
                 return;
             }
-            // capture QR image data URL into hidden input so server can save it
+            // capture the drawn sticker into a hidden input where it is a bitmap
             try {
                 const qrInput = document.getElementById('qr_image_input');
                 let dataUrl = '';
                 const canvas = document.querySelector('#qrcode canvas');
+                const svg = document.querySelector('#qrcode svg');
                 if (canvas && canvas.toDataURL) {
                     dataUrl = canvas.toDataURL('image/png');
-                } else {
-                    const img = document.querySelector('#qrcode img');
-                    if (img) dataUrl = img.src || '';
+                } else if (svg) {
+                    dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
                 }
                 if (qrInput) qrInput.value = dataUrl;
             } catch (err) {
