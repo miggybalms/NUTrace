@@ -292,6 +292,35 @@
      * Deciding whether a frame carries the mark
      * ------------------------------------------------------------------ */
 
+    /*
+     * A printed sticker may have no colour on it at all.
+     *
+     * The office's label printer is a Zebra ZD230 with a black ribbon, so a
+     * printed sticker has no navy and no gold: the plate comes out black, the
+     * letter white, and the orbit a mid-grey dither. Judging a print by hue
+     * would therefore refuse the office's own labels. What a black-only print
+     * keeps is the *shape*: a dark square with the artwork's bright mass in the
+     * middle. So the centre is also compared, in grey, against the same artwork
+     * reduced to a small grid of cells - the same test a photocopy or a
+     * greyscale scan of a sticker passes, and an ordinary QR code fails.
+     */
+    var GRID = 16;
+
+    // How much of the code's edge the plate covers, as the sticker draws it
+    // (20% artwork plus its white ring). Searched slightly either side so a
+    // code held a little off-square still lands on it.
+    var PLATE = [0.19, 0.21, 0.23, 0.25];
+
+    // Correlation needed before a grey centre is accepted as the mark.
+    //
+    // Measured against the real artwork, printed to one ink, blurred and noisy,
+    // at 0-180 degrees round, with the code 180-480 px across: a genuine
+    // sticker scores 0.71-0.91 (0.79-0.91 in normal light), an ordinary code
+    // reproduced on a QR website scores 0.15-0.22, and a plain dark square with
+    // a bright blob in it about 0.54-0.62. This sits in the middle of that gap,
+    // so a soft print still passes and a re-created code still does not.
+    var PRINT_MATCH = 0.66;
+
     function isGold(r, g, b, saturation) {
         return r > 100 && g > 55 && b < r * 0.75 && saturation > 0.4;
     }
@@ -401,6 +430,282 @@
         return ratios;
     }
 
+    /* ------------------------------------------------------------------ *
+     * The mark read back from a print
+     * ------------------------------------------------------------------ */
+
+    function luminanceAt(data, width, height, x, y) {
+        var px = Math.round(x);
+        var py = Math.round(y);
+
+        if (px < 0) px = 0; else if (px >= width) px = width - 1;
+        if (py < 0) py = 0; else if (py >= height) py = height - 1;
+
+        var i = (py * width + px) * 4;
+
+        return data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    }
+
+    /** A point in a quad, in its own terms: 0..1 across and down it. */
+    function pointIn(quad, u, v) {
+        var topX = quad.tl.x + (quad.tr.x - quad.tl.x) * u;
+        var topY = quad.tl.y + (quad.tr.y - quad.tl.y) * u;
+        var bottomX = quad.bl.x + (quad.br.x - quad.bl.x) * u;
+        var bottomY = quad.bl.y + (quad.br.y - quad.bl.y) * u;
+
+        return { x: topX + (bottomX - topX) * v, y: topY + (bottomY - topY) * v };
+    }
+
+    /**
+     * One cell of the grid: a few samples around its middle.
+     *
+     * A black-only print is dithered, so one pixel is either ink or paper;
+     * averaging a patch inside each cell is what turns that back into the grey
+     * the artwork actually has there.
+     */
+    function cell(region, quad, u, v) {
+        var step = 0.22 / GRID;
+        var total = 0;
+        var count = 0;
+        var i;
+        var j;
+
+        for (i = -1; i <= 1; i++) {
+            for (j = -1; j <= 1; j++) {
+                var point = pointIn(quad, u + i * step, v + j * step);
+
+                total += luminanceAt(region.data, region.width, region.height, point.x, point.y);
+                count++;
+            }
+        }
+
+        return total / count;
+    }
+
+    function gridOf(region, quad) {
+        var values = [];
+        var row;
+        var col;
+
+        for (row = 0; row < GRID; row++) {
+            for (col = 0; col < GRID; col++) {
+                values.push(cell(region, quad, (col + 0.5) / GRID, (row + 0.5) / GRID));
+            }
+        }
+
+        return values;
+    }
+
+    /**
+     * Centre and scale a grid, so a print's brightness and contrast do not
+     * matter: only the pattern is compared. A grid with no pattern in it (a
+     * blank patch, an even grey) cannot be recognised and returns null.
+     */
+    function standardise(values) {
+        var n = values.length;
+        var mean = 0;
+        var variance = 0;
+        var i;
+
+        for (i = 0; i < n; i++) mean += values[i];
+        mean /= n;
+
+        for (i = 0; i < n; i++) variance += (values[i] - mean) * (values[i] - mean);
+        variance /= n;
+
+        // Under ~8 grey levels of spread there is nothing to recognise.
+        if (variance < 64) {
+            return null;
+        }
+
+        var sd = Math.sqrt(variance);
+
+        for (i = 0; i < n; i++) values[i] = (values[i] - mean) / sd;
+
+        return values;
+    }
+
+    function correlation(a, b) {
+        var total = 0;
+        var i;
+
+        for (i = 0; i < a.length; i++) total += a[i] * b[i];
+
+        return total / a.length;
+    }
+
+    /**
+     * A grid turned by a quarter, half or three quarters.
+     *
+     * A sticker can be on a shelf upside down, and a decoder reports the code's
+     * corners as it finds them in the picture, so the artwork has to be
+     * recognisable in all four orientations.
+     */
+    function turn(values, quarterTurns) {
+        var size = Math.round(Math.sqrt(values.length));
+        var out = [];
+        var row;
+        var col;
+
+        for (row = 0; row < size; row++) {
+            for (col = 0; col < size; col++) {
+                var sourceRow;
+                var sourceCol;
+
+                if (quarterTurns === 1) {
+                    sourceRow = size - 1 - col;
+                    sourceCol = row;
+                } else if (quarterTurns === 2) {
+                    sourceRow = size - 1 - row;
+                    sourceCol = size - 1 - col;
+                } else if (quarterTurns === 3) {
+                    sourceRow = col;
+                    sourceCol = size - 1 - row;
+                } else {
+                    sourceRow = row;
+                    sourceCol = col;
+                }
+
+                out.push(values[sourceRow * size + sourceCol]);
+            }
+        }
+
+        return out;
+    }
+
+    var printedGrid = null;
+
+    /**
+     * The artwork as the sticker prints it - navy plate, artwork letterboxed in
+     * it - reduced to the same grid. Built once, from the same file the sticker
+     * prints, so the reference can never drift from what is on the paper.
+     */
+    function artworkGrid() {
+        if (printedGrid) {
+            return printedGrid;
+        }
+
+        var image = mark();
+
+        if (typeof document === 'undefined' || !loaded(image)) {
+            return null;
+        }
+
+        var canvas = document.createElement('canvas');
+        canvas.width = GRID;
+        canvas.height = GRID;
+
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = config().plate || DEFAULTS.plate;
+        ctx.fillRect(0, 0, GRID, GRID);
+        contain(ctx, image, 0, 0, GRID, GRID);
+
+        var pixels = ctx.getImageData(0, 0, GRID, GRID).data;
+        var values = [];
+        var i;
+
+        for (i = 0; i < GRID * GRID; i++) {
+            values.push(pixels[i * 4] * 0.299 + pixels[i * 4 + 1] * 0.587 + pixels[i * 4 + 2] * 0.114);
+        }
+
+        printedGrid = standardise(values);
+
+        return printedGrid;
+    }
+
+    function distance(a, b) {
+        return Math.sqrt(Math.pow(b.x - a.x, 2) + Math.pow(b.y - a.y, 2));
+    }
+
+    /** The code's four corners, or a square over the middle of the frame. */
+    function quadFor(location, width, height) {
+        var corners = location && [
+            location.topLeftCorner,
+            location.topRightCorner,
+            location.bottomRightCorner,
+            location.bottomLeftCorner
+        ];
+
+        var usable = corners && corners.filter(function (corner) {
+            return corner && typeof corner.x === 'number' && typeof corner.y === 'number';
+        });
+
+        if (!usable || usable.length !== 4) {
+            var side = Math.min(width, height) * 0.6;
+            var left = (width - side) / 2;
+            var top = (height - side) / 2;
+
+            return {
+                tl: { x: left, y: top },
+                tr: { x: left + side, y: top },
+                br: { x: left + side, y: top + side },
+                bl: { x: left, y: top + side }
+            };
+        }
+
+        return { tl: usable[0], tr: usable[1], br: usable[2], bl: usable[3] };
+    }
+
+    /** A smaller quad inside the code's own corners, nudged by a pixel offset. */
+    function shrink(quad, factor, shiftX, shiftY) {
+        var cx = (quad.tl.x + quad.tr.x + quad.br.x + quad.bl.x) / 4;
+        var cy = (quad.tl.y + quad.tr.y + quad.br.y + quad.bl.y) / 4;
+
+        function corner(point) {
+            return {
+                x: cx + (point.x - cx) * factor + shiftX,
+                y: cy + (point.y - cy) * factor + shiftY
+            };
+        }
+
+        return { tl: corner(quad.tl), tr: corner(quad.tr), br: corner(quad.br), bl: corner(quad.bl) };
+    }
+
+    /**
+     * How much the middle of a frame looks like the mark, in grey.
+     *
+     * `template` is the artwork's own grid; it is passed in by the check script
+     * (which has no image to load) and omitted everywhere else.
+     */
+    function matchPrint(region, location, template) {
+        var reference = template || artworkGrid();
+
+        if (!reference || !region || !region.data) {
+            return null;
+        }
+
+        var quad = quadFor(location, region.width, region.height);
+        var edge = (distance(quad.tl, quad.tr) + distance(quad.tr, quad.br)
+            + distance(quad.br, quad.bl) + distance(quad.bl, quad.tl)) / 4;
+        var best = { score: -1 };
+        var turned = [reference, turn(reference, 1), turn(reference, 2), turn(reference, 3)];
+
+        PLATE.forEach(function (factor) {
+            [-0.02, 0, 0.02].forEach(function (shiftX) {
+                [-0.02, 0, 0.02].forEach(function (shiftY) {
+                    var grid = standardise(gridOf(
+                        region,
+                        shrink(quad, factor, edge * shiftX, edge * shiftY)
+                    ));
+
+                    if (!grid) {
+                        return;
+                    }
+
+                    for (var rotation = 0; rotation < turned.length; rotation++) {
+                        var score = correlation(grid, turned[rotation]);
+
+                        if (score > best.score) {
+                            best = { score: score, factor: factor, shiftX: shiftX, shiftY: shiftY, rotation: rotation };
+                        }
+                    }
+                });
+            });
+        });
+
+        return best.score < 0 ? null : best;
+    }
+
     /** The box a decoded QR's mark must occupy, from the corners a decoder gives. */
     function boxFor(location, width, height) {
         var corners = location && [
@@ -453,8 +758,29 @@
         }
 
         var box = boxFor(location, imageData.width, imageData.height);
+        var result = classify(imageData, box);
 
-        return classify(imageData, box);
+        // A colour judgement is the end of it: sealed, too dark to tell, or no
+        // frame to read. Only a centre with no colour in it - the print on a
+        // black-only ribbon - is put to the grey comparison.
+        if (result.verdict === 'sealed' || result.verdict === 'dark' || result.verdict === 'unreadable') {
+            return result;
+        }
+
+        var print = matchPrint(imageData, location);
+
+        if (!print) {
+            return result;
+        }
+
+        result.print = print;
+
+        if (print.score >= PRINT_MATCH) {
+            result.verdict = 'sealed';
+            result.via = 'print';
+        }
+
+        return result;
     }
 
     /* ------------------------------------------------------------------ *
@@ -510,6 +836,13 @@
             return Promise.resolve({ ok: false, reason: 'no-frame', message: RETRY });
         }
 
+        // The grey comparison needs the artwork's own grid, so wait for the
+        // file: a printed sticker must not be refused because the logo was
+        // still in flight on a slow tablet.
+        return whenMarkReady().then(readFrame);
+    }
+
+    function readFrame() {
         var attempts = 0;
         var canvas = document.createElement('canvas');
 
@@ -559,7 +892,13 @@
                     return;
                 }
 
-                if ((result.verdict === 'dark' || result.verdict === 'unreadable') && attempts < 4) {
+                // A centre that is close to the mark - a print held at a
+                // glancing angle, caught mid-focus - is given the same second
+                // chances as a dark frame rather than being called fake on one
+                // unlucky frame.
+                var nearMiss = result.print && result.print.score >= PRINT_MATCH * 0.8;
+
+                if ((result.verdict === 'dark' || result.verdict === 'unreadable' || nearMiss) && attempts < 4) {
                     setTimeout(attempt, 150);
                     return;
                 }
@@ -585,7 +924,12 @@
         sealHolder: sealHolder,
         classify: classify,
         boxFor: boxFor,
+        quadFor: quadFor,
         verifyFrame: verifyFrame,
+        matchPrint: matchPrint,
+        artworkGrid: artworkGrid,
+        PRINT_MATCH: PRINT_MATCH,
+        GRID: GRID,
         checkScan: checkScan
     };
 });

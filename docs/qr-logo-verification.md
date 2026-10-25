@@ -61,6 +61,9 @@ correction level M (≈15% recoverable), so a scuffed sticker still scans.
    Verdicts: `sealed`, `missing`, `mismatch`, `dark`, `unreadable`. A dark or
    unreadable frame is retried before anything is decided, so bad light does not
    turn into a false accusation.
+   A centre with no colour in it at all - a label printed on the office's
+   black-only ribbon - is then compared, in grey, against the same artwork; see
+   the next section.
 3. **Payload verification.** `/qr/verify` checks the signature, opens the sealed
    body, and returns the asset only for a valid, unrevoked, registered sticker.
 4. **Authorisation and result.** The existing per-role rules decide what is
@@ -69,6 +72,43 @@ correction level M (≈15% recoverable), so a scuffed sticker still scans.
 Wired into: admin dashboard, admin pullout, employee request page, department
 head request page. NUTAG symbols have no centre to check and are skipped by the
 module (they are verified server-side by their own key).
+
+## Printing on a black-only ribbon (Zebra ZD230)
+
+The office's label printer has a black ribbon, so a printed sticker carries no
+navy and no gold: the plate prints black, the letter white, and the gold orbit
+as a mid-grey dither. Judging that print by hue would refuse the office's own
+labels, so the mark is also checked as a **shape**:
+
+- the artwork is reduced to a 16 × 16 grid of grey levels, built from the same
+  file the sticker prints (`/images/nu-trace-mark.jpg`), letterboxed in its
+  plate exactly as the label draws it;
+- the middle of the code is sampled the same way - the plate at roughly 19-25%
+  of the code's edge, with a few pixel offsets and all four rotations - with a
+  small patch averaged inside each cell, so a dithered print reads back as the
+  grey it represents;
+- brightness and contrast are normalised, so the lamp and the exposure do not
+  matter, and the two grids are correlated.
+
+Measured with the real artwork, dithered to one ink, blurred and noisy, at 0,
+15, 90 and 180 degrees, with the code 180-480 px across:
+
+| Centre | Score |
+| --- | --- |
+| Genuine printed mark | 0.71 – 0.91 |
+| A code from a QR website, no mark | 0.15 – 0.22 |
+| A dark square with a white disc in it | 0.54 – 0.62 |
+
+`PRINT_MATCH = 0.66` sits in that gap. A near miss (80% of it) is retried like
+a dark frame rather than refused on one unlucky image.
+
+This is a print check, not proof: a hand-made dark square with a bright blob in
+it can score close to the line, and an exact copy of the artwork still passes.
+The signature and the registered-asset check remain what make a payload real.
+
+Nothing changes for the sticker itself: the label still prints the colour
+artwork and the printer turns it into ink, and no re-print is needed for the
+reader to accept it.
 
 If the mark is missing or wrong the scan is refused with:
 
@@ -117,7 +157,13 @@ it dead at once.
   draw sealed codes.
 - `node scripts/qr-mark-check.cjs` — the classifier itself: a genuine centre is
   `sealed`, a plain black-and-white code is `missing`, another picture is
-  `mismatch`, a dark frame is `dark` (retry, not accusation).
+  `mismatch`, a dark frame is `dark` (retry, not accusation); a black-only print
+  has no colour (`missing`) but still passes the grey comparison, while an
+  ordinary code fails it.
+- Browser check of the grey comparison (the real artwork, the real module, in
+  Chromium, with a simulated one-ink print and camera blur): genuine 0.71-0.91,
+  no mark 0.15-0.22, plain dark plate with a white disc 0.54-0.62, threshold
+  0.66.
 - Full suite: run `php artisan test`.
 - Browser check: the real `qrcodejs` + `jsQR` + the real artwork, compiled and
   decoded in Chromium (see the session notes): a drawn sticker decodes and
@@ -131,9 +177,13 @@ it dead at once.
   physical check of the object can catch that.
 - **The check is a browser check.** It runs in the web scanners; the mobile app
   still relies on the signature and the registered-asset check alone.
-- **A good colour print of the logo on a forged code passes the mark check.**
-  It still has to pass the signature check to show any asset, which it cannot
-  without the signing key.
+- **A good print of the logo on a forged code passes the mark check** - in
+  colour or, now, in grey. It still has to pass the signature check to show any
+  asset, which it cannot without the signing key.
+- **A hand-made dark square with a bright blob is close to the line.** The grey
+  comparison rejects a code that was re-created without the logo (0.15-0.22), but
+  an image invented to look like a dark plate with a light mark can reach 0.6 and
+  is decided by a thin margin. Do not describe the mark as unforgeable.
 - **The stored PNG has no mark.** It exists for a browser with no JavaScript;
   every interactive surface draws the marked code instead.
 - **Very poor light or a badly scuffed centre is refused after a few retries.**

@@ -86,6 +86,11 @@ class QrSealTest extends TestCase
         $this->assertStringContainsString('checkScan', $served);
         // The mark's position is read from the corners a decoder returns.
         $this->assertStringContainsString('topLeftCorner', $served);
+        // And it is recognised in grey as well as in colour, because the
+        // office's label printer has a black ribbon and no colour at all.
+        $this->assertStringContainsString('matchPrint', $served);
+        $this->assertStringContainsString('PRINT_MATCH', $served);
+        $this->assertStringContainsString('artworkGrid', $served);
     }
 
     public function test_the_official_artwork_ships_with_the_app(): void
