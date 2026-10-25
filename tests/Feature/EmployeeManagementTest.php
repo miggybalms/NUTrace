@@ -418,6 +418,23 @@ class EmployeeManagementTest extends TestCase
             ->assertJsonPath('summary.invalid', 1);
     }
 
+    public function test_the_import_tab_has_no_size_limit_caption_and_a_status_column(): void
+    {
+        $response = $this->actingAs($this->admin)->get('/admin/employees?tab=import');
+
+        $response->assertOk();
+
+        // The caption above the file picker is gone; the input keeps its own
+        // accessible name.
+        $response->assertDontSee('CSV file (no size limit', false);
+        $response->assertSee('aria-label="CSV file"', false);
+
+        // The preview table reports a status per row, with a tick or a cross.
+        $response->assertDontSee('What happens', false);
+        $response->assertSee('<th class="px-4 py-3 text-left font-semibold">Status</th>', false);
+        $response->assertSee("'ri-check-line' : 'ri-close-line'", false);
+    }
+
     public function test_a_file_with_a_utf8_bom_and_the_exported_headings_is_imported(): void
     {
         // Exactly what "Download CSV" produces and what Excel saves: a UTF-8

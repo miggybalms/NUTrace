@@ -447,7 +447,7 @@
         {{-- ══════════════════════ IMPORT ══════════════════════ --}}
         @if($tab === 'import')
             <div class="px-4 sm:px-6 py-5">
-                <div class="max-w-3xl">
+                <div class="w-full">
                     <h3 class="font-display text-lg font-semibold text-[#0F2143] mb-1">Import the employee masterlist</h3>
                     <p class="text-sm text-[#5C6474] mb-4">
                         Download the template, fill it in, and check the file before importing. Nothing is written
@@ -460,8 +460,7 @@
                     </a>
 
                     <div class="card p-5">
-                        <label class="eyebrow block mb-2" for="import_file">CSV file (no size limit, up to {{ \App\Support\Csv::MAX_ROWS }} rows)</label>
-                        <input id="import_file" type="file" accept=".csv,.txt,text/csv" class="field w-full mb-3">
+                        <input id="import_file" type="file" accept=".csv,.txt,text/csv" class="field w-full mb-3" aria-label="CSV file">
 
                         <div class="flex flex-wrap gap-2">
                             <button type="button" class="btn-ghost" onclick="checkImport()">
@@ -820,7 +819,7 @@
                         <th class="px-4 py-3 text-left font-semibold">Name</th>
                         <th class="px-4 py-3 text-left font-semibold hidden md:table-cell">Email</th>
                         <th class="px-4 py-3 text-left font-semibold">Department</th>
-                        <th class="px-4 py-3 text-left font-semibold">What happens</th>
+                        <th class="px-4 py-3 text-left font-semibold">Status</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#F0EADB]">
@@ -832,7 +831,10 @@
                             <td class="px-4 py-3 hidden md:table-cell text-[#5B6678]">${escapeHtml(row.email) || '—'}</td>
                             <td class="px-4 py-3 text-[#5B6678]">${escapeHtml(row.department) || '—'}</td>
                             <td class="px-4 py-3">
-                                <span class="badge ${badgeClass(row.action)}">${badgeLabel(row)}</span>
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full ${badgeClass(row.action)}"
+                                      role="img" title="${escapeHtml(badgeLabel(row))}" aria-label="${escapeHtml(badgeLabel(row))}">
+                                    <i class="${row.action === 'import' ? 'ri-check-line' : 'ri-close-line'}"></i>
+                                </span>
                                 ${row.errors.length ? `<p class="text-xs mt-1.5 text-[#5C6474]">${row.errors.map(escapeHtml).join('<br>')}</p>` : ''}
                             </td>
                         </tr>`).join('')}
