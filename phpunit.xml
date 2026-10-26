@@ -33,6 +33,11 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
+        <!-- The QR resolver's limiter normally uses the file store (the app's
+             database cache has no table). Tests default to array so counters
+             cannot leak between cases; the resolver test that exercises the
+             real file store opts back in explicitly. -->
+        <env name="QR_LIMITER_STORE" value="array"/>
         <!-- Tests must never touch the live Supabase database. The suite runs
              against an in-memory SQLite schema (RefreshDatabase builds it from
              the migrations), so a test can be run on a train with no wifi. -->

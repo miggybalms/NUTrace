@@ -50,12 +50,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // endpoints carry them too.
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
-        // The phone app has no session and therefore no CSRF token: it posts a
-        // scanned sticker to /qr/resolve to have the server open it. That route
-        // only reads a payload and records the scan, so exempting it from the
-        // token keeps the mobile scanner working without touching the
-        // protection on any session-backed form.
-        $middleware->validateCsrfTokens(except: ['qr/resolve']);
+        // The two QR routes the phone calls are credential-in-header endpoints,
+        // not browser forms: /qr/session exchanges a password for a bearer
+        // token, and /qr/resolve accepts only that token. Neither reads a
+        // session cookie, so there is no ambient authority for a cross-site
+        // form to borrow - and a request that carries a cookie but no token is
+        // answered 401 by AuthenticateQrClient. Every other POST stays behind
+        // the CSRF token.
+        $middleware->validateCsrfTokens(except: ['qr/session', 'qr/resolve']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // An error response never travels back through the middleware stack, so

@@ -116,6 +116,12 @@ class QrOpaqueStickerTest extends TestCase
             ->json();
     }
 
+    /** The phone's credential: a signed bearer token, never a session cookie. */
+    private function tokenFor(User $user): string
+    {
+        return \App\Support\QrMobileToken::issue($user)['token'];
+    }
+
     /* ── 1. nothing readable on the paper ──────────────────────────────── */
 
     public function test_a_sticker_carries_no_readable_asset_code(): void
@@ -144,9 +150,10 @@ class QrOpaqueStickerTest extends TestCase
 
     /* ── 2. the phone asks, and gets the identifier only ───────────────── */
 
-    public function test_the_phone_endpoint_opens_a_sticker_without_a_session(): void
+    public function test_the_phone_endpoint_opens_a_sticker_for_a_signed_in_account(): void
     {
-        $response = $this->postJson('/qr/resolve', ['payload' => $this->payload('AST-0001')])
+        $response = $this->withHeader('Authorization', 'Bearer ' . $this->tokenFor($this->admin))
+            ->postJson('/qr/resolve', ['payload' => $this->payload('AST-0001')])
             ->assertOk()
             ->assertJsonPath('status', 'valid')
             ->assertJsonPath('code', 'AST-0001')
@@ -163,7 +170,9 @@ class QrOpaqueStickerTest extends TestCase
 
     public function test_the_phone_endpoint_refuses_an_empty_payload(): void
     {
-        $this->postJson('/qr/resolve', ['payload' => ''])->assertStatus(422);
+        $this->withHeader('Authorization', 'Bearer ' . $this->tokenFor($this->admin))
+            ->postJson('/qr/resolve', ['payload' => ''])
+            ->assertStatus(422);
     }
 
     /* ── 3. a different payload key is "unavailable", never "fake" ─────── */

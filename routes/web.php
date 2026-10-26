@@ -1167,20 +1167,101 @@ Route::get('/qr/public-keys', function () {
     ]);
 });
 
+// API: the phone's credential for opening sealed stickers.
+//
+// The mobile app authenticates against the users table, not against a Laravel
+// session, so it cannot present a cookie here. It presents the same email and
+// password it already signs in with, and receives a signed token that expires
+// (see App\Support\QrMobileToken). The password is verified with Hash::check
+// against the same bcrypt digest the web login uses; no password, token or key
+// is written to a log.
+//
+// Attempts are limited per (email, address) so this route cannot become a
+// password-guessing oracle. The response is deliberately identical for an
+// unknown address and a wrong password.
+Route::post('/qr/session', function (Request $request) {
+    $validated = $request->validate([
+        'email'    => 'required|string|max:255',
+        'password' => 'required|string|max:255',
+    ]);
+
+    $email = mb_strtolower(trim((string) $validated['email']));
+
+    try {
+        $limiter = new \Illuminate\Cache\RateLimiter(
+            \Illuminate\Support\Facades\Cache::store((string) config('qr.resolve.limiter_store', 'file'))
+        );
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::warning('QR login limiter store unavailable; falling back to a per-request store.', [
+            'error' => $e->getMessage(),
+        ]);
+
+        $limiter = new \Illuminate\Cache\RateLimiter(\Illuminate\Support\Facades\Cache::store('array'));
+    }
+
+    $address = (string) $request->ip();
+    $key = 'qr-session:' . hash('sha256', $email . '|' . $address);
+    $ipKey = 'qr-session:ip:' . hash('sha256', $address);
+    $perMinute = max(1, (int) config('qr.resolve.login_per_minute', 10));
+
+    // Two windows: one for this (email, address) pair, and a wider one for the
+    // address itself. Without the second, an attacker could rotate addresses
+    // freely and get a fresh budget for every guess.
+    foreach ([[$key, $perMinute], [$ipKey, $perMinute * 3]] as [$limitKey, $limit]) {
+        if ($limiter->tooManyAttempts($limitKey, $limit)) {
+            $retry = max(1, $limiter->availableIn($limitKey));
+
+            return response()->json([
+                'message'     => 'Too many sign-in attempts. Try again in a moment.',
+                'retry_after' => $retry,
+            ], 429)->header('Retry-After', (string) $retry);
+        }
+    }
+
+    $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+    // A hash is checked even when the address matches nobody, so the response
+    // time does not tell an attacker whether an account exists. The digest is a
+    // throwaway bcrypt of a fixed dummy string, not a credential.
+    $hash = $user ? (string) $user->password : '$2y$12$fJfGc4scgFKyMFFGQBbalevkS0vAJ3WWBpl/8EOJknhktZTbPS0MC';
+    $passwordOk = Hash::check((string) $validated['password'], $hash);
+
+    if (! $user || ! $passwordOk || Access::isInactive($user)) {
+        $limiter->hit($key, 60);
+        $limiter->hit($ipKey, 60);
+
+        return response()->json([
+            'message' => 'Those credentials do not match an active NU Trace account.',
+        ], 422);
+    }
+
+    $limiter->clear($key);
+
+    // A token must never sit in a shared HTTP cache.
+    return response()
+        ->json(\App\Support\QrMobileToken::issue($user))
+        ->header('Cache-Control', 'no-store');
+});
+
 // API: open a sealed sticker for the phone app.
 //
 // Version 2 stickers carry the asset code sealed, so the phone cannot read it
-// by itself the way it reads a printed v1 payload; it checks the signature on
-// the device (public keys) and asks here for the code behind the blob. Only
-// the identifier and the sticker's verdict come back - never asset details,
-// which the phone still resolves and scopes for itself.
+// by itself; it checks the signature on the device (public keys) and asks here
+// for the identifier behind the blob. This is the one place a sticker's text
+// can be turned into a code, so it is no longer anonymous: the caller must
+// present the bearer token from /qr/session, and the account's own permission
+// rules decide whether the identifier is returned at all.
 //
-// This is the one place a sticker's text can be turned into a code without a
-// session. It is not what stops a photocopy (nothing can): a printed copy of
-// the same blob resolves here just as well, which is why the same scan is
-// fingerprinted and checked for a second source. (No throttle middleware here:
-// this deployment's cache store is the database and has no `cache` table, so a
-// rate limiter would answer 500 instead of the sticker's verdict.)
+// What a copied blob still does is resolve for the account that presents it -
+// a QR code is text drawn as squares, and nothing here can tell a photocopy
+// from the original. The scan ledger (App\Support\QrScans) is what notices the
+// same sticker arriving from two sources, and revocation is what kills it.
+//
+// Only the verdict and the identifier travel. The phone resolves the asset row
+// itself (subject to Supabase's own policies), so no owner, department, photo
+// or location is sent from here. Rate limits are per account in
+// App\Http\Middleware\AuthenticateQrClient, which also rejects any request
+// that has no token - including one that carries a browser session cookie.
 Route::post('/qr/resolve', function (Request $request) {
     $scanned = trim((string) $request->input('payload', ''));
 
@@ -1188,7 +1269,15 @@ Route::post('/qr/resolve', function (Request $request) {
         return response()->json(['message' => 'payload missing'], 422);
     }
 
-    $verification = QrVerification::verify($scanned, null);
+    $user = $request->attributes->get('qrUser');
+
+    $verification = QrVerification::verify($scanned, $user);
+
+    // The code is the protected part. It is released only to an account the
+    // same rule already lets see the asset, and only when the payload resolved
+    // as one of ours. A revoked, forged or unknown sticker never carries it.
+    $releasable = in_array($verification['status'], [QrVerification::VALID, QrVerification::LEGACY], true)
+        && $verification['permitted'];
 
     return response()->json([
         'status'    => $verification['status'],
@@ -1198,10 +1287,10 @@ Route::post('/qr/resolve', function (Request $request) {
         'signed'    => $verification['signed'],
         'sealed'    => $verification['sealed'],
         'key_id'    => $verification['key_id'],
-        'code'      => $verification['code'],
+        'code'      => $releasable ? $verification['code'] : null,
         'duplicate' => $verification['duplicate'],
     ]);
-});
+})->middleware(\App\Http\Middleware\AuthenticateQrClient::class);
 
 // API: the signed payload for asset codes, so the screens that draw a QR in the
 // browser (the registry form and its QR modal) encode exactly what the stored

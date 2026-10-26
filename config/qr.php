@@ -152,4 +152,47 @@ return [
     */
     'duplicate_window_minutes' => (int) env('QR_DUPLICATE_WINDOW_MINUTES', 30),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mobile resolution: /qr/resolve and /qr/session
+    |--------------------------------------------------------------------------
+    |
+    | The phone has no Laravel session (it signs in against the users table with
+    | a password RPC), so it cannot use the browser's cookie. It therefore asks
+    | /qr/session once for a signed bearer token and presents that token when it
+    | needs a sealed sticker opened.
+    |
+    | The token is HMAC-SHA256 under a key derived from APP_KEY, holds no secret
+    | of its own, and cannot be minted without a valid password. Rotating
+    | APP_KEY invalidates every token (users sign in again); the tokens are
+    | stateless, so an individual one cannot be revoked early - that is the
+    | trade-off for not adding a sessions table.
+    |
+    | 'limiter_store' is a cache store name, not a database table. The app's
+    | default cache store is `database`, and this deployment has no `cache`
+    | table, so a rate limiter on the default store would answer 500. `file` is
+    | the one store that exists on every deployment without a migration; tests
+    | set QR_LIMITER_STORE=array so counters cannot leak between tests.
+    |
+    */
+    'resolve' => [
+
+        'limiter_store' => env('QR_LIMITER_STORE', 'file'),
+
+        // Per bearer token, per minute. A burst is a scanner retrying; a flood
+        // is abuse, and a real inventory session stays far below this.
+        'per_minute' => (int) env('QR_RESOLVE_PER_MINUTE', 60),
+
+        // Per bearer token, per day. Bounded so one leaked token cannot fill the
+        // scan ledger for weeks.
+        'per_day' => (int) env('QR_RESOLVE_PER_DAY', 2000),
+
+        // How long a phone stays signed in before it asks for a password again.
+        'token_ttl_days' => (int) env('QR_MOBILE_TOKEN_DAYS', 30),
+
+        // Password attempts per (email, address) per minute on /qr/session.
+        'login_per_minute' => (int) env('QR_MOBILE_LOGIN_PER_MINUTE', 10),
+
+    ],
+
 ];
